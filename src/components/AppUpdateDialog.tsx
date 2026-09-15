@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { appUpdate } from '@/ipc';
 import { X } from 'lucide-react';
 import { InterpreterLogoMark } from '@/components/InterpreterLogoMark';
@@ -88,7 +88,7 @@ export function AppUpdateDialog() {
     };
   }, [isInstalling]);
 
-  const handleDismiss = () => {
+  const handleDismiss = useCallback(() => {
     if (version) {
       trackUpdateAccepted({ version, action: 'dismissed' });
     }
@@ -97,9 +97,9 @@ export function AppUpdateDialog() {
     setIsInstalling(false);
     setErrorMessage(null);
     setDidInstallHintDelayExpire(false);
-  };
+  }, [version]);
 
-  const handleInstall = async () => {
+  const handleInstall = useCallback(async () => {
     if (version) {
       trackUpdateAccepted({ version, action: 'install_now' });
     }
@@ -117,7 +117,7 @@ export function AppUpdateDialog() {
       setErrorMessage(t('appUpdate.errorUnexpected'));
       setDidInstallHintDelayExpire(false);
     }
-  };
+  }, [t, version]);
 
   const installHintKey = getAppUpdateInstallHintKey({
     isInstalling,
@@ -129,7 +129,7 @@ export function AppUpdateDialog() {
   });
   const installHintMessage = installHintKey ? t(installHintKey) : null;
 
-  const content = version ? (
+  const content = useMemo(() => version ? (
     <div className="w-full max-w-[20rem] transition-all duration-300 ease-out animate-in fade-in slide-in-from-bottom-2">
       <div
         className="w-full overflow-hidden rounded-[16px] backdrop-blur-[10px]"
@@ -200,7 +200,16 @@ export function AppUpdateDialog() {
         </div>
       </div>
     </div>
-  ) : null;
+  ) : null, [
+    version,
+    t,
+    subtitleKey,
+    errorMessage,
+    installHintMessage,
+    isInstalling,
+    handleDismiss,
+    handleInstall,
+  ]);
 
   useLowerLeftNotice('app-update', content);
 
