@@ -6,7 +6,7 @@
  * Uses the shared AppToast visual styling for consistency.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Check, X } from 'lucide-react';
 import { useLowerLeftNotice } from '../../contexts/LowerLeftNoticesContext';
 import type { TtsInstallProgressEvent } from '../../../electron/ipc/registry';
@@ -255,7 +255,7 @@ export function ExtensionDownloadBar() {
         : onlyVoice ? 'Installing voice model...'
           : 'Installing recommended extensions...';
 
-  const content = dismissed || !hasRequiredInstalls ? null : (
+  const content = useMemo(() => dismissed || !hasRequiredInstalls ? null : (
     <div
       className={`
         w-full max-w-[20rem]
@@ -316,7 +316,19 @@ export function ExtensionDownloadBar() {
         )}
       </div>
     </div>
-  );
+  ), [
+    dismissed,
+    hasRequiredInstalls,
+    isComplete,
+    hasError,
+    isInstalling,
+    isIndeterminate,
+    label,
+    errorMessage,
+    progressPercent,
+    onlyTtsModel,
+    onlyVoice,
+  ]);
 
   useLowerLeftNotice('extension-download', content);
 
