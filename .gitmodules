@@ -6,3 +6,6 @@
 	path = submodules/interpreter-cua
 	url = https://github.com/openinterpreter/interpreter-cua.git
 	branch = main
+[submodule "submodules/basemind"]
+	path = submodules/basemind
+	url = https://github.com/jamon8888/basemind
