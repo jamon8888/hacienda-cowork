@@ -109,7 +109,9 @@ skills-lock.json
 .codex/
 opencode.json
 dist-cross/
-.opencode
+.opencode/*
+# ...except the committed Agent Skills installs, which are symlinks into skills/
+!.opencode/skills
 
 # Local scenario runner output
 scenario-runs/

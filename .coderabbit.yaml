@@ -1,0 +1,20 @@
+# CodeRabbit review configuration for Interpreter Workstation.
+# AGENTS.md is picked up automatically as review guidelines; the entries below
+# add per-area focus and wire reviews to the full CI signal.
+reviews:
+  path_instructions:
+    - path: "electron/**"
+      instructions: "Preload/IPC changes must preserve the per-agent permission boundary: every tool path enforces the effective agent scope, not a global workspace setting."
+    - path: "server/**"
+      instructions: "The agent runtime belongs to OIX; do not recreate provider catalogs or harness logic here. Flag anything that duplicates OIX runtime behavior."
+    - path: "apps/interpreter-extension/**"
+      instructions: "Pinned upstream submodule with its own release history; review against the pinned contract, do not propose behavior forks."
+    - path: "submodules/**"
+      instructions: "Pinned upstream code; keep attribution intact and avoid rewriting vendored logic."
+    - path: "distribution/**"
+      instructions: "Product overlays are configuration only; flag any change that forks application behavior per distribution."
+    - path: ".github/workflows/**"
+      instructions: "CI must stay green across the ubuntu verify, macOS e2e, Windows voice, and three-OS package-smoke jobs."
+  tools:
+    github-checks:
+      enabled: true
