@@ -71,6 +71,12 @@ vi.mock('@/ipc', () => ({
   vault: {
     getNoteContext: ipcMocks.getNoteContext,
   },
+  pii: {
+    getRehydrationMap: vi.fn(async () => ({})),
+    detectSelection: vi.fn(async () => ({ detections: [] })),
+    addCustomTerm: vi.fn(async () => ({ success: true, configPath: '/tmp/basemind.toml' })),
+    rememberRehydration: vi.fn(async () => ({ success: true })),
+  },
 }));
 
 vi.mock('../remote/workstationConnection', () => ({

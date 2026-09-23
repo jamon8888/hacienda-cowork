@@ -629,6 +629,24 @@ interface VaultIpc {
   searchNotes(request: { query: string; limit?: number }): Promise<{ results: VaultSearchResult[] }>;
 }
 
+/** #19: Show Originals rehydration, selection NER, gesture custom-term pin. */
+interface PiiIpc {
+  getRehydrationMap(request: { threadKey: string }): Promise<Record<string, string>>;
+  detectSelection(request: {
+    text: string;
+    categories?: string[];
+  }): Promise<{ detections: Array<{ category: string; start: number; end: number; text: string; confidence: number }> }>;
+  addCustomTerm(request: {
+    label: string;
+    value: string;
+    caseSensitive?: boolean;
+  }): Promise<{ success: boolean; configPath: string }>;
+  rememberRehydration(request: {
+    threadKey: string;
+    map: Record<string, string>;
+  }): Promise<{ success: boolean }>;
+}
+
 export interface WorkspaceScanStatus {
   redactionActive: boolean;
   indexing: boolean;
@@ -731,6 +749,18 @@ export const workspace = isRemoteWorkstationMode()
   ? remoteWorkstationWorkspaceIpc
   : isMarketingDemoMode() ? marketingDemoWorkspaceIpc : client.workspace;
 export const vault: VaultIpc = isMarketingDemoMode() ? marketingDemoVaultIpc : client.vault;
+export const pii: PiiIpc = isMarketingDemoMode()
+  ? {
+    getRehydrationMap: async () => ({}),
+    detectSelection: async () => ({ detections: [] }),
+    addCustomTerm: async () => {
+      throw new Error('Not available in demo mode');
+    },
+    rememberRehydration: async () => {
+      throw new Error('Not available in demo mode');
+    },
+  }
+  : (client.pii as PiiIpc);
 export const workspaceScan: WorkspaceScanIpc = isMarketingDemoMode()
   ? { status: async () => { throw new Error('Not available in demo mode'); } }
   : (client.workspaceScan as WorkspaceScanIpc);

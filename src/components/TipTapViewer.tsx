@@ -9,11 +9,20 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Highlight from '@tiptap/extension-highlight';
 import TaskList from '@tiptap/extension-task-list';
 import { useEffect, forwardRef, useImperativeHandle, useRef, useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import Underline from '@tiptap/extension-underline';
 import { DraggableTaskItem } from '../extensions/DraggableTaskItem';
 import { ResizableImage, type ResolveImageSrc } from '../extensions/ResizableImage';
 import { AnimationHighlight } from '../extensions/AnimationHighlight';
-import { openExternal, showContextMenu, vault, workspace, type ContextMenuItem } from '@/ipc';
+import { openExternal, pii, showContextMenu, vault, workspace, type ContextMenuItem } from '@/ipc';
+import { PiiLabel, type PiiLabelStorage } from '../extensions/PiiLabel';
+import {
+  buildRedactedText,
+  findRedactedTokens,
+  normalizePiiCategory,
+  PII_COLORS,
+  noteRehydrationKey,
+} from '../lib/pii';
 import { markdownToTiptap } from '../utils/markdown-parser';
 import { resolveLocalLinkTarget } from '../utils/localLinkDetection';
 import { shouldRefreshUnlinkedMentionCandidatesFromWorkspaceEvent } from '../utils/unlinkedMentionRefresh';
@@ -74,6 +83,14 @@ interface TipTapViewerProps {
   resolveImageSrc?: ResolveImageSrc;
   /** Return a container element for positioning the @ mention dropdown. */
   mentionContainer?: () => HTMLElement | null;
+  /** Show rehydrated originals over redacted tokens (view-only; never saved). */
+  showOriginals?: boolean;
+  /** Token→original map for Show Originals. */
+  rehydrationMap?: Record<string, string>;
+  /** Toggle Show Originals from the editor context menu. */
+  onToggleShowOriginals?: () => void;
+  /** Merge a gesture's rehydration pairs into the parent map. */
+  onRehydrationChange?: (map: Record<string, string>) => void;
 }
 
 interface ActiveUnlinkedMention {
@@ -158,8 +175,13 @@ export const TipTapViewer = forwardRef<TipTapViewerRef, TipTapViewerProps>(
     filePath,
     resolveImageSrc,
     mentionContainer,
+    showOriginals = true,
+    rehydrationMap = {},
+    onToggleShowOriginals,
+    onRehydrationChange,
   }, ref) {
   "use no memo";
+  const { t } = useTranslation();
 
   // Use ref to hold latest onUpdate callback to avoid stale closures
   const onUpdateRef = useRef(onUpdate);
@@ -261,6 +283,7 @@ export const TipTapViewer = forwardRef<TipTapViewerRef, TipTapViewerProps>(
           class: 'border border-border p-2',
         },
       }),
+      PiiLabel,
     ],
     content: content,
     editable: editable,
@@ -338,6 +361,19 @@ export const TipTapViewer = forwardRef<TipTapViewerRef, TipTapViewerProps>(
       }
     },
   });
+
+  // Sync PiiLabel storage (mode / Show Originals / map) and force a full
+  // decoration rebuild — storage edits alone do not re-run create().
+  useEffect(() => {
+    if (!viewer) return;
+    const storage = (viewer.storage as { piiLabel?: PiiLabelStorage }).piiLabel;
+    if (!storage) return;
+    storage.mode = editable ? 'compose' : 'view';
+    storage.showOriginals = showOriginals;
+    storage.rehydrationMap = rehydrationMap;
+    storage.tokenAriaLabel = (label) => t('basemind.pii.tokenAriaLabel', { category: label });
+    viewer.commands.updateDecorations('piiLabel');
+  }, [viewer, editable, showOriginals, rehydrationMap, t]);
 
   useEffect(() => {
     unlinkedMentionCandidatesRef.current = unlinkedMentionCandidates;
@@ -724,7 +760,7 @@ export const TipTapViewer = forwardRef<TipTapViewerRef, TipTapViewerProps>(
   }, [viewer]);
 
   // Markdown editor context menu items - defined in ONE place
-  const markdownMenuItems: ContextMenuItem[] = [
+  const markdownMenuItems: ContextMenuItem[] = useMemo(() => [
     { label: 'Cut', action: 'cut', accelerator: 'CmdOrCtrl+X' },
     { label: 'Copy', action: 'copy', accelerator: 'CmdOrCtrl+C' },
     { label: 'Paste', action: 'paste', accelerator: 'CmdOrCtrl+V' },
@@ -744,32 +780,155 @@ export const TipTapViewer = forwardRef<TipTapViewerRef, TipTapViewerProps>(
     { label: 'Numbered List', action: 'orderedList' },
     { label: 'Task List', action: 'taskList' },
     { label: 'Blockquote', action: 'blockquote' },
-  ];
+  ], []);
+
+  const applyPiiGesture = useCallback(async (
+    category: string,
+    options: { customLabel?: string; from: number; to: number; selectedText: string } | null,
+  ) => {
+    if (!viewer || !options || !filePath || options.from === options.to) return;
+    const current = viewer.state.doc.textBetween(options.from, options.to);
+    if (current !== options.selectedText) return;
+    const docText = viewer.state.doc.textBetween(0, viewer.state.doc.content.size, '\n');
+    const reserved = new Set(findRedactedTokens(docText).map((entry) => entry.token));
+    const { redactedText, rehydrationMap: gestureMap } = buildRedactedText(
+      options.selectedText,
+      [{ category, start: 0, end: options.selectedText.length, text: options.selectedText, confidence: 1 }],
+      reserved,
+    );
+    viewer.chain().focus().insertContentAt({ from: options.from, to: options.to }, redactedText).run();
+    try {
+      await pii.rememberRehydration({ threadKey: noteRehydrationKey(filePath), map: gestureMap });
+      onRehydrationChange?.(gestureMap);
+      // Both gesture kinds persist a custom_terms rule (spec decision 6):
+      // explicit labels use the user's wording; category picks fall back to
+      // the palette label so basemind matches future occurrences.
+      await pii.addCustomTerm({
+        label: options.customLabel
+          ?? PII_COLORS[normalizePiiCategory(category)]?.label
+          ?? category,
+        value: options.selectedText,
+      });
+    } catch (error) {
+      console.error('[TipTapViewer] PII gesture failed:', error);
+    }
+  }, [viewer, filePath, onRehydrationChange]);
 
   // Context menu handler - unified for both Electron and browser
   const handleContextMenu = useCallback(async (e: React.MouseEvent) => {
     if (!editable || !viewer) return;
 
-    // Prevent browser default and Electron's native context-menu
+    // Prevent browser default and Electron's native context-menu; stop the
+    // wrapper MarkdownViewer menu from double-firing on the same click.
     e.preventDefault();
+    e.stopPropagation();
 
-    // Show context menu with our items (works in both modes)
-    const action = await showContextMenu(markdownMenuItems, 'tiptap_viewer');
+    const selection = viewer.state.selection;
+    const gestureFrom = selection.from;
+    const gestureTo = selection.to;
+    const gestureText = gestureFrom !== gestureTo
+      ? viewer.state.doc.textBetween(gestureFrom, gestureTo)
+      : '';
+
+    let piiSubmenu: ContextMenuItem[] | undefined;
+    if (gestureText && filePath) {
+      const categories: string[] = [];
+      try {
+        const { detections } = await pii.detectSelection({ text: gestureText });
+        for (const detection of detections) {
+          if (!categories.includes(detection.category)) categories.push(detection.category);
+        }
+      } catch {
+        // NER unavailable — custom term still covers the gesture.
+      }
+      piiSubmenu = categories.map((category) => {
+        const entry = Object.prototype.hasOwnProperty.call(PII_COLORS, category)
+          ? PII_COLORS[category]
+          : undefined;
+        return { label: entry?.label ?? category, action: `pii:${category}` };
+      });
+      piiSubmenu.push({
+        label: t('basemind.pii.customTerm'),
+        action: 'pii:custom',
+      });
+    }
+
+    const items: ContextMenuItem[] = [
+      ...markdownMenuItems,
+      ...(filePath && onToggleShowOriginals
+        ? [
+          { label: '', action: '', separator: true },
+          {
+            label: showOriginals
+              ? t('basemind.pii.hideOriginals')
+              : t('basemind.pii.showOriginals'),
+            action: 'pii-show-originals',
+          },
+        ]
+        : []),
+      ...(piiSubmenu?.length
+        ? [
+          { label: '', action: '', separator: true },
+          {
+            label: t('basemind.pii.markAsPii'),
+            action: 'pii-mark',
+            submenu: piiSubmenu,
+          },
+        ]
+        : []),
+    ];
+
+    const action = await showContextMenu(items, 'tiptap_viewer');
 
     if (action) {
-      // Handle clipboard actions
       if (action === 'cut') {
         document.execCommand('cut');
       } else if (action === 'copy') {
         document.execCommand('copy');
       } else if (action === 'paste') {
         document.execCommand('paste');
+      } else if (action === 'pii-show-originals') {
+        onToggleShowOriginals?.();
+      } else if (action.startsWith('pii:') && gestureText && filePath) {
+        const category = action.slice('pii:'.length);
+        if (category === 'custom') {
+          const customLabel = window.prompt(t('basemind.pii.customTermPrompt'), gestureText);
+          if (customLabel === null) return;
+          const label = customLabel.trim() || gestureText;
+          // Token labels must match TOKEN_RE: [A-Za-z][A-Za-z0-9_]*
+          const tokenCategory = label
+            .toUpperCase()
+            .replace(/[^A-Z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '') || 'CUSTOM';
+          await applyPiiGesture(/^[A-Z]/.test(tokenCategory) ? tokenCategory : `CUSTOM_${tokenCategory}`, {
+            customLabel: label,
+            from: gestureFrom,
+            to: gestureTo,
+            selectedText: gestureText,
+          });
+        } else {
+          await applyPiiGesture(category, {
+            from: gestureFrom,
+            to: gestureTo,
+            selectedText: gestureText,
+          });
+        }
       } else {
-        // Handle formatting actions
         applyFormat(action);
       }
     }
-  }, [editable, viewer, applyFormat]);
+  }, [
+    editable,
+    viewer,
+    applyFormat,
+    filePath,
+    markdownMenuItems,
+    onToggleShowOriginals,
+    onRehydrationChange,
+    showOriginals,
+    t,
+    applyPiiGesture,
+  ]);
 
   const handleLinkUnlinkedMention = useCallback(() => {
     if (!viewer || !activeUnlinkedMention) {

@@ -1,8 +1,20 @@
 import { Router, Request, Response, raw } from 'express';
+import {
+  maybeRedactOutboundText,
+  mergeRuntimeRehydrationMap,
+  getRuntimeRehydrationMap,
+  deleteRuntimeRehydrationMap,
+} from '../services/runtimeRedaction';
+import { persistThreadRehydrationMap } from '../services/rehydrationPersistence';
+import { shouldBlockAttachmentSend } from '../../src/lib/pii/redaction';
+import { piiDetectionService } from '../services/piiDetection';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
-import { getCustomInstructions } from '../configStore';
+import { existsSync } from 'node:fs';
+import { getCustomInstructions, getLanguage } from '../configStore';
+import { isDaemonRunning } from '../utils/basemindManager';
+import { resources, supportedLanguages } from '../../shared/locales';
 import { getServerJWT } from '../lib/jwtStore';
 import { AgentModelConfig } from '../../shared/types/model';
 import { messageQueueStore } from '../utils/messageQueueStore';
@@ -972,14 +984,60 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
     console.log(
       `[AGENT] runtime_resolved selection=${request.selection} profileId=${request.selection === 'stored-profile' ? request.profileId : 'none'} agentId=${request.agentId ?? 'none'} threadId=${targetThreadId ?? 'new'} model=${resolvedRequest.requestedModel ?? resolvedRequest.profile.model ?? 'unknown'} provider=${resolvedRequest.profile.modelProvider} workspacePath=${JSON.stringify(workspacePath)}`,
     );
+    // NOTE(linked-file-redaction): outbound free text is tokenized before the
+    // provider sees it (#19). Gated on workspace safe/; an unknown path fails
+    // closed inside maybeRedactOutboundText. New threads have no id yet, so a
+    // provisional key holds the map until the thread event re-keys it.
+    const outboundThreadKey = targetThreadId ?? `pending-${runningAgentId}`;
+    let outboundMessage = rawMessage;
+    let outboundSystem = request.system;
+    const outboundArmed = existsSync(path.join(workspacePath, 'safe'));
+    if (outboundArmed) {
+      if (shouldBlockAttachmentSend({
+        hasAttachmentPayload: attachments.length > 0,
+        // Blocked only when detection truly cannot run: daemon down OR model
+        // files missing. A ready model behind a dead daemon still fails closed.
+        nerFailed: !(isDaemonRunning() && piiDetectionService.isPiiModelReady()),
+      })) {
+        // ChatView surfaces send errors as raw err.message, so the user-facing
+        // sentence is localized here rather than translated in the renderer.
+        const language = await getLanguage();
+        const locale = language && (supportedLanguages as readonly string[]).includes(language)
+          ? (language as keyof typeof resources)
+          : 'en';
+        throw new Error(
+          resources[locale].translation['basemind.attachmentRedactionUnavailable'],
+        );
+      }
+      if (outboundMessage) {
+        outboundMessage = (await maybeRedactOutboundText(outboundMessage, {
+          workspacePath,
+          threadKey: outboundThreadKey,
+        })).text;
+      }
+      if (outboundSystem) {
+        outboundSystem = (await maybeRedactOutboundText(outboundSystem, {
+          workspacePath,
+          threadKey: outboundThreadKey,
+        })).text;
+      }
+      if (targetThreadId) {
+        // Existing thread: persist immediately. New threads re-key + persist
+        // on the thread event below.
+        void persistThreadRehydrationMap(
+          targetThreadId,
+          getRuntimeRehydrationMap(targetThreadId),
+        );
+      }
+    }
     const runtimeResult = await runCodexAgentTurn({
       service,
       profile: resolvedRequest.profile,
       requestedModel: resolvedRequest.requestedModel,
       usesChatGptAuth: resolvedRequest.isChatGptProfile,
       workspacePath,
-      message: rawMessage,
-      system: request.system,
+      message: outboundMessage,
+      system: outboundSystem,
       attachments,
       skills: explicitSkills,
       threadId: targetThreadId,
@@ -1004,6 +1062,16 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
       onEvent: (event) => {
         if (event.kind === 'thread') {
           activeThreadId = event.threadId;
+          // Re-key the provisional outbound map onto the real thread id, then
+          // persist so a reveal survives restart for first-message tokens.
+          if (outboundArmed && outboundThreadKey !== event.threadId) {
+            const provisionalMap = getRuntimeRehydrationMap(outboundThreadKey);
+            if (Object.keys(provisionalMap).length > 0) {
+              mergeRuntimeRehydrationMap(event.threadId, provisionalMap);
+              deleteRuntimeRehydrationMap(outboundThreadKey);
+              void persistThreadRehydrationMap(event.threadId, provisionalMap);
+            }
+          }
           emit('thread', { threadId: event.threadId });
           return;
         }
