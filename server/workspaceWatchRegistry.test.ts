@@ -39,12 +39,15 @@ class MockFileWatcherManager {
 
 const mockManagers: MockFileWatcherManager[] = [];
 const invalidateMock = mock((_path: string) => {});
+const safeSyncHookMock = mock((_workspaceKey: string, _relativePath: string) => {});
+const safeSyncClearMock = mock((_workspaceKey: string) => {});
 
 const {
   bindWindowSessionWorkspace,
   shouldInvalidateVaultIndexForWorkspaceEvent,
   setWorkspaceWatchManagerFactoryForTests,
   setWorkspaceWatchThumbnailServiceForTests,
+  setWorkspaceWatchSafeSyncForTests,
   stopAllWorkspaceWatches,
   unbindWindowSessionWorkspace,
 } = await import('./workspaceWatchRegistry');
@@ -56,8 +59,14 @@ describe('workspaceWatchRegistry', () => {
     await stopAllWorkspaceWatches();
     mockManagers.length = 0;
     invalidateMock.mockClear();
+    safeSyncHookMock.mockClear();
+    safeSyncClearMock.mockClear();
     setWorkspaceWatchManagerFactoryForTests(() => new MockFileWatcherManager());
     setWorkspaceWatchThumbnailServiceForTests({ invalidate: invalidateMock });
+    setWorkspaceWatchSafeSyncForTests({
+      schedule: safeSyncHookMock,
+      clear: safeSyncClearMock,
+    });
     tempRoot = await mkdtemp(join(tmpdir(), 'workspace-watch-registry-'));
   });
 
@@ -65,6 +74,7 @@ describe('workspaceWatchRegistry', () => {
     await stopAllWorkspaceWatches();
     setWorkspaceWatchManagerFactoryForTests(null);
     setWorkspaceWatchThumbnailServiceForTests(null);
+    setWorkspaceWatchSafeSyncForTests(null);
     await rm(tempRoot, { recursive: true, force: true });
   });
 
@@ -192,5 +202,47 @@ describe('workspaceWatchRegistry', () => {
     expect(shouldInvalidateVaultIndexForWorkspaceEvent('change', 'images/example.png')).toBe(false);
     expect(shouldInvalidateVaultIndexForWorkspaceEvent('addDir', 'notes')).toBe(true);
     expect(shouldInvalidateVaultIndexForWorkspaceEvent('unlinkDir', 'notes')).toBe(true);
+  });
+
+  test('safe-sync hook receives file events that pass the ignore predicate', async () => {
+    const workspacePath = '/workspace';
+    await bindWindowSessionWorkspace('session-a', workspacePath);
+    const manager = mockManagers[0];
+
+    manager.emit('change', 'docs/report.docx', 1);
+    manager.emit('add', 'notes.txt', 2);
+    manager.emit('unlink', 'old.docx', 3);
+
+    expect(safeSyncHookMock).toHaveBeenCalledTimes(3);
+    expect(safeSyncHookMock.mock.calls[0][0]).toBe('/workspace');
+    expect(safeSyncHookMock.mock.calls[0][1]).toBe('docs/report.docx');
+  });
+
+  test('safe-sync hook is not called for safe/ paths (any case) or directory events', async () => {
+    const workspacePath = '/workspace';
+    await bindWindowSessionWorkspace('session-a', workspacePath);
+    const manager = mockManagers[0];
+
+    manager.emit('change', 'safe/report.md', 1);
+    manager.emit('change', 'Safe/report.md', 2);
+    manager.emit('change', '.basemind/idx', 3);
+    manager.emit('addDir', 'safe', 4);
+    manager.emit('change', 'docs/report.docx', 5);
+
+    expect(safeSyncHookMock).toHaveBeenCalledTimes(1);
+    expect(safeSyncHookMock.mock.calls[0][1]).toBe('docs/report.docx');
+  });
+
+  test('releasing the last watch clears pending safe-sync work for that workspace', async () => {
+    const workspacePath = '/workspace';
+    await bindWindowSessionWorkspace('session-a', workspacePath);
+    mockManagers[0].emit('change', 'docs/report.docx', 1);
+    expect(safeSyncHookMock).toHaveBeenCalledTimes(1);
+    expect(safeSyncClearMock).not.toHaveBeenCalled();
+
+    await unbindWindowSessionWorkspace('session-a');
+
+    expect(safeSyncClearMock).toHaveBeenCalledTimes(1);
+    expect(safeSyncClearMock.mock.calls[0][0]).toBe('/workspace');
   });
 });
