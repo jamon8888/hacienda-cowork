@@ -146,6 +146,16 @@ export const TOP_NOTICE_ID = (noticeId: string) => `top-notice-${noticeId}` as c
 export const TOP_NOTICE_DISMISS_BUTTON_ID = (noticeId: string) => `top-notice-dismiss-${noticeId}` as const;
 
 // =============================================================================
+// SAFE BANNER (basemind workspace-open onboarding)
+// =============================================================================
+export const SAFE_BANNER_ID = 'safe-banner' as const;
+export const SAFE_BANNER_CTA_BUTTON_ID = 'safe-banner-cta-button' as const;
+export const SAFE_BANNER_LATER_BUTTON_ID = 'safe-banner-later-button' as const;
+export const SAFE_BANNER_LEARN_MORE_BUTTON_ID = 'safe-banner-learn-more-button' as const;
+export const SAFE_BANNER_RETRY_BUTTON_ID = 'safe-banner-retry-button' as const;
+export const SAFE_BANNER_STATUS_ID = 'safe-banner-status' as const;
+
+// =============================================================================
 // SIDEBAR BUTTONS
 // =============================================================================
 export const EXPLORER_BUTTON_ID = 'explorer-button' as const;
@@ -392,6 +402,14 @@ export const ELEMENT_IDS = {
   interviewInviteDismissButton: INTERVIEW_INVITE_DISMISS_BUTTON_ID,
   topNotice: TOP_NOTICE_ID,
   topNoticeDismissButton: TOP_NOTICE_DISMISS_BUTTON_ID,
+
+  // === SAFE BANNER ===
+  safeBanner: SAFE_BANNER_ID,
+  safeBannerCtaButton: SAFE_BANNER_CTA_BUTTON_ID,
+  safeBannerLaterButton: SAFE_BANNER_LATER_BUTTON_ID,
+  safeBannerLearnMoreButton: SAFE_BANNER_LEARN_MORE_BUTTON_ID,
+  safeBannerRetryButton: SAFE_BANNER_RETRY_BUTTON_ID,
+  safeBannerStatus: SAFE_BANNER_STATUS_ID,
 
   // === SIDEBAR BUTTONS ===
   explorerButton: EXPLORER_BUTTON_ID,

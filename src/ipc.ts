@@ -629,6 +629,34 @@ interface VaultIpc {
   searchNotes(request: { query: string; limit?: number }): Promise<{ results: VaultSearchResult[] }>;
 }
 
+export interface WorkspaceScanStatus {
+  redactionActive: boolean;
+  indexing: boolean;
+  fileCount: number;
+  lastScanAt: string | null;
+  xbergAvailable: boolean;
+  basemindAvailable: boolean;
+  resourcesReady: {
+    nerModel: boolean;
+    embeddings: boolean;
+    reranker: boolean;
+  };
+}
+
+interface WorkspaceScanIpc {
+  status(): Promise<WorkspaceScanStatus>;
+}
+
+interface BasemindDownloadResult {
+  stages: Array<{ stage: string; success: boolean; error?: string }>;
+  success: boolean;
+}
+
+/** Renderer surface for #20: only download is called from the UI. */
+interface BasemindIpc {
+  download(stage?: 'embeddings' | 'reranker' | 'nerModel'): Promise<BasemindDownloadResult>;
+}
+
 interface ProjectRunnerIpc {
   start(projectPath: string): Promise<{ success: boolean; state: ProjectRunnerState; error?: string }>;
   stop(projectPath: string): Promise<{ success: boolean; state: ProjectRunnerState; error?: string }>;
@@ -703,6 +731,14 @@ export const workspace = isRemoteWorkstationMode()
   ? remoteWorkstationWorkspaceIpc
   : isMarketingDemoMode() ? marketingDemoWorkspaceIpc : client.workspace;
 export const vault: VaultIpc = isMarketingDemoMode() ? marketingDemoVaultIpc : client.vault;
+export const workspaceScan: WorkspaceScanIpc = isMarketingDemoMode()
+  ? { status: async () => { throw new Error('Not available in demo mode'); } }
+  : (client.workspaceScan as WorkspaceScanIpc);
+export const basemind: BasemindIpc = isMarketingDemoMode()
+  ? {
+    download: async () => { throw new Error('Not available in demo mode'); },
+  }
+  : (client.basemind as BasemindIpc);
 export const setup = client.setup;
 export const computerUseSetup: ComputerUseSetupIpc = {
   onRequested: (callback) => client.computerUseSetup.onRequested(callback),
