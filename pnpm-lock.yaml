@@ -383,8 +383,8 @@ importers:
         specifier: 1.7.0
         version: 1.7.0(react@19.3.0)
       whatsapp-rust-bridge:
-        specifier: 0.6.0-alpha.42
-        version: 0.6.0-alpha.42(patch_hash=yh4pqya7t45lhhrwczokoiso5u)
+        specifier: 0.6.0-alpha.44
+        version: 0.6.0-alpha.44
       ws:
         specifier: 8.21.3
         version: 8.21.3
@@ -8998,6 +8998,9 @@ packages:
 
   whatsapp-rust-bridge@0.6.0-alpha.42:
     resolution: {integrity: sha512-PfEWoKwRA8f186rroyq+ILX196OBGM2jPsgCLxmTxsa4eMmg/9ZAw/B6K3Hd+jpmlMWGiKXvd1RcjHNejBbX3g==}
+
+  whatsapp-rust-bridge@0.6.0-alpha.44:
+    resolution: {integrity: sha512-zq6yh7sIqxTnQk4D53M/QnllDZa8BNeBVnYx/T1Iew+SZuW9pcrMVkvHvi94gL6Ipczg6gVoCPoM1Q4ZzIoelQ==}
 
   whatwg-fetch@3.6.20:
     resolution: {integrity: sha512-EqhiFU6daOA8kpjOWTL0olhVOF3i7OrFzSYiGsEMB8GcXS+RrzauAERX65xMeNWVqxA6HXH2m69Z9LaKKdisfg==}
@@ -18404,6 +18407,8 @@ snapshots:
       - uglify-js
 
   whatsapp-rust-bridge@0.6.0-alpha.42(patch_hash=yh4pqya7t45lhhrwczokoiso5u): {}
+
+  whatsapp-rust-bridge@0.6.0-alpha.44: {}
 
   whatwg-fetch@3.6.20: {}
 

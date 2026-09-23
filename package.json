@@ -331,7 +331,7 @@
     "unist-util-visit": "5.1.0",
     "use-stick-to-bottom": "1.1.6",
     "use-sync-external-store": "1.7.0",
-    "whatsapp-rust-bridge": "0.6.0-alpha.42",
+    "whatsapp-rust-bridge": "0.6.0-alpha.44",
     "ws": "8.21.3",
     "xml-formatter": "3.7.0",
     "zod": "4.6.5"
