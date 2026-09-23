@@ -171,6 +171,26 @@ const handlers: Record<string, Record<string, HandlerFn>> = {
     },
   },
 
+  // ========== PII (#19: Show Originals, selection NER, custom terms) ==========
+  pii: {
+    getRehydrationMap: async ([request]: [{ threadKey: string }]) => {
+      const { getRehydrationMap } = await import('../handlers/pii');
+      return getRehydrationMap(request);
+    },
+    detectSelection: async ([request]: [{ text: string; categories?: string[] }]) => {
+      const { detectSelection } = await import('../handlers/pii');
+      return detectSelection(request);
+    },
+    addCustomTerm: async ([request]: [{ label: string; value: string; caseSensitive?: boolean }]) => {
+      const { addCustomTerm } = await import('../handlers/pii');
+      return addCustomTerm(request);
+    },
+    rememberRehydration: async ([request]: [{ threadKey: string; map: Record<string, string> }]) => {
+      const { rememberRehydration } = await import('../handlers/pii');
+      return rememberRehydration(request);
+    },
+  },
+
   // ========== Workspace Scan (basemind) ==========
   workspaceScan: {
     status: async () => {
