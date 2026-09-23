@@ -160,6 +160,7 @@ const TOOL_DISPLAY_INTERNAL = {
   interpreter_get: { category: 'workstation', verb: { active: 'Viewing Interpreter', past: 'Viewed Interpreter' } },
   interpreter_set: { category: 'workstation', verb: { active: 'Updating Interpreter layout', past: 'Updated Interpreter layout' } },
   interpreter_vault: { category: 'workstation', verb: { active: 'Inspecting note graph', past: 'Inspected note graph' } },
+  interpreter_workspace_search: { category: 'workstation', verb: { active: 'Searching workspace', past: 'Searched workspace' } },
   interpreter_settings_get: { category: 'workstation', verb: { active: 'Viewing settings', past: 'Viewed settings' } },
   interpreter_settings_set: { category: 'workstation', verb: { active: 'Updating settings', past: 'Updated settings' } },
   interpreter_custom_instructions_get: { category: 'workstation', verb: { active: 'Reading custom instructions', past: 'Read custom instructions' } },

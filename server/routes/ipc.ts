@@ -171,6 +171,57 @@ const handlers: Record<string, Record<string, HandlerFn>> = {
     },
   },
 
+  // ========== Workspace Scan (basemind) ==========
+  workspaceScan: {
+    status: async () => {
+      const { getWorkspaceScanStatus } = await import('../handlers/workspaceScan');
+      return getWorkspaceScanStatus();
+    },
+  },
+
+  // ========== Search (basemind code/document search) ==========
+  search: {
+    searchCode: async ([params]: [import('../handlers/search').SearchCodeParams]) => {
+      const { basemindSearchCode } = await import('../handlers/search');
+      return basemindSearchCode(params);
+    },
+    getRerankerEnabled: async () => {
+      const { getRerankerState } = await import('../handlers/rerankerPreference');
+      return getRerankerState();
+    },
+    getRerankerDefault: async () => {
+      const { getRerankerDefault } = await import('../handlers/rerankerPreference');
+      return { enabled: await getRerankerDefault() };
+    },
+    setRerankerEnabled: async ([value]: [boolean | null]) => {
+      const { setRerankerEnabled } = await import('../handlers/rerankerPreference');
+      return setRerankerEnabled(value);
+    },
+  },
+
+  // ========== Basemind MCP Server Lifecycle ==========
+  // No download/clearCache endpoints yet — phase-2 / #22.
+  basemind: {
+    register: async () => {
+      const { registerBasemindServer } = await import('../utils/basemindManager');
+      const serverId = await registerBasemindServer();
+      return { serverId };
+    },
+    unregister: async () => {
+      const { unregisterBasemindServer } = await import('../utils/basemindManager');
+      await unregisterBasemindServer();
+      return { success: true };
+    },
+    status: async () => {
+      const { getBasemindServerStatus } = await import('../utils/basemindManager');
+      return getBasemindServerStatus();
+    },
+    cpuFeatures: async () => {
+      const { cpuFeaturesWithBuild } = await import('../handlers/cpuFeatures');
+      return cpuFeaturesWithBuild();
+    },
+  },
+
   // ========== Settings ==========
   settings: {
     get: async () => {
