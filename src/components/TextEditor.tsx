@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { readFile, writeFile } from '../api';
 import { EDITOR_CONTENT_ID } from '../../shared/element-ids';
 import { Textarea } from './ui/textarea';
@@ -14,6 +15,7 @@ interface TextEditorProps {
 const LOADING_DELAY_MS = 150;
 
 export function TextEditor({ filePath }: TextEditorProps) {
+  const { t } = useTranslation();
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [showLoading, setShowLoading] = useState(false);
@@ -146,7 +148,7 @@ export function TextEditor({ filePath }: TextEditorProps) {
   if (loading && showLoading) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
-        Loading file...
+        {t('editors.textLoading')}
       </div>
     );
   }
@@ -164,20 +166,20 @@ export function TextEditor({ filePath }: TextEditorProps) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center space-y-3">
-          <div className="text-muted-foreground">Unable to load this file</div>
-          <div className="flex items-center justify-center gap-2">
-            <button
-              onClick={() => loadFile()}
-              className="px-3 py-1.5 text-ui-base rounded-control bg-muted hover:bg-muted/80 text-foreground transition-colors"
-            >
-              Try again
-            </button>
-            <button
-              onClick={() => openFeedbackPopover()}
-              className="px-3 py-1.5 text-ui-base rounded-control bg-muted hover:bg-muted/80 text-foreground transition-colors"
-            >
-              Report bug
-            </button>
+            <div className="text-muted-foreground">{t('viewers.videoError')}</div>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => loadFile()}
+                className="px-3 py-1.5 text-ui-base rounded-control bg-muted hover:bg-muted/80 text-foreground transition-colors"
+              >
+                {t('common.tryAgain')}
+              </button>
+              <button
+                onClick={() => openFeedbackPopover()}
+                className="px-3 py-1.5 text-ui-base rounded-control bg-muted hover:bg-muted/80 text-foreground transition-colors"
+              >
+                {t('viewers.videoReport')}
+              </button>
           </div>
         </div>
       </div>

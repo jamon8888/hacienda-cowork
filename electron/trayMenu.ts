@@ -1,4 +1,5 @@
 import type { MenuItemConstructorOptions } from 'electron';
+import type { LocaleKey } from '../shared/locales';
 
 export interface TrayRunningAgent {
   agentId: string;
@@ -19,7 +20,7 @@ function compactAgentLabel(agent: TrayRunningAgent): string {
 
 export function buildInterpreterTrayMenuTemplate(options: {
   state: InterpreterTrayMenuState;
-  translate: (key: string) => string;
+  translate: (key: LocaleKey) => string;
   showMainWindow: () => void;
   showOverlay: () => void;
   revealAgent: (agentId: string) => void;
@@ -35,7 +36,7 @@ export function buildInterpreterTrayMenuTemplate(options: {
 
   if (options.state.overlayEnabled) {
     menuItems.push({
-      label: 'Show Overlay',
+      label: options.translate('tray.showOverlay'),
       accelerator: options.state.accelerator ?? undefined,
       click: options.showOverlay,
     });
@@ -45,16 +46,16 @@ export function buildInterpreterTrayMenuTemplate(options: {
     menuItems.push(
       { type: 'separator' },
       {
-        label: 'Running agents',
+        label: options.translate('tray.runningAgents'),
         submenu: options.state.runningAgents.map((agent) => ({
           label: compactAgentLabel(agent),
           submenu: [
             {
-              label: 'Reveal',
+              label: options.translate('tray.reveal'),
               click: () => options.revealAgent(agent.agentId),
             },
             {
-              label: 'Stop',
+              label: options.translate('tray.stop'),
               click: () => options.stopAgent(agent.agentId),
             },
           ],

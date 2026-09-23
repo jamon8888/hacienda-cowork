@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { PDF_MULTI_SELECT_TOOLBAR_ID } from '../../shared/element-ids';
 import { Button } from './ui/button';
 import { Separator } from './ui/separator';
@@ -23,6 +24,7 @@ export function MultiSelectToolbar({
   onDeleteAnnotations,
   onClose
 }: MultiSelectToolbarProps) {
+  const { t } = useTranslation();
   const toolbarRef = useRef<HTMLDivElement>(null);
 
   const totalCount = selectedAnnotationCount + selectedFormFieldCount + selectedTextSpanCount;
@@ -94,9 +96,9 @@ export function MultiSelectToolbar({
           variant="ghost"
           size="xs"
           className="px-2.5"
-          title={`Copy selected text (${formatPrimaryShortcut('C')})`}
+          title={t('multiselect.copyTitle', { shortcut: formatPrimaryShortcut('C') })}
         >
-          Copy Text
+          {t('multiselect.copyText')}
         </Button>
       )}
 
@@ -107,9 +109,9 @@ export function MultiSelectToolbar({
           variant="ghost"
           size="xs"
           className="px-2.5 text-[var(--oa-danger)] hover:bg-[var(--oa-danger-soft)] hover:text-[var(--oa-danger)]"
-          title="Delete selected annotations (Delete)"
+          title={t('multiselect.deleteTitle')}
         >
-          Delete ({selectedAnnotationCount})
+          {t('multiselect.deleteCount', { count: selectedAnnotationCount })}
         </Button>
       )}
     </div>

@@ -132,7 +132,7 @@ export function ChatView({ tabId: _tabId, threadId, channel }: ChatViewProps) {
       <div className="flex h-full items-center justify-center px-6">
         <div className="flex flex-col items-center gap-3 text-center">
           <Loader2 className="size-6 animate-spin text-[var(--oa-text-faint)]" />
-          <p className="text-ui-sm text-[var(--oa-text-muted)]">Loading conversation…</p>
+          <p className="text-ui-sm text-[var(--oa-text-muted)]">{t('chat.loading')}</p>
         </div>
       </div>
     );
@@ -145,10 +145,10 @@ export function ChatView({ tabId: _tabId, threadId, channel }: ChatViewProps) {
           <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--destructive)_9%,transparent)] text-destructive">
             <ChannelIcon className="size-5" />
           </div>
-          <p className="mt-4 text-ui-base font-medium text-[var(--oa-text-strong)]">Failed to load chat</p>
+          <p className="mt-4 text-ui-base font-medium text-[var(--oa-text-strong)]">{t('chat.failed')}</p>
           <p className="mt-2 text-ui-sm leading-6 text-[var(--oa-text-muted)]">{error}</p>
           <Button variant="secondary" size="sm" onClick={fetchThread} className="mt-5 rounded-full">
-            Retry
+            {t('chat.retry')}
           </Button>
         </div>
       </div>
@@ -180,7 +180,7 @@ export function ChatView({ tabId: _tabId, threadId, channel }: ChatViewProps) {
           </div>
           <div className="hidden shrink-0 text-right sm:block">
             <div className="text-ui-xs text-[var(--oa-text-faint)]">
-              {messageCount === 0 ? 'No messages yet' : `${messageCount} message${messageCount === 1 ? '' : 's'}`}
+              {messageCount === 0 ? t('chat.noMessages') : t('chat.messageCount', { count: messageCount })}
             </div>
           </div>
         </div>
@@ -190,7 +190,7 @@ export function ChatView({ tabId: _tabId, threadId, channel }: ChatViewProps) {
         <div className={`${contentWidthClass} space-y-3`}>
           {messageCount === 0 ? (
             <div className="py-10 text-center text-ui-sm text-[var(--oa-text-muted)]">
-              This thread does not have messages yet.
+              {t('chat.empty')}
             </div>
           ) : (
             thread?.messages.map((msg) => (
@@ -254,7 +254,7 @@ export function ChatView({ tabId: _tabId, threadId, channel }: ChatViewProps) {
           <Input
             ref={inputRef}
             type="text"
-            placeholder="Write a reply"
+            placeholder={t('chat.replyPlaceholder')}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             className="min-h-[var(--oa-control-h-lg)] flex-1 rounded-[18px] border-[var(--oa-border)] bg-[var(--oa-bg-input)] px-4"

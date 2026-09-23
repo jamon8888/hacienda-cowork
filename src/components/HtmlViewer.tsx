@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { HTML_VIEWER_ID } from '../../shared/element-ids';
 import { TextEditor } from './TextEditor';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
@@ -16,6 +17,7 @@ interface HtmlViewerProps {
 }
 
 export function HtmlViewer({ filePath, refreshKey = 0 }: HtmlViewerProps) {
+  const { t } = useTranslation();
   const { showToast } = useToast();
   const [htmlContent, setHtmlContent] = useState<string | null>(null);
   const [error, setError] = useState(false);
@@ -63,10 +65,10 @@ export function HtmlViewer({ filePath, refreshKey = 0 }: HtmlViewerProps) {
       <div className="voice-focus-content-toolbar px-2 flex items-center justify-end" style={{ height: 'var(--unit-height)' }}>
         <TabsList variant="line">
           <TabsTrigger value="preview">
-            Preview
+            {t('viewers.html.previewTab')}
           </TabsTrigger>
           <TabsTrigger value="source">
-            Source
+            {t('viewers.html.sourceTab')}
           </TabsTrigger>
         </TabsList>
       </div>
@@ -80,19 +82,19 @@ export function HtmlViewer({ filePath, refreshKey = 0 }: HtmlViewerProps) {
           {error ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-3">
-                <div className="text-muted-foreground">Unable to load this file</div>
+                <div className="text-muted-foreground">{t('viewers.videoError')}</div>
                 <div className="flex items-center justify-center gap-2">
                   <button
                     onClick={() => setReloadTrigger(t => t + 1)}
                     className="px-3 py-1.5 text-ui-base rounded-control bg-muted hover:bg-muted/80 text-foreground transition-colors"
                   >
-                    Try again
+                    {t('common.tryAgain')}
                   </button>
                   <button
                     onClick={() => openFeedbackPopover()}
                     className="px-3 py-1.5 text-ui-base rounded-control bg-muted hover:bg-muted/80 text-foreground transition-colors"
                   >
-                    Report bug
+                    {t('viewers.videoReport')}
                   </button>
                 </div>
               </div>
@@ -105,7 +107,7 @@ export function HtmlViewer({ filePath, refreshKey = 0 }: HtmlViewerProps) {
                   style={{ borderBottom: 'var(--border-width) solid var(--border)' }}
                 >
                   <span className="text-muted-foreground">
-                    Interactive content is blocked in preview for safety.
+                    {t('viewers.html.safetyNotice')}
                   </span>
                   <button
                     className="rounded-control bg-muted px-2 py-1 text-foreground transition-colors hover:bg-muted/80"
@@ -114,17 +116,17 @@ export function HtmlViewer({ filePath, refreshKey = 0 }: HtmlViewerProps) {
                         try {
                           const result = await openPath(filePath);
                           if (result.error) {
-                            showToast(`Could not open file: ${result.error}`, 'error', 5000);
+                            showToast(t('viewers.html.openFailed', { error: result.error }), 'error', 5000);
                           }
                         } catch (openError) {
                           const message = openError instanceof Error ? openError.message : String(openError);
-                          showToast(`Could not open file: ${message}`, 'error', 5000);
+                          showToast(t('viewers.html.openFailed', { error: message }), 'error', 5000);
                         }
                       })();
                     }}
                     type="button"
                   >
-                    Open in default browser
+                    {t('viewers.html.openBrowser')}
                   </button>
                 </div>
               ) : null}
@@ -138,7 +140,7 @@ export function HtmlViewer({ filePath, refreshKey = 0 }: HtmlViewerProps) {
             </div>
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground">
-              Loading...
+              {t('common.loading')}
             </div>
           )}
         </div>

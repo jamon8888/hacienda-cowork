@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { LocaleKey } from '../../../shared/locales';
 import { supabase } from '../../utils/supabase/client';
 import { AUTH_SIGN_IN_ID } from '../../../shared/element-ids';
 import { Button } from '../ui/button';
@@ -34,6 +36,8 @@ export function AuthSignIn({ onAuthSuccess, variant = 'default' }: AuthSignInPro
   "use no memo";
 
   const [authError, setAuthError] = useState<string | null>(null);
+  const { t } = useTranslation();
+  const translate = (key: LocaleKey) => t(key);
   const [isLoading, setIsLoading] = useState(false);
   const marketingDemoMode = isMarketingDemoMode();
 
@@ -255,16 +259,16 @@ export function AuthSignIn({ onAuthSuccess, variant = 'default' }: AuthSignInPro
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-            Sign in with Google
+            {translate('auth.signinGoogle')}
           </Button>
           <p className="py-1 text-[9px] leading-tight text-muted-foreground/60">
-            By continuing, you agree to{' '}
+            {translate('auth.agreePolicies')}{' '}
             <button
               type="button"
               className="rounded-sm underline decoration-muted-foreground/40 underline-offset-2 transition-[color,decoration-color] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)] hover:text-foreground hover:decoration-foreground/70"
               onClick={() => void openExternal(PRIVACY_POLICY_URL)}
             >
-              our policies
+              {translate('auth.policiesLink')}
             </button>.
           </p>
         </div>
@@ -286,7 +290,7 @@ export function AuthSignIn({ onAuthSuccess, variant = 'default' }: AuthSignInPro
   return (
     <div data-testid={AUTH_SIGN_IN_ID}>
       <FieldGroup>
-        <FieldDescription>Sign in to access hosted models</FieldDescription>
+        <FieldDescription>{translate('auth.signinHint')}</FieldDescription>
 
         {/* Google OAuth */}
         <Button
@@ -313,7 +317,7 @@ export function AuthSignIn({ onAuthSuccess, variant = 'default' }: AuthSignInPro
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
             />
           </svg>
-          Continue with Google
+          {translate('auth.continueGoogle')}
         </Button>
 
         {authError && (
@@ -321,7 +325,7 @@ export function AuthSignIn({ onAuthSuccess, variant = 'default' }: AuthSignInPro
         )}
 
         <FieldDescription>
-          By continuing, you agree to our{' '}
+          {translate('auth.agreePrivacy')}{' '}
           <a
             href={PRIVACY_POLICY_URL}
             onClick={async (e) => {
@@ -329,7 +333,7 @@ export function AuthSignIn({ onAuthSuccess, variant = 'default' }: AuthSignInPro
               await openExternal(PRIVACY_POLICY_URL);
             }}
           >
-            privacy policy
+            {translate('auth.privacyLink')}
           </a>
         </FieldDescription>
       </FieldGroup>

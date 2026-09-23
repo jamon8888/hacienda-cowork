@@ -1,14 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { VIDEO_VIEWER_ID } from '../../shared/element-ids';
 import { getFileUrl } from '@/ipc';
 import { openFeedbackPopover } from '../utils/feedback';
 import { useFileRefresh } from '../hooks/useFileRefresh';
+import type { LocaleKey } from '../i18n';
 
 interface VideoViewerProps {
   filePath: string;
 }
 
 export function VideoViewer({ filePath }: VideoViewerProps) {
+  const { t } = useTranslation();
+  const translate = useCallback((key: LocaleKey) => t(key), [t]);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [reloadTrigger, setReloadTrigger] = useState(0);
@@ -29,19 +33,19 @@ export function VideoViewer({ filePath }: VideoViewerProps) {
       >
         {error ? (
           <div className="text-center space-y-3">
-            <div className="text-muted-foreground">Unable to load this file</div>
+            <div className="text-muted-foreground">{translate('viewers.videoError')}</div>
             <div className="flex items-center justify-center gap-2">
               <button
                 onClick={() => setReloadTrigger(t => t + 1)}
                 className="px-3 py-1.5 text-ui-base rounded-control bg-muted hover:bg-muted/80 text-foreground transition-colors"
               >
-                Try again
+                {translate('common.tryAgain')}
               </button>
               <button
                 onClick={() => openFeedbackPopover()}
                 className="px-3 py-1.5 text-ui-base rounded-control bg-muted hover:bg-muted/80 text-foreground transition-colors"
               >
-                Report bug
+                {translate('viewers.videoReport')}
               </button>
             </div>
           </div>
@@ -52,10 +56,10 @@ export function VideoViewer({ filePath }: VideoViewerProps) {
             className="max-w-full max-h-full"
             onError={() => setError(true)}
           >
-            Your browser does not support the video tag.
+            {translate('viewers.videoNoSupport')}
           </video>
         ) : (
-          <div className="text-muted-foreground">Loading...</div>
+          <div className="text-muted-foreground">{translate('common.loading')}</div>
         )}
       </div>
     </div>

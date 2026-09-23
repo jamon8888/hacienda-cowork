@@ -131,7 +131,7 @@ export function ApprovalQueueCard(props: ApprovalQueueCardProps) {
               onClick={() => props.onRevealAgent?.(ownerAgentId, approval)}
             >
               <Eye className="size-3" />
-              <span>Show</span>
+              <span>{t('approvals.queue.show')}</span>
             </Button>
           )}
           <div className="whitespace-nowrap text-ui-xs text-[var(--oa-text-faint)]">
@@ -159,7 +159,7 @@ export function ApprovalQueueCard(props: ApprovalQueueCardProps) {
               data-help-title={t('help.approvals.deny.title')}
               data-help-description={t('help.approvals.deny.description')}
             >
-              Don&apos;t allow
+              {t('approvals.queue.deny')}
             </Button>
             <Button
               onClick={() => approve('once')}
@@ -170,7 +170,7 @@ export function ApprovalQueueCard(props: ApprovalQueueCardProps) {
               data-help-title={t('help.approvals.allowOnce.title')}
               data-help-description={t('help.approvals.allowOnce.description')}
             >
-              Allow once
+              {t('approvals.queue.allowOnce')}
             </Button>
             {supportsSessionApproval(approval) && (
               <Button
@@ -181,7 +181,7 @@ export function ApprovalQueueCard(props: ApprovalQueueCardProps) {
                 data-help-title={t('help.approvals.allowSession.title')}
                 data-help-description={t('help.approvals.allowSession.description')}
               >
-                Allow for this session
+                {t('approvals.queue.allowSession')}
               </Button>
             )}
           </div>

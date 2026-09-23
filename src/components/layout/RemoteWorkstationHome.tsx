@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
 import { fetchRemoteThreadSnapshot } from '../../../agent/components/RemoteThreadViewer';
 import type { PublicThreadSnapshot } from '../../../shared/types/publicThread';
@@ -19,6 +20,7 @@ export function RemoteWorkstationHome({
 }: {
   onOpenConversation: (conversation: ConversationPreview) => void;
 }) {
+  const { t } = useTranslation();
   const [snapshot, setSnapshot] = useState<PublicThreadSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const endpoint = getRemoteWorkstationEndpoint();
@@ -69,11 +71,11 @@ export function RemoteWorkstationHome({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-auto bg-transparent px-6 py-8">
       <div className="mx-auto flex w-full max-w-[520px] flex-1 flex-col justify-center">
-        <div className="mb-4 text-ui-sm font-medium text-foreground">Active conversations</div>
+        <div className="mb-4 text-ui-sm font-medium text-foreground">{t('remoteHome.activeTitle')}</div>
         {loading && !snapshot ? (
           <div className="flex items-center gap-2 py-3 text-ui-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
-            Loading conversations
+            {t('remoteHome.loading')}
           </div>
         ) : (
           <ConversationHistoryPanel

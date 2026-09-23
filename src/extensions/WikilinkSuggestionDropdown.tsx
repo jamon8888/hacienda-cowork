@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FileText } from 'lucide-react';
 
 export interface WikilinkSuggestionItem {
@@ -22,6 +23,7 @@ export interface DropdownRef {
 
 export const WikilinkSuggestionDropdown = forwardRef<DropdownRef, DropdownProps>(
   function WikilinkSuggestionDropdown({ items, command, query }, ref) {
+    const { t } = useTranslation();
     const [selectedIndex, setSelectedIndex] = useState(0);
     const scrollRef = useRef<HTMLDivElement>(null);
     const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -79,8 +81,8 @@ export const WikilinkSuggestionDropdown = forwardRef<DropdownRef, DropdownProps>
         {items.length === 0 ? (
           <div className="px-3 py-2 text-ui-sm text-muted-foreground">
             {trimmedQuery
-              ? <>Press Enter to create <span className="font-medium text-foreground">[[{trimmedQuery}]]</span></>
-              : 'Type a page name…'}
+              ? <>{t('wiki.pressEnter')} <span className="font-medium text-foreground">[[{trimmedQuery}]]</span></>
+              : t('wiki.typeName')}
           </div>
         ) : (
           items.map((item, index) => {

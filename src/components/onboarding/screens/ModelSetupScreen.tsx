@@ -1387,7 +1387,7 @@ export function ModelSetupScreen({
     <OnboardingScreenShell size="wide" align="center" className="py-0 sm:py-0 lg:py-0" contentClassName="max-w-[800px]">
       <div className="flex w-full flex-col items-center space-y-3.5">
         <OnboardingHeading
-          title="Models"
+          title={t('onboarding.modelSetup.modelsScreenTitle')}
           description={hostedDistributionEnabled
             ? 'Pick Interpreter or connect a provider you already use.'
             : 'Connect a provider you already use.'}
@@ -1413,7 +1413,7 @@ export function ModelSetupScreen({
           {hostedDistributionEnabled && <ModelPackCard
             icon={<InterpreterLogoMark fitSquare size={32} segmentClassName="bg-current" className="text-foreground" />}
             title={t('onboarding.modelSetup.interpreterTitle')}
-            description="Use any model, fastest setup."
+            description={t('onboarding.modelSetup.interpreterCardDesc')}
             cardClassName="w-full"
             vertical
             featured
@@ -1428,7 +1428,7 @@ export function ModelSetupScreen({
           <ModelPackCard
             icon={<OpenAIIcon className="size-9 text-foreground" />}
             title={t('onboarding.modelSetup.chatgptTitle')}
-            description="Reuse your subscription."
+            description={t('onboarding.modelSetup.chatgptCardDesc')}
             cardClassName="w-full"
             vertical
             footer={
@@ -1450,13 +1450,13 @@ export function ModelSetupScreen({
                   {oauthLoading === 'openai' ? t('onboarding.modelSetup.connecting') : t('onboarding.modelSetup.signInWithChatGPT')}
                 </Button>
                 <p className="py-1 text-[9px] leading-tight text-muted-foreground/60">
-                  By continuing, you agree to their{' '}
+                  {t('onboarding.modelSetup.agreeTheir')}{' '}
                   <button
                     type="button"
                     className="rounded-sm underline decoration-muted-foreground/40 underline-offset-2 transition-[color,decoration-color] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)] hover:text-foreground hover:decoration-foreground/70"
                     onClick={() => void openExternal('https://openai.com/policies/privacy-policy/')}
                   >
-                    privacy policy
+                    {t('onboarding.modelSetup.privacyPolicyLink')}
                   </button>.
                 </p>
                 {oauthLoading === 'openai' ? (

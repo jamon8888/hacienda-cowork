@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { LocaleKey } from '../i18n';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { BookOpen, Globe, Play, Plus, X } from 'lucide-react';
 import { showContextMenu, showItemInFolder, skills as skillsIpc, workspace, type ContextMenuItem } from '@/ipc';
@@ -80,20 +82,22 @@ function SkillRow({
   onEditWithAgent: (skill: SkillOption) => void;
   onOpenFile: (skill: SkillOption) => void;
 }) {
+  const { t } = useTranslation();
+  const translate = useCallback((key: LocaleKey, options?: Record<string, unknown>) => t(key, options), [t]);
   const handleContextMenu = useCallback(async (event: React.MouseEvent) => {
     event.preventDefault();
 
     const items: ContextMenuItem[] = [
-      { label: 'Run Skill', action: 'run' },
-      { label: 'Edit with Agent', action: 'edit-with-agent' },
-      { label: 'Open Skill File', action: 'open-skill-file' },
-      { label: 'Copy Path', action: 'copy-path' },
+      { label: translate('skills.ctxRunSkill'), action: 'run' },
+      { label: translate('skills.ctxEditWithAgent'), action: 'edit-with-agent' },
+      { label: translate('skills.ctxOpenSkillFile'), action: 'open-skill-file' },
+      { label: translate('skills.ctxCopyPath'), action: 'copy-path' },
     ];
     if (canUseHostNativeFileManager()) {
-      items.splice(items.length - 1, 0, { label: 'Show in Finder', action: 'show-in-finder' });
+      items.splice(items.length - 1, 0, { label: translate('skills.ctxShowInFinder'), action: 'show-in-finder' });
     }
     if (canOpenFolder) {
-      items.splice(2, 0, { label: 'Open Folder', action: 'open-folder' });
+      items.splice(2, 0, { label: translate('skills.ctxOpenFolder'), action: 'open-folder' });
     }
 
     const action = await showContextMenu(items, 'skills_panel');
@@ -120,7 +124,7 @@ function SkillRow({
     if (action === 'copy-path') {
       await navigator.clipboard.writeText(skill.dirPath);
     }
-  }, [canOpenFolder, onEditWithAgent, onOpenFile, onOpenFolder, onRun, skill]);
+  }, [canOpenFolder, onEditWithAgent, onOpenFile, onOpenFolder, onRun, skill, translate]);
 
   return (
     <div
@@ -140,13 +144,13 @@ function SkillRow({
             <TooltipTrigger asChild>
               <span
                 className="flex size-4 flex-shrink-0 items-center justify-center text-[#7a808a] dark:text-[#9ea3ab]"
-                aria-label="This skill is available in all projects."
+                aria-label={translate('skills.globalNote')}
               >
                 <Globe className="size-3" />
               </span>
             </TooltipTrigger>
             <TooltipContent side="top">
-              This skill is available in all projects.
+              {translate('skills.globalNote')}
             </TooltipContent>
           </Tooltip>
         ) : null}
@@ -158,8 +162,8 @@ function SkillRow({
           variant="ghost"
           size="xs"
           onClick={() => onRun(skill)}
-          aria-label={`Run ${skill.title}`}
-          title={`Run ${skill.title}`}
+          aria-label={translate('skills.runSkill', { title: skill.title })}
+          title={translate('skills.runSkill', { title: skill.title })}
           className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border border-black/[0.06] bg-black/[0.03] px-0 text-[#4b5563] shadow-[inset_0_1px_0_rgba(255,255,255,0.28)] transition-[width,background-color,color,border-color,box-shadow] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:w-[50px] hover:border-black/[0.1] hover:bg-black/[0.06] hover:text-[#111827] focus-visible:w-[50px] focus-visible:border-black/[0.12] focus-visible:bg-black/[0.06] dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-[#d1d5db] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-white/[0.14] dark:hover:bg-white/[0.09] dark:hover:text-[#f8f8f8] dark:focus-visible:border-white/[0.14] dark:focus-visible:bg-white/[0.09]"
         >
           <span
@@ -168,7 +172,7 @@ function SkillRow({
             <span
               className="text-ui-sm font-medium leading-none opacity-0 transition-opacity duration-75 ease-out group-hover:delay-100 group-hover:opacity-100 group-focus-visible/button:delay-100 group-focus-visible/button:opacity-100"
             >
-              Run
+              {translate('skills.run')}
             </span>
           </span>
           <span className="pointer-events-none absolute inset-y-0 right-0 flex w-7 items-center justify-center">
@@ -183,6 +187,8 @@ function SkillRow({
 export function SkillsPanel({ isOpen, onOpenChange, onFileOpen }: SkillsPanelProps) {
   "use no memo";
 
+  const { t } = useTranslation();
+  const translate = useCallback((key: LocaleKey, options?: Record<string, unknown>) => t(key, options), [t]);
   const { openFolder, openNewTab, openSeededAgentTab } = useLayout();
   const reducedMotion = useReducedMotion() ?? false;
   const panelMotion = getSidebarFooterMotion('panel', reducedMotion);
@@ -294,14 +300,14 @@ export function SkillsPanel({ isOpen, onOpenChange, onFileOpen }: SkillsPanelPro
           >
             <BookOpen className="size-3.5 text-[#5f6673] dark:text-[#bdbdbd]" />
             <div className="min-w-0 flex-1 truncate text-ui-sm font-medium leading-tight text-[#2d3440] dark:text-[#e0e0e0]">
-              Skills
+              {translate('skills.title')}
             </div>
             <Button
               type="button"
               variant="ghost"
               size="icon-toolbar"
               onClick={() => onOpenChange(false)}
-              aria-label="Close skills"
+              aria-label={translate('skills.closePanel')}
               className="text-[#5f6673] hover:bg-black/[0.045] hover:text-[#202123] dark:text-[#bdbdbd] dark:hover:bg-white/[0.06] dark:hover:text-[#f5f5f5]"
             >
               <X className="size-3.5" />
@@ -311,7 +317,7 @@ export function SkillsPanel({ isOpen, onOpenChange, onFileOpen }: SkillsPanelPro
           <div className="min-h-0 max-h-[240px] flex-1 overflow-y-auto overscroll-contain px-1 py-2">
             {skills.length === 0 ? (
               <div className="px-3 py-2 text-ui-sm text-[#6b7280] dark:text-[#b4b4b4]">
-                No skills found
+                {translate('skills.emptyState')}
               </div>
             ) : (
               skills.map((skill) => (
@@ -340,7 +346,7 @@ export function SkillsPanel({ isOpen, onOpenChange, onFileOpen }: SkillsPanelPro
               className="w-full justify-start gap-2 rounded-[12px] px-3 py-2 text-ui-sm text-[#2d3440] hover:bg-black/[0.03] hover:text-[#202123] dark:text-[#e0e0e0] dark:hover:bg-white/[0.04] dark:hover:text-[#f5f5f5]"
             >
               <Plus className="size-3.5" />
-              <span>Create Skill</span>
+              <span>{translate('skills.createSkill')}</span>
             </Button>
           </div>
           </motion.div>
@@ -365,7 +371,7 @@ export function SkillsPanel({ isOpen, onOpenChange, onFileOpen }: SkillsPanelPro
                   <span className={SIDEBAR_FOOTER_LEADING_SLOT_CLASSNAME}>
                     <BookOpen className="size-3.5 text-[#5f6673] dark:text-[#bdbdbd]" />
                   </span>
-                  <span className="min-w-0 truncate text-ui-sm font-medium leading-tight">Skills</span>
+                  <span className="min-w-0 truncate text-ui-sm font-medium leading-tight">{translate('skills.title')}</span>
                 </span>
               </Button>
             </div>

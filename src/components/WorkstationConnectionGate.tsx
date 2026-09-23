@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { KeyRound, Loader2 } from 'lucide-react';
 import type { WorkstationConnectionDescriptor } from '../../shared/types/workstationConnection';
 import {
@@ -28,6 +29,7 @@ type GateState =
   | { kind: 'error'; message: string };
 
 export function WorkstationConnectionGate({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   const connection = getBrowserWorkstationConnection();
   const requiresHandshake = isRemoteWorkstationHost() && !isPublicWorkstationPublication();
   const [state, setState] = useState<GateState>(() => (
@@ -111,7 +113,7 @@ export function WorkstationConnectionGate({ children }: { children: React.ReactN
       <main className="flex h-dvh items-center justify-center bg-background text-foreground" aria-busy="true">
         <div className="flex items-center gap-2 text-ui-sm text-muted-foreground" role="status">
           <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-          Connecting to Workstation
+          {t('gate.connecting')}
         </div>
       </main>
     );
@@ -124,11 +126,11 @@ export function WorkstationConnectionGate({ children }: { children: React.ReactN
           <KeyRound className="size-4" />
         </div>
         <h1 className="text-balance text-ui-base font-medium">
-          {state.kind === 'login' ? 'Open this Workstation' : 'Workstation is unavailable'}
+          {state.kind === 'login' ? t('gate.loginTitle') : t('gate.unavailableTitle')}
         </h1>
         <p className="mt-2 text-pretty text-ui-sm leading-5 text-muted-foreground">
           {state.kind === 'login'
-            ? 'Enter the password for the computer this workspace is connected to.'
+            ? t('gate.loginDesc')
             : state.message}
         </p>
 
@@ -144,7 +146,7 @@ export function WorkstationConnectionGate({ children }: { children: React.ReactN
             />
             <div>
               <label htmlFor="workstation-password" className="mb-1.5 block text-ui-sm font-medium">
-                Password
+                {t('gate.passwordLabel')}
               </label>
               <input
                 id="workstation-password"
@@ -159,7 +161,7 @@ export function WorkstationConnectionGate({ children }: { children: React.ReactN
                 style={{ border: 'var(--border-width) solid var(--border)' }}
               />
               <p id="workstation-password-help" className="sr-only">
-                Enter the host password to enable the Open Workstation button.
+                {t('gate.passwordHelp')}
               </p>
             </div>
             {state.error ? (
@@ -173,7 +175,7 @@ export function WorkstationConnectionGate({ children }: { children: React.ReactN
               className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-ui-sm font-medium text-primary-foreground outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
             >
               {submitting ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
-              {submitting ? 'Opening' : 'Open Workstation'}
+              {submitting ? t('gate.submitting') : t('gate.openBtn')}
             </button>
           </form>
         ) : (
@@ -185,7 +187,7 @@ export function WorkstationConnectionGate({ children }: { children: React.ReactN
             }}
             className="mt-5 h-10 rounded-lg bg-primary px-4 text-ui-sm font-medium text-primary-foreground outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary"
           >
-            Try again
+            {t('common.tryAgain')}
           </button>
         )}
       </section>

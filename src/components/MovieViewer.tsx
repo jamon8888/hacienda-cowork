@@ -3,6 +3,9 @@ import * as ReactJsxDevRuntimeModule from 'react/jsx-dev-runtime';
 import * as ReactJsxRuntimeModule from 'react/jsx-runtime';
 import { canUseHostNativeFileManager } from '../remote/workstationConnection';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { LocaleKey } from '../i18n';
+import type { TOptions } from 'i18next';
 import {
   Camera,
   ChevronsLeft,
@@ -520,6 +523,8 @@ function LiveVideoMonitor({
 }) {
   "use no memo";
 
+  const { t } = useTranslation();
+  const translate = useCallback((key: LocaleKey, options?: TOptions) => t(key, options), [t]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const delayedCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const bufferedFramesRef = useRef<BufferedPreviewFrame[]>([]);
@@ -743,8 +748,8 @@ function LiveVideoMonitor({
               data-testid={expandButtonId}
               className="border border-white/12 bg-black/50 text-white/82 backdrop-blur-sm hover:bg-black/68 hover:text-white"
               onClick={onExpand}
-              aria-label={`Expand preview for ${source?.label ?? 'video input'}`}
-              title="Expand preview"
+              aria-label={translate('movie.expandPreviewFor', { label: source?.label ?? translate('movie.videoInputFallback') })}
+              title={translate('movie.expandPreview')}
             >
               <Maximize2 className="size-4" />
             </Button>
@@ -807,6 +812,8 @@ function LiveVideoMonitor({
 export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
   "use no memo";
 
+  const { t } = useTranslation();
+  const translate = useCallback((key: LocaleKey, options?: TOptions) => t(key, options), [t]);
   const { setLeftSidebarOpen, setLeftSidebarTab } = useLayoutActions();
   const { showToast } = useToast();
 
@@ -1058,13 +1065,13 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
       return 'Live preview of the selected source.';
     }
     if (expandedVideoSource?.thumbnailDataUrl) {
-      return 'Still preview of the selected source.';
+      return translate('movie.stillPreview');
     }
     if (expandedVideoSource) {
-      return 'Connect this source to see a live feed before recording.';
+      return translate('movie.connectSourceHint');
     }
-    return 'Choose a source, then preview it here before recording.';
-  }, [expandedVideoInput, expandedVideoSource]);
+    return translate('movie.chooseSourceHint');
+  }, [expandedVideoInput, expandedVideoSource, translate]);
   const expandedVideoDelayLabel = useMemo(
     () => formatPreviewDelaySeconds(expandedVideoPreviewDelaySeconds),
     [expandedVideoPreviewDelaySeconds],
@@ -1191,7 +1198,7 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
       if (!disposedRef.current) {
         setReactComponents({});
         setPreviewStageComponent(null);
-        setComponentPreviewError(result.error || 'Failed to compile movie components');
+        setComponentPreviewError(result.error || translate('movie.failedCompile'));
       }
       return;
     }
@@ -1212,7 +1219,7 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
       if (!disposedRef.current) {
         setReactComponents({});
         setPreviewStageComponent(null);
-        setComponentPreviewError(error?.message || 'Failed to load movie components preview');
+        setComponentPreviewError(error?.message || translate('movie.failedLoadPreview'));
       }
     } finally {
       URL.revokeObjectURL(bundleUrl);
@@ -1275,7 +1282,7 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
         setTimeline(null);
         setReactComponents({});
         setPreviewStageComponent(null);
-        setProjectError(error?.message || 'Failed to load movie project');
+        setProjectError(error?.message || translate('movie.failedLoadProject'));
       }
     } finally {
       if (!disposedRef.current) {
@@ -1436,7 +1443,7 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
       await hydrateTimelineAssets(activeProject, nextTimeline);
     } catch (error: any) {
       if (!disposedRef.current) {
-        setProjectError(error?.message || 'Failed to refresh movie timeline');
+        setProjectError(error?.message || translate('movie.failedRefresh'));
       }
     }
   }, [hydrateTimelineAssets]);
@@ -1783,19 +1790,19 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
 
     const activeProject = projectRef.current;
     if (!activeProject) {
-      showToast('Movie project is not loaded yet.', 'error', 3600);
+      showToast(translate('movie.toastNotLoaded'), 'error', 3600);
       return;
     }
 
     const liveInputs = videoInputsRef.current.filter((input) => input.stream && input.connectedSourceKey);
     if (liveInputs.length === 0) {
-      showToast('Preview at least one video source before recording.', 'error', 4200);
+      showToast(translate('movie.toastPreviewFirst'), 'error', 4200);
       return;
     }
 
     const mimeType = chooseMp4MimeType();
     if (!mimeType) {
-      showToast('This machine does not support MP4 recording through MediaRecorder.', 'error', 5200);
+      showToast(translate('movie.toastNoMp4'), 'error', 5200);
       return;
     }
 
@@ -1998,7 +2005,7 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
         progress: null,
         outputPath: saveResult.filePath,
       });
-      showToast('Movie export cancelled', 'info', 3200);
+      showToast(translate('movie.toastExportCancelled'), 'info', 3200);
       return;
     }
 
@@ -2290,16 +2297,16 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
     try {
       const parsed = JSON.parse(metadataDraft) as Record<string, unknown>;
       if (parsed === null || Array.isArray(parsed) || typeof parsed !== 'object') {
-        throw new Error('Metadata must be a JSON object');
+        throw new Error(translate('movie.metadataMustBeObject'));
       }
 
       const nextTimeline = updateMovieClipMetadata(currentTimeline, currentClip.id, parsed as MovieJsonObject);
       setMetadataError(null);
       commitTimeline(nextTimeline, { selectedClipId: currentClip.id });
     } catch (error: any) {
-      setMetadataError(error?.message || 'Invalid metadata JSON');
+      setMetadataError(error?.message || translate('movie.invalidMetadataJson'));
     }
-  }, [commitTimeline, metadataDraft, selectedClipId]);
+  }, [commitTimeline, metadataDraft, selectedClipId, translate]);
 
   const handleUnlinkAudio = useCallback(() => {
     const currentTimeline = timelineRef.current;
@@ -2631,7 +2638,7 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
                   <div className="flex flex-wrap items-center gap-2">
                     <Button variant="outline" size="sm" onClick={jumpToStart}>
                       <ChevronsLeft className="size-4" />
-                      <span>Start</span>
+                      <span>{translate('movie.transportStart')}</span>
                     </Button>
                     <Button variant="outline" size="sm" onClick={jumpBackward}>
                       <SkipBack className="size-4" />
@@ -2653,7 +2660,7 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
                     </Button>
                     <Button variant="outline" size="sm" onClick={jumpToEnd}>
                       <ChevronsRight className="size-4" />
-                      <span>End</span>
+                      <span>{translate('movie.transportEnd')}</span>
                     </Button>
                   </div>
 
@@ -2682,7 +2689,7 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
 
                 <div className="mt-3" style={{ borderTop: 'var(--border-width) solid var(--oa-border)' }}>
                   <div className="flex flex-wrap items-center justify-between gap-3 pb-2 pt-3 text-ui-xs text-[var(--oa-text-muted)]">
-                    <span>Playhead</span>
+                    <span>{translate('movie.playhead')}</span>
                     <span>{formatFrameTime(playheadFrame, timeline.settings.fps)}</span>
                   </div>
                   <Slider
@@ -2720,12 +2727,12 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
                   style={{ borderBottom: 'var(--border-width) solid var(--oa-border)' }}
                 >
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-ui-xs text-[var(--oa-text-muted)]">
-                    <span className="font-medium text-[var(--oa-text-strong)]">Timeline</span>
-                    <span>{timeline.tracks.length} tracks</span>
+                    <span className="font-medium text-[var(--oa-text-strong)]">{translate('movie.timeline')}</span>
+                    <span>{translate('movie.tracksCount', { count: timeline.tracks.length })}</span>
                   </div>
 
                   <div className="flex w-full max-w-[260px] items-center gap-3">
-                    <span className="shrink-0 text-ui-xs text-[var(--oa-text-muted)]">Zoom</span>
+                    <span className="shrink-0 text-ui-xs text-[var(--oa-text-muted)]">{translate('movie.zoom')}</span>
                     <Slider
                       value={[pixelsPerFrame]}
                       min={1}
@@ -2782,9 +2789,9 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <div className="text-ui-sm font-medium text-[var(--oa-text-strong)]">Recorder</div>
+                        <div className="text-ui-sm font-medium text-[var(--oa-text-strong)]">{translate('movie.recorder')}</div>
                         <div className="mt-1 text-ui-xs text-[var(--oa-text-muted)]">
-                          {readyVideoCount} video ready · {audioStream ? 'audio ready' : 'audio optional'} · {isRecording ? formatDuration(recordingElapsedMs / 1000) : 'idle'}
+                          {translate('movie.recorderStatus', { video: readyVideoCount, audio: audioStream ? translate('movie.audioReadyWord') : translate('movie.audioOptionalWord'), state: isRecording ? formatDuration(recordingElapsedMs / 1000) : translate('movie.idleWord') })}
                         </div>
                       </div>
 
@@ -2796,7 +2803,7 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
                           disabled={isRefreshingSources || isRecording || isStoppingRecording}
                         >
                           <RefreshCw className={cn('size-4', isRefreshingSources && 'animate-spin')} />
-                          <span>Sources</span>
+                          <span>{translate('movie.sources')}</span>
                         </Button>
                         <Button
                           variant="ghost"
@@ -2808,7 +2815,7 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
                           disabled={isRecording || isStoppingRecording}
                         >
                           <Plus className="size-4" />
-                          <span>Add Input</span>
+                          <span>{translate('movie.addInput')}</span>
                         </Button>
                       </div>
                     </div>
@@ -2838,11 +2845,11 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
                           disabled={readyVideoCount === 0 || isProjectLoading}
                         >
                           <Circle className="size-4 fill-current" />
-                          <span>Record</span>
+                          <span>{translate('movie.record')}</span>
                         </Button>
                       )}
                       <div className="mt-2 text-ui-xs text-[var(--oa-text-muted)]">
-                        Starts at {formatFrameTime(playheadFrame, timeline.settings.fps)} and saves recorded files into <code>assets/</code>.
+                        {translate('movie.recordHintStart', { time: formatFrameTime(playheadFrame, timeline.settings.fps) })} <code>assets/</code>{translate('movie.recordHintEnd')}
                       </div>
                     </div>
 
@@ -2909,7 +2916,7 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
                                 disabled={isRecording || isStoppingRecording}
                               >
                                 <Square className="size-4" />
-                                <span>Remove</span>
+                                <span>{translate('movie.remove')}</span>
                               </Button>
                             </div>
                           </div>
@@ -2932,8 +2939,8 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
 
                     <div className="mt-4 pt-4" style={{ borderTop: 'var(--border-width) solid var(--oa-border)' }}>
                       <div className="flex items-center justify-between gap-3 text-ui-xs text-[var(--oa-text-muted)]">
-                        <span>Audio</span>
-                        <span>{audioStream ? 'Ready' : 'Idle'}</span>
+                        <span>{translate('movie.audio')}</span>
+                        <span>{audioStream ? translate('movie.readyWord') : translate('movie.idleWordCap')}</span>
                       </div>
 
                       <div className="mt-2 space-y-2">
@@ -2966,13 +2973,13 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
                               disabled={isRecording || isStoppingRecording}
                             >
                               <Square className="size-4" />
-                              <span>Disconnect</span>
+                              <span>{translate('movie.disconnect')}</span>
                             </Button>
                           ) : null}
                         </div>
                         <div className="text-ui-xs leading-5 text-[var(--oa-text-muted)]">
                           {audioStream
-                            ? audioSources.find((source) => source.key === connectedAudioSourceKey)?.label ?? 'Connected source'
+                            ? audioSources.find((source) => source.key === connectedAudioSourceKey)?.label ?? translate('movie.connectedSource')
                             : 'Connect an audio source if you want a separate editable audio file.'}
                         </div>
                       </div>
@@ -3008,7 +3015,7 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
                               onClick={handleUnlinkAudio}
                             >
                               <Link2Off className="size-4" />
-                              <span>Unlink Audio</span>
+                              <span>{translate('movie.unlinkAudio')}</span>
                             </Button>
                           ) : null}
                           <Button
@@ -3030,7 +3037,7 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
                         <div className="space-y-3">
                           {selectedClip.kind === 'audio' ? (
                             <div className="space-y-2">
-                              <label className="text-ui-xs text-[var(--oa-text-muted)]">Audio volume</label>
+                              <label className="text-ui-xs text-[var(--oa-text-muted)]">{translate('movie.audioVolume')}</label>
                               <Input
                                 type="number"
                                 step="0.05"
@@ -3047,18 +3054,18 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
                               <div className="grid grid-cols-2 gap-2">
                                 <Input type="number" value={selectedClip.style.x} onChange={(event) => updateStyleNumber('x', event.target.value)} placeholder="X" />
                                 <Input type="number" value={selectedClip.style.y} onChange={(event) => updateStyleNumber('y', event.target.value)} placeholder="Y" />
-                                <Input type="number" value={selectedClip.style.width} onChange={(event) => updateStyleNumber('width', event.target.value)} placeholder="Width" />
-                                <Input type="number" value={selectedClip.style.height} onChange={(event) => updateStyleNumber('height', event.target.value)} placeholder="Height" />
-                                <Input type="number" step="0.05" min="0" max="1" value={selectedClip.style.opacity} onChange={(event) => updateStyleNumber('opacity', event.target.value)} placeholder="Opacity" />
-                                <Input type="number" step="1" min="0" value={selectedClip.style.blur} onChange={(event) => updateStyleNumber('blur', event.target.value)} placeholder="Blur" />
+                                <Input type="number" value={selectedClip.style.width} onChange={(event) => updateStyleNumber('width', event.target.value)} placeholder={translate('movie.dimWidth')} />
+                                <Input type="number" value={selectedClip.style.height} onChange={(event) => updateStyleNumber('height', event.target.value)} placeholder={translate('movie.dimHeight')} />
+                                <Input type="number" step="0.05" min="0" max="1" value={selectedClip.style.opacity} onChange={(event) => updateStyleNumber('opacity', event.target.value)} placeholder={translate('movie.dimOpacity')} />
+                                <Input type="number" step="1" min="0" value={selectedClip.style.blur} onChange={(event) => updateStyleNumber('blur', event.target.value)} placeholder={translate('movie.dimBlur')} />
                               </div>
 
                               {selectedClip.kind === 'video' ? (
                                 <div className="grid grid-cols-2 gap-2">
-                                  <Input type="number" step="0.01" value={selectedClip.style.crop.left} onChange={(event) => updateCropNumber('left', event.target.value)} placeholder="Crop left" />
-                                  <Input type="number" step="0.01" value={selectedClip.style.crop.top} onChange={(event) => updateCropNumber('top', event.target.value)} placeholder="Crop top" />
-                                  <Input type="number" step="0.01" value={selectedClip.style.crop.right} onChange={(event) => updateCropNumber('right', event.target.value)} placeholder="Crop right" />
-                                  <Input type="number" step="0.01" value={selectedClip.style.crop.bottom} onChange={(event) => updateCropNumber('bottom', event.target.value)} placeholder="Crop bottom" />
+                                  <Input type="number" step="0.01" value={selectedClip.style.crop.left} onChange={(event) => updateCropNumber('left', event.target.value)} placeholder={translate('movie.dimCropLeft')} />
+                                  <Input type="number" step="0.01" value={selectedClip.style.crop.top} onChange={(event) => updateCropNumber('top', event.target.value)} placeholder={translate('movie.dimCropTop')} />
+                                  <Input type="number" step="0.01" value={selectedClip.style.crop.right} onChange={(event) => updateCropNumber('right', event.target.value)} placeholder={translate('movie.dimCropRight')} />
+                                  <Input type="number" step="0.01" value={selectedClip.style.crop.bottom} onChange={(event) => updateCropNumber('bottom', event.target.value)} placeholder={translate('movie.dimCropBottom')} />
                                 </div>
                               ) : null}
                             </div>
@@ -3067,10 +3074,10 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
 
                         <div className="space-y-2">
                           <div className="flex items-center justify-between gap-3">
-                            <label className="text-ui-xs text-[var(--oa-text-muted)]">Clip metadata</label>
+                            <label className="text-ui-xs text-[var(--oa-text-muted)]">{translate('movie.clipMetadata')}</label>
                             <Button variant="ghost" size="sm" onClick={applyMetadataDraft}>
                               <Upload className="size-4" />
-                              <span>Apply</span>
+                              <span>{translate('movie.apply')}</span>
                             </Button>
                           </div>
                           <Textarea
@@ -3094,8 +3101,8 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
             {dropActive ? (
               <div className="pointer-events-none absolute inset-4 z-20 flex items-center justify-center rounded-[16px] border border-dashed border-amber-200/50 bg-[rgba(25,18,8,0.72)] backdrop-blur-sm">
                 <div className="text-center">
-                  <div className="text-ui-base font-medium text-amber-50">Drop media to reference it here</div>
-                  <div className="mt-1 text-ui-sm text-amber-100/70">Dropped files stay where they are. Recordings still save into `assets/`.</div>
+                  <div className="text-ui-base font-medium text-amber-50">{translate('movie.dropTitle')}</div>
+                  <div className="mt-1 text-ui-sm text-amber-100/70">{translate('movie.dropDescription')}</div>
                 </div>
               </div>
             ) : null}
@@ -3159,7 +3166,7 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-3 text-ui-xs text-[var(--oa-text-muted)]">
-                  <span>Preview delay</span>
+                  <span>{translate('movie.previewDelay')}</span>
                   <span className="shrink-0 text-[var(--oa-text-strong)]">{expandedVideoDelayLabel}</span>
                 </div>
                 <div className="mt-2 flex items-center gap-3">
@@ -3190,7 +3197,7 @@ export function MovieViewer({ filePath, refreshKey = 0 }: MovieViewerProps) {
                 size="sm"
                 className="shrink-0"
               >
-                Close preview
+                {translate('movie.closePreview')}
               </AlertDialogCancel>
             </div>
           </AlertDialogContent>

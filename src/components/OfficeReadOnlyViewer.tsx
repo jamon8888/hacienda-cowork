@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ComponentProps } from 'react';
+import { useTranslation } from 'react-i18next';
 import FileViewer, { type ViewerState } from '@file-viewer/react';
 import { pptxRenderer } from '@file-viewer/renderer-pptx';
 import spreadsheetRenderer from '@file-viewer/renderer-spreadsheet';
@@ -8,6 +9,7 @@ import { OFFICE_EXTENSION_VIEWER_ID, OFFICE_READ_ONLY_PREVIEW_ID } from '../../s
 import { files, pathBasename } from '@/ipc';
 import { useFileRefresh } from '../hooks/useFileRefresh';
 import { Button } from './ui/button';
+import type { LocaleKey } from '../i18n';
 
 interface OfficeReadOnlyViewerProps {
   filePath: string;
@@ -78,6 +80,8 @@ export function OfficeReadOnlyViewer({
 }: OfficeReadOnlyViewerProps) {
   "use no memo";
 
+  const { t } = useTranslation();
+  const translate = useCallback((key: LocaleKey) => t(key), [t]);
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<ReadOnlyViewerState>({ status: 'loading' });
   const [renderState, setRenderState] = useState<PreviewRenderState>('loading');
@@ -156,7 +160,7 @@ export function OfficeReadOnlyViewer({
       >
         <div className="flex items-center gap-2">
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-          Loading read-only preview...
+          {translate('viewers.officeLoading')}
         </div>
       </div>
     );
@@ -170,14 +174,14 @@ export function OfficeReadOnlyViewer({
         data-testid={OFFICE_EXTENSION_VIEWER_ID}
       >
         <div className="max-w-md text-center">
-          <p className="mb-2 text-ui-base text-foreground">Unable to preview this file</p>
+          <p className="mb-2 text-ui-base text-foreground">{translate('viewers.officeError')}</p>
           <p className="mb-4 text-ui-sm text-muted-foreground">{previewError}</p>
           <button
             type="button"
             className="rounded-control bg-muted px-3 py-1.5 text-ui-sm text-foreground transition-colors hover:bg-muted/80"
             onClick={() => setRevision((current) => current + 1)}
           >
-            Try again
+            {translate('common.tryAgain')}
           </button>
         </div>
       </div>
@@ -196,10 +200,10 @@ export function OfficeReadOnlyViewer({
     >
       {editingUnavailable && (
         <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-control bg-muted px-2 py-1 text-ui-xs text-muted-foreground">
-          <span>Read-only preview. Install oo-editors to edit this file here.</span>
+          <span>{translate('viewers.officeBanner')}</span>
           {onInstallEditor && (
             <Button onClick={onInstallEditor} size="sm" variant="outline">
-              Install oo-editors
+              {translate('viewers.officeInstall')}
             </Button>
           )}
         </div>

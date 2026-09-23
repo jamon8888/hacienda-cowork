@@ -8,7 +8,8 @@
  * Shows built-in tools and MCP servers with optional filtering.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { matchesToolSearch, normalizeToolSearchQuery } from '@/lib/tool-search';
@@ -25,6 +26,7 @@ import {
   type McpStoreEntry,
 } from './mcpStoreData';
 import type { ToolServer } from '../../api';
+import type { LocaleKey } from '../../i18n';
 
 export interface ToolsGridProps {
   tools: ToolServer[];
@@ -108,6 +110,8 @@ export function ToolsGrid({
   hideFilter = false,
   hideSectionHeaders = false,
 }: ToolsGridProps) {
+  const { t } = useTranslation();
+  const translate = useCallback((key: LocaleKey, options?: Record<string, unknown>) => t(key, options), [t]);
   // Separate built-in and MCP tools
   const builtinTools = tools.filter(t => t.id.startsWith('builtin-'));
   const mcpTools = tools.filter(t => !t.id.startsWith('builtin-'));
@@ -302,9 +306,9 @@ export function ToolsGrid({
           <Plus className="size-4 text-muted-foreground" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-ui-sm font-medium text-foreground">Custom MCP server</div>
+          <div className="text-ui-sm font-medium text-foreground">{translate('tools.grid.customTitle')}</div>
           <p className="mt-0.5 text-ui-xs text-muted-foreground">
-            Connect a local command or remote endpoint
+            {translate('tools.grid.customDescription')}
           </p>
         </div>
       </button>
@@ -379,21 +383,21 @@ export function ToolsGrid({
 
             {filteredInstalledItems.length > 0 && (
               <div className="space-y-1.5">
-                <h4 className={SECTION_HEADING_CLASS}>Connected</h4>
+                <h4 className={SECTION_HEADING_CLASS}>{translate('tools.grid.connected')}</h4>
                 {renderUnifiedToolList(filteredInstalledItems)}
               </div>
             )}
 
             {filteredAvailableStoreItems.length > 0 && (
               <div className="space-y-1.5">
-                <h4 className={SECTION_HEADING_CLASS}>Available in Store</h4>
+                <h4 className={SECTION_HEADING_CLASS}>{translate('tools.grid.availableInStore')}</h4>
                 {renderUnifiedToolList(filteredAvailableStoreItems)}
               </div>
             )}
 
             {filteredBuiltinTools.length > 0 && (
               <div className="space-y-1.5">
-                <h4 className={SECTION_HEADING_CLASS}>Built-in</h4>
+                <h4 className={SECTION_HEADING_CLASS}>{translate('tools.grid.builtin')}</h4>
                 {renderInstalledToolList(filteredBuiltinTools)}
               </div>
             )}
@@ -406,7 +410,7 @@ export function ToolsGrid({
                   border: 'var(--border-width) dashed color-mix(in srgb, var(--oa-border, var(--border)) 56%, transparent)',
                 }}
               >
-                No tools match "{searchQuery.trim()}".
+                {translate('tools.grid.noMatch', { query: searchQuery.trim() })}
               </div>
             )}
           </div>
@@ -418,12 +422,12 @@ export function ToolsGrid({
       <div className={cn('space-y-3', className)}>
         <Tabs defaultValue="all" className="gap-3">
           <TabsList className={FLAT_TABS_LIST_CLASS}>
-            <TabsTrigger value="all" className={FLAT_TABS_TRIGGER_CLASS}>Store</TabsTrigger>
+            <TabsTrigger value="all" className={FLAT_TABS_TRIGGER_CLASS}>{translate('tools.grid.storeTab')}</TabsTrigger>
             <TabsTrigger value="installed" className={FLAT_TABS_TRIGGER_CLASS}>
-              Connected{installedItems.length > 0 ? ` (${installedItems.length})` : ''}
+              {installedItems.length > 0 ? translate('tools.grid.connectedTab', { count: installedItems.length }) : translate('tools.grid.connected')}
             </TabsTrigger>
             {hasBuiltinTools && (
-              <TabsTrigger value="builtin" className={FLAT_TABS_TRIGGER_CLASS}>Built-in</TabsTrigger>
+              <TabsTrigger value="builtin" className={FLAT_TABS_TRIGGER_CLASS}>{translate('tools.grid.builtin')}</TabsTrigger>
             )}
           </TabsList>
 
@@ -434,7 +438,7 @@ export function ToolsGrid({
               {customMcpItems.length > 0 && (
                 <div className="space-y-1.5">
                   <h4 className={SECTION_HEADING_CLASS}>
-                    Custom MCP Servers
+                    {translate('tools.grid.customServers')}
                   </h4>
                   {renderUnifiedToolList(customMcpItems)}
                 </div>
@@ -447,7 +451,7 @@ export function ToolsGrid({
                 return (
                   <div key={category} className="space-y-1.5">
                     <h4 className={SECTION_HEADING_CLASS}>
-                      {MCP_STORE_CATEGORIES[category].label}
+                      {translate(MCP_STORE_CATEGORIES[category].labelKey)}
                     </h4>
                     {renderUnifiedToolList(items)}
                   </div>
@@ -472,7 +476,7 @@ export function ToolsGrid({
                     border: 'var(--border-width) dashed color-mix(in srgb, var(--oa-border, var(--border)) 56%, transparent)',
                   }}
                 >
-                  No MCP servers installed
+                  {translate('tools.grid.noServers')}
                 </div>
               )}
             </div>
@@ -502,18 +506,18 @@ export function ToolsGrid({
             checked={showBuiltIn}
             onCheckedChange={(checked) => setShowBuiltIn(checked === true)}
           />
-          <span>Show built-in tools</span>
+          <span>{translate('tools.grid.showBuiltin')}</span>
         </label>
       )}
 
       {/* Built-in Tools Section */}
       {visibleBuiltinTools.length > 0 && (
         <div className="space-y-2">
-          {!hideSectionHeaders && (
-            <h4 className="text-ui-xs text-muted-foreground uppercase tracking-wider">
-              Built-in Tools
-            </h4>
-          )}
+              {!hideSectionHeaders && (
+                <h4 className="text-ui-xs text-muted-foreground uppercase tracking-wider">
+                  {translate('tools.grid.builtinTools')}
+                </h4>
+              )}
           <div className="grid grid-cols-2 gap-4">
             {visibleBuiltinTools.map(tool => (
               <ToolCard
@@ -535,11 +539,11 @@ export function ToolsGrid({
       {/* MCP Servers Section */}
       {(hasMcpTools || onAddNew) && (
         <div className="space-y-2">
-          {!hideSectionHeaders && (visibleBuiltinTools.length > 0 || hasMcpTools) && (
-            <h4 className="text-ui-xs text-muted-foreground uppercase tracking-wider">
-              MCP Servers
-            </h4>
-          )}
+              {!hideSectionHeaders && (visibleBuiltinTools.length > 0 || hasMcpTools) && (
+                <h4 className="text-ui-xs text-muted-foreground uppercase tracking-wider">
+                  {translate('tools.grid.mcpServers')}
+                </h4>
+              )}
           <div className="grid grid-cols-2 gap-4">
             {visibleMcpTools.map(tool => (
               <ToolCard
@@ -572,7 +576,7 @@ export function ToolsGrid({
                 style={{ border: 'var(--border-width) dashed var(--border)' }}
               >
                 <Plus className="size-5" />
-                <span>Add MCP Server</span>
+                <span>{translate('tools.grid.addMcpServer')}</span>
               </button>
             )}
           </div>
@@ -585,7 +589,7 @@ export function ToolsGrid({
           className="text-ui-sm text-muted-foreground text-center p-4 rounded-control"
           style={{ border: 'var(--border-width) dashed var(--border)' }}
         >
-          No tools available
+          {translate('tools.grid.noTools')}
         </div>
       )}
     </div>
