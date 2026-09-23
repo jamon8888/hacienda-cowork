@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { LocaleKey } from '../../i18n';
+import type { TOptions } from 'i18next';
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import {
   CUA_ACCESS_PERMISSION_KINDS,
@@ -55,75 +58,75 @@ type RuntimePermissionChange =
 
 type RuntimeSelectOption = {
   value: string;
-  label: string;
-  description: string;
+  labelKey: LocaleKey;
+  descriptionKey: LocaleKey;
 };
 
 const FILE_READ_OPTIONS: RuntimeSelectOption[] = [
   {
     value: 'folder',
-    label: 'Current folder',
-    description: 'Only view files in the folder you opened here.',
+    labelKey: 'nativetools.optCurrentFolder',
+    descriptionKey: 'nativetools.optCurrentFolderReadDesc',
   },
   {
     value: 'anywhere',
-    label: 'Anywhere',
-    description: 'View files outside your current folder too.',
+    labelKey: 'nativetools.optAnywhere',
+    descriptionKey: 'nativetools.optAnywhereReadDesc',
   },
 ];
 
 const FILE_WRITE_OPTIONS: RuntimeSelectOption[] = [
   {
     value: 'ask-first',
-    label: 'Ask first',
-    description: 'Ask before changing files.',
+    labelKey: 'nativetools.optAskFirst',
+    descriptionKey: 'nativetools.optAskFirstWriteDesc',
   },
   {
     value: 'folder',
-    label: 'Current folder',
-    description: 'Change files in the current folder without asking first.',
+    labelKey: 'nativetools.optCurrentFolder',
+    descriptionKey: 'nativetools.optCurrentFolderWriteDesc',
   },
   {
     value: 'anywhere',
-    label: 'Anywhere',
-    description: 'Change files anywhere without asking first.',
+    labelKey: 'nativetools.optAnywhere',
+    descriptionKey: 'nativetools.optAnywhereWriteDesc',
   },
 ];
 
 const TEMP_ACCESS_OPTIONS: RuntimeSelectOption[] = [
   {
     value: 'off',
-    label: 'Off',
-    description: 'Interpreter cannot use /tmp screenshots, so pasted overlay images and Interpreter Overlay are unavailable.',
+    labelKey: 'nativetools.optOff',
+    descriptionKey: 'nativetools.optOffDesc',
   },
   {
     value: 'on',
-    label: 'On',
-    description: 'Allow /tmp working files for screenshots, pasted overlay images, and Interpreter Overlay.',
+    labelKey: 'nativetools.optOn',
+    descriptionKey: 'nativetools.optOnDesc',
   },
 ];
 
 const CUA_ACCESS_MODE_OPTIONS: RuntimeSelectOption[] = [
   {
     value: 'ask',
-    label: 'Ask first',
-    description: 'Ask before using this native app capability.',
+    labelKey: 'nativetools.optAsk',
+    descriptionKey: 'nativetools.optAskDesc',
   },
   {
     value: 'deny',
-    label: 'Never',
-    description: 'Do not let Interpreter use this native app capability.',
+    labelKey: 'nativetools.optNever',
+    descriptionKey: 'nativetools.optNeverDesc',
   },
   {
     value: 'all',
-    label: 'Allow',
-    description: 'Allow this native app capability without asking again.',
+    labelKey: 'nativetools.optAllow',
+    descriptionKey: 'nativetools.optAllowDesc',
   },
 ];
 
-const CUA_PERMISSION_LABELS: Record<CuaAccessPermissionKind, string> = {
-  inspect: 'Inspect',
-  control: 'Control',
+const CUA_PERMISSION_LABEL_KEYS: Record<CuaAccessPermissionKind, LocaleKey> = {
+  inspect: 'nativetools.permInspect',
+  control: 'nativetools.permControl',
 };
 
 function findOption(
@@ -163,16 +166,16 @@ function deriveTempAccess(
   return tempAccessEnabled ? 'on' : 'off';
 }
 
-function getRuntimeChangeLabel(change: RuntimePermissionChange): string {
+function getRuntimeChangeLabelKey(change: RuntimePermissionChange): LocaleKey {
   switch (change.kind) {
     case 'view-files':
-      return 'file viewing';
+      return 'nativetools.changeLabelView';
     case 'change-files':
-      return 'file changes';
+      return 'nativetools.changeLabelChange';
     case 'temporary-files':
-      return 'temporary files';
+      return 'nativetools.changeLabelTemp';
     case 'network':
-      return 'network access';
+      return 'nativetools.changeLabelNetwork';
   }
 }
 
@@ -254,22 +257,23 @@ function RuntimeSelect({
   onChange: (value: string) => void;
 }) {
   const selected = findOption(options, value);
+  const { t } = useTranslation();
 
   return (
     <Select value={value} disabled={disabled} onValueChange={onChange}>
       <SelectTrigger
         className="w-full justify-between sm:w-[15.5rem]"
-        aria-label={selected.label}
+        aria-label={t(selected.labelKey)}
       >
-        <span className="truncate">{selected.label}</span>
+        <span className="truncate">{t(selected.labelKey)}</span>
       </SelectTrigger>
       <SelectContent align="end" position="popper">
         {options.map((option) => (
           <SelectItem key={option.value} value={option.value}>
             <span className="flex flex-col items-start gap-0.5">
-              <span>{option.label}</span>
+              <span>{t(option.labelKey)}</span>
               <span className="text-ui-xs leading-5 text-muted-foreground">
-                {option.description}
+                {t(option.descriptionKey)}
               </span>
             </span>
           </SelectItem>
@@ -283,6 +287,8 @@ export function NativeToolsSection() {
   "use no memo";
 
   const isMac = getRuntimeSystemInfo().platform === 'darwin';
+  const { t } = useTranslation();
+  const translate = useCallback((key: LocaleKey, options?: TOptions) => t(key, options), [t]);
   const agentActivityMap = useAgentActivityMap();
   const [codexNetworkAccess, setCodexNetworkAccess] = useState(true);
   const [approvalPolicy, setApprovalPolicy] = useState<ApprovalPolicy>('on-request');
@@ -336,7 +342,7 @@ export function NativeToolsSection() {
         setCuaAccessPolicy(cuaPolicyResult.policy);
       } catch (error) {
         console.error('Failed to load runtime permissions:', error);
-        setErrorMessage('Could not load these permissions.');
+        setErrorMessage(translate('nativetools.statusLoadFailed'));
       } finally {
         setLoading(false);
       }
@@ -423,10 +429,10 @@ export function NativeToolsSection() {
   }, []);
 
   const applyRuntimeChange = useCallback(async (change: RuntimePermissionChange) => {
-    const changeLabel = getRuntimeChangeLabel(change);
+    const changeLabel = translate(getRuntimeChangeLabelKey(change));
     setIsApplying(true);
     setErrorMessage(null);
-    setStatusMessage(`Restarting Interpreter to update ${changeLabel}...`);
+    setStatusMessage(translate('nativetools.statusRestarting', { change: changeLabel }));
 
     let didPersist = false;
     try {
@@ -440,13 +446,13 @@ export function NativeToolsSection() {
       setStatusMessage(null);
       setErrorMessage(
         didPersist
-          ? `Saved ${changeLabel}, but Interpreter could not restart cleanly.`
-          : `Could not update ${changeLabel}.`,
+          ? translate('nativetools.statusSavedNoRestart', { change: changeLabel })
+          : translate('nativetools.statusUpdateFailed', { change: changeLabel }),
       );
     } finally {
       setIsApplying(false);
     }
-  }, [applyLocalRuntimeChange, persistRuntimeChange]);
+  }, [applyLocalRuntimeChange, persistRuntimeChange, translate]);
 
   const saveCuaPolicy = useCallback(async (nextPolicy: CuaAccessPolicy) => {
     setIsSavingCuaPolicy(true);
@@ -546,17 +552,17 @@ export function NativeToolsSection() {
   );
 
   if (loading) {
-    return <div className="py-[18px] text-ui-sm text-muted-foreground">Loading…</div>;
+    return <div className="py-[18px] text-ui-sm text-muted-foreground">{translate('common.loading')}</div>;
   }
 
   return (
     <>
       <SettingsRow
-        label="View files"
+        label={translate('nativetools.viewFiles')}
         description={
           fileWriteAccess === 'anywhere'
-            ? 'Included when Interpreter can change files anywhere.'
-            : 'Choose which files Interpreter can open to inspect.'
+            ? translate('nativetools.viewFilesIncluded')
+            : translate('nativetools.viewFilesDesc')
         }
         contentClassName="sm:justify-end"
       >
@@ -575,8 +581,8 @@ export function NativeToolsSection() {
       </SettingsRow>
 
       <SettingsRow
-        label="Change files"
-        description="Choose when Interpreter can edit files on its own."
+        label={translate('nativetools.changeFiles')}
+        description={translate('nativetools.changeFilesDesc')}
         contentClassName="sm:justify-end"
       >
         <RuntimeSelect
@@ -595,11 +601,11 @@ export function NativeToolsSection() {
 
       {isMac ? (
         <SettingsRow
-          label="Temporary files"
+          label={translate('nativetools.tempFiles')}
           description={
             tempAccess === 'off'
-              ? 'Interpreter cannot see saved screenshots in /tmp, so pasted overlay images and Interpreter Overlay are unavailable.'
-              : 'Allow Interpreter to use temporary working files on your Mac, including saved screenshots for pasted overlay images and Interpreter Overlay.'
+              ? translate('nativetools.tempFilesDescOff')
+              : translate('nativetools.tempFilesDescOn')
           }
           contentClassName="sm:justify-end"
         >
@@ -619,8 +625,8 @@ export function NativeToolsSection() {
       ) : null}
 
       <SettingsRow
-        label="Inspect apps"
-        description="Choose when Interpreter can read visible text, controls, and window structure from native apps."
+        label={translate('nativetools.inspectApps')}
+        description={translate('nativetools.inspectAppsDesc')}
         contentClassName="sm:justify-end"
       >
         <RuntimeSelect
@@ -638,8 +644,8 @@ export function NativeToolsSection() {
       </SettingsRow>
 
       <SettingsRow
-        label="Control apps"
-        description="Choose when Interpreter can click, type, move windows, or change native apps."
+        label={translate('nativetools.controlApps')}
+        description={translate('nativetools.controlAppsDesc')}
         contentClassName="sm:justify-end"
       >
         <RuntimeSelect
@@ -657,8 +663,8 @@ export function NativeToolsSection() {
       </SettingsRow>
 
       <SettingsRow
-        label="App rules"
-        description="Override the native app defaults for specific apps such as TextEdit, Finder, or Slack."
+        label={translate('nativetools.appRules')}
+        description={translate('nativetools.appRulesDesc')}
         layout="wide"
         align="start"
         contentClassName="lg:justify-end"
@@ -683,7 +689,7 @@ export function NativeToolsSection() {
                         key={`${appPolicy.appId}-${permissionKind}`}
                         className="flex items-center gap-2 text-ui-sm text-muted-foreground"
                       >
-                        <span>{CUA_PERMISSION_LABELS[permissionKind]}</span>
+                        <span>{translate(CUA_PERMISSION_LABEL_KEYS[permissionKind])}</span>
                         <RuntimeSelect
                           value={appPolicy.permissions[permissionKind].mode}
                           options={CUA_ACCESS_MODE_OPTIONS}
@@ -705,7 +711,7 @@ export function NativeToolsSection() {
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={`Remove ${appPolicy.displayName} rule`}
+                      aria-label={translate('nativetools.removeAppRule', { name: appPolicy.displayName })}
                       disabled={isSavingCuaPolicy}
                       onClick={() => {
                         void saveCuaPolicy(removeCuaAppPolicy(cuaAccessPolicy, appPolicy.appId)).catch(() => {});
@@ -719,7 +725,7 @@ export function NativeToolsSection() {
             </div>
           ) : (
             <div className="text-ui-sm leading-6 text-muted-foreground">
-              No app-specific Computer Use rules.
+              {translate('nativetools.noAppRules')}
             </div>
           )}
 
@@ -727,8 +733,8 @@ export function NativeToolsSection() {
             <Input
               value={newCuaAppName}
               disabled={isSavingCuaPolicy}
-              placeholder="App name"
-              aria-label="Native app name"
+              placeholder={translate('nativetools.appNamePlaceholder')}
+              aria-label={translate('nativetools.appNameAria')}
               onChange={(event) => {
                 setNewCuaAppName(event.target.value);
                 setCuaPolicyError(null);
@@ -747,7 +753,7 @@ export function NativeToolsSection() {
               onClick={addCuaAppRule}
             >
               <Plus className="size-4" />
-              <span>Add app</span>
+              <span>{translate('nativetools.addApp')}</span>
             </Button>
           </div>
           {cuaPolicyError ? (
@@ -757,8 +763,8 @@ export function NativeToolsSection() {
       </SettingsRow>
 
       <SettingsRow
-        label="Network"
-        description="Allow Interpreter to connect to websites and services."
+        label={translate('nativetools.network')}
+        description={translate('nativetools.networkDesc')}
       >
         <Switch
           checked={codexNetworkAccess}
@@ -811,10 +817,10 @@ export function NativeToolsSection() {
             <AlertDialogMedia className="bg-[var(--oa-danger-soft)] text-[var(--oa-danger)]">
               <AlertTriangle />
             </AlertDialogMedia>
-            <AlertDialogTitle>Enable Full Access?</AlertDialogTitle>
+            <AlertDialogTitle>{translate('nativetools.fullAccessTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Full Access is very dangerous. Interpreter will be able to read and write outside your current folder.
-              {' '}We recommend using this only with smart models like GPT-5.4.
+              {translate('nativetools.fullAccessDesc1')}
+              {' '}{translate('nativetools.fullAccessDesc2')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="px-6 pb-5 sm:px-7 sm:pb-6">
@@ -822,14 +828,14 @@ export function NativeToolsSection() {
               disabled={isApplying}
               className="sm:min-w-[9rem]"
             >
-              Keep workspace write
+              {translate('nativetools.keepWorkspace')}
             </AlertDialogCancel>
             <AlertDialogAction
               disabled={isApplying}
               onClick={confirmDangerousChange}
               className="sm:min-w-[10rem]"
             >
-              Enable Full Access
+              {translate('nativetools.fullAccess')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -857,10 +863,10 @@ export function NativeToolsSection() {
             <AlertDialogMedia className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
               <AlertTriangle />
             </AlertDialogMedia>
-            <AlertDialogTitle>Restart Interpreter?</AlertDialogTitle>
+            <AlertDialogTitle>{translate('approvals.restart.title')}</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingChange
-                ? `${runningConversationCount} conversation${runningConversationCount === 1 ? ' is' : 's are'} still running. To update ${getRuntimeChangeLabel(pendingChange)}, Interpreter needs to restart. This will stop ${runningConversationCount === 1 ? 'that conversation' : 'those conversations'} for every agent.`
+                ? translate('nativetools.restartDesc', { count: runningConversationCount, change: translate(getRuntimeChangeLabelKey(pendingChange)) })
                 : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -869,14 +875,14 @@ export function NativeToolsSection() {
               disabled={isApplying}
               className="sm:min-w-[9rem]"
             >
-              Keep current settings
+              {translate('nativetools.keepSettings')}
             </AlertDialogCancel>
             <AlertDialogAction
               disabled={isApplying}
               onClick={confirmPendingChange}
               className="sm:min-w-[10rem]"
             >
-              Restart and apply
+              {translate('nativetools.restartApply')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

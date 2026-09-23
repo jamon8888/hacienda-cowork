@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AppWindow, Chrome, X } from 'lucide-react';
 import { browserControl } from '@/ipc';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,8 @@ const AUTO_DISMISS_MS = 10_000;
 
 export function BrowserSplitOfferNotice() {
   "use no memo";
+
+  const { t } = useTranslation();
 
   const { showToast } = useToast();
   const { setLeftSidebarOpen, setRightSidebarOpen } = useLayoutActions();
@@ -99,7 +102,7 @@ export function BrowserSplitOfferNotice() {
       return null;
     }
 
-    const browserLabel = offer.browserName || 'Browser';
+    const browserLabel = offer.browserName || t('browser.genericName');
 
     return (
       <div className="w-[320px] max-w-[calc(100vw-32px)]">
@@ -123,10 +126,10 @@ export function BrowserSplitOfferNotice() {
 
             <div className="min-w-0 flex-1">
               <span className="block text-ui-sm font-medium text-[var(--oa-text-strong, var(--foreground))]">
-                Shared browser tab connected
+                {t('browser.connectedTitle')}
               </span>
               <span className="mt-0.5 block text-ui-xs leading-4 text-muted-foreground">
-                Place {browserLabel} on the left and Interpreter on the right?
+                {t('browser.placeHint', { browser: browserLabel })}
               </span>
               <div className="mt-3 flex items-center gap-2">
                 <Button
@@ -136,7 +139,7 @@ export function BrowserSplitOfferNotice() {
                   size="sm"
                   className="h-8 px-3"
                 >
-                  {isArranging ? 'Rearranging...' : 'Rearrange'}
+                  {isArranging ? t('browser.rearranging') : t('browser.rearrange')}
                 </Button>
               </div>
             </div>
@@ -147,7 +150,7 @@ export function BrowserSplitOfferNotice() {
               variant="ghost"
               size="icon-xs"
               className="mt-0.5 shrink-0 text-muted-foreground/60 hover:text-foreground"
-              aria-label="Dismiss browser layout offer"
+              aria-label={t('browser.dismissOffer')}
             >
               <X className="size-3.5" />
             </Button>
@@ -155,7 +158,7 @@ export function BrowserSplitOfferNotice() {
         </div>
       </div>
     );
-  }, [handleArrange, handleDismiss, isArranging, offer]);
+  }, [handleArrange, handleDismiss, isArranging, offer, t]);
 
   useLowerLeftNotice(NOTICE_ID, content);
 

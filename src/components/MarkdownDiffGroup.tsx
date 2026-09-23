@@ -1,4 +1,5 @@
 import { TipTapViewer } from './TipTapViewer';
+import { useTranslation } from 'react-i18next';
 import { markdownToTiptap } from '../utils/markdown-parser';
 import { Button } from './ui/button';
 
@@ -27,20 +28,21 @@ export function MarkdownDiffGroup({
   onReject
 }: MarkdownDiffGroupProps) {
   // Calculate metadata text
+  const { t } = useTranslation();
   const getMetadata = () => {
     if (group.oldContent && group.newContent) {
       const diff = group.newLines - group.oldLines;
       if (diff > 0) {
-        return `Modifies ${group.oldLines} ${group.oldLines === 1 ? 'line' : 'lines'}, adds ${diff} ${diff === 1 ? 'line' : 'lines'}`;
+        return t('mdiff.metaModAdd', { a: group.oldLines, b: diff });
       } else if (diff < 0) {
-        return `Modifies ${group.newLines} ${group.newLines === 1 ? 'line' : 'lines'}, removes ${Math.abs(diff)} ${Math.abs(diff) === 1 ? 'line' : 'lines'}`;
+        return t('mdiff.metaModRemove', { a: group.newLines, b: Math.abs(diff) });
       } else {
-        return `Modifies ${group.oldLines} ${group.oldLines === 1 ? 'line' : 'lines'}`;
+        return t('mdiff.metaMod', { a: group.oldLines });
       }
     } else if (group.oldContent) {
-      return `Removes ${group.oldLines} ${group.oldLines === 1 ? 'line' : 'lines'}`;
+      return t('mdiff.metaRemove', { a: group.oldLines });
     } else {
-      return `Adds ${group.newLines} ${group.newLines === 1 ? 'line' : 'lines'}`;
+      return t('mdiff.metaAdd', { a: group.newLines });
     }
   };
 
@@ -75,14 +77,14 @@ export function MarkdownDiffGroup({
             variant="outline"
             size="xs"
           >
-            Reject
+            {t('mdiff.reject')}
           </Button>
           <Button
             onClick={() => onAccept(group.index)}
             variant="default"
             size="xs"
           >
-            Accept
+            {t('mdiff.accept')}
           </Button>
         </div>
       </div>

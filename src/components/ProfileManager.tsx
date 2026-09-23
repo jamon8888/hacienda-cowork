@@ -85,6 +85,7 @@ function AgentHarnessEditor({
   profile: Profile;
   onChange: (harness: string | null | undefined) => void;
 }) {
+  const { t } = useTranslation();
   const providerId = profileToOixProviderId(profile);
   const { data, loading, error } = useInterpreterHarnesses(
     providerId,
@@ -118,10 +119,10 @@ function AgentHarnessEditor({
 
   return (
     <SettingsRow
-      label="Agent harness"
+      label={t('profile.harnessLabel')}
       description={
         selectedRuntimeHarness?.description
-        ?? 'Controls how OIX formats tools and messages for this model. Automatic follows OIX’s compatible recommended harness.'
+        ?? t('profile.harnessDesc')
       }
     >
       <div className="w-[320px] max-w-full space-y-1.5">
@@ -140,12 +141,12 @@ function AgentHarnessEditor({
           disabled={loading}
           className="w-full"
         />
-        {loading && (
-          <p className="text-ui-xs text-muted-foreground">Loading compatible harnesses…</p>
+          {loading && (
+          <p className="text-ui-xs text-muted-foreground">{t('profile.harnessLoading')}</p>
         )}
         {error && (
           <p className="text-ui-xs text-muted-foreground">
-            Compatible harnesses could not be loaded. Automatic selection will still work.
+            {t('profile.harnessError')}
           </p>
         )}
       </div>

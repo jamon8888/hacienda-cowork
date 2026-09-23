@@ -654,6 +654,7 @@ export function OptimisticThinkingLoader({
 // ---------------------------------------------------------------------------
 
 export function CompactionDivider() {
+  const { t } = useTranslation();
   return (
     <div
       className="w-full max-w-[var(--thread-max-width)] mx-auto"
@@ -665,7 +666,7 @@ export function CompactionDivider() {
           style={{ borderTop: 'var(--border-width) dashed var(--border)' }}
         />
         <span className="text-ui-xs whitespace-nowrap">
-          Conversation Compacted
+          {t('thread.compacted')}
         </span>
         <div
           className="flex-1"

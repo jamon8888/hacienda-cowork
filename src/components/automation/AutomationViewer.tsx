@@ -6,6 +6,7 @@
  */
 
 import { useReducer, useEffect, useRef, useCallback, useState, useMemo, type DragEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { readFile, writeFile, getWorkspace } from '../../api';
 import { useToolServers } from '../../contexts/ToolServersContext';
 import {
@@ -51,6 +52,7 @@ function parseAutomationFileContent(content: string): AutomationState['workflow'
 }
 
 export function AutomationViewer({ filePath }: AutomationViewerProps) {
+  const { t } = useTranslation();
   const [state, dispatch] = useReducer(automationReducer, initialState);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'unsaved' | 'saving'>('saved');
   const [loading, setLoading] = useState(true);
@@ -197,7 +199,7 @@ export function AutomationViewer({ filePath }: AutomationViewerProps) {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center text-muted-foreground text-ui-sm">
-        Loading automation...
+        {t('automation.loading')}
       </div>
     );
   }
@@ -240,7 +242,7 @@ export function AutomationViewer({ filePath }: AutomationViewerProps) {
                 className="text-ui-xs font-medium text-muted-foreground uppercase tracking-wider"
                 style={{ padding: `var(--spacing-xs) var(--spacing-sm)` }}
               >
-                Constants
+                {t('automation.constants')}
               </div>
               {constants.map((c) => (
                 <div
@@ -271,7 +273,7 @@ export function AutomationViewer({ filePath }: AutomationViewerProps) {
             className="text-ui-xs font-medium text-muted-foreground uppercase tracking-wider"
             style={{ padding: `var(--spacing-xs) var(--spacing-sm)` }}
           >
-            Tools
+            {t('automation.tools')}
           </div>
           <ToolPalette servers={servers} onAddTool={handleAddTool} />
         </div>

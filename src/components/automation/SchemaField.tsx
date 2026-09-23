@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { RefInput } from './RefInput';
 import { openPathDialog } from '../../ipc';
 import type { AutomationBlock, BlockOutput, AutomationConstant } from '../../types/automation';
@@ -29,6 +30,7 @@ function isPathField(name: string): boolean {
  * Path-like fields get an additional browse button for native file/folder selection.
  */
 export function SchemaField({ name, schema, value, onChange, blocksBefore, blockOutputs, required, constants, workspacePath }: SchemaFieldProps) {
+  const { t } = useTranslation();
   const type = schema?.type;
   const description = schema?.description;
   const showBrowse = (type === 'string' || !type) && isPathField(name);
@@ -39,12 +41,12 @@ export function SchemaField({ name, schema, value, onChange, blocksBefore, block
     const result = await openPathDialog({
       type: isFolder ? 'folder' : 'both',
       defaultPath: workspacePath || undefined,
-      title: `Select ${name}`,
+      title: t('schema.selectTitle', { name }),
     });
     if (!result.canceled && result.filePaths.length > 0) {
       onChange(result.filePaths[0]);
     }
-  }, [name, workspacePath, onChange]);
+  }, [name, workspacePath, onChange, t]);
 
   const label = (
     <label className="block text-ui-xs text-muted-foreground" style={{ marginBottom: 'var(--padding-sm)' }}>
@@ -188,9 +190,9 @@ export function SchemaField({ name, schema, value, onChange, blocksBefore, block
               height: 'var(--unit-height-small)',
             }}
             onClick={handleBrowse}
-            title="Browse..."
+            title={t('schema.browseTitle')}
           >
-            Browse
+            {t('schema.browse')}
           </button>
         )}
       </div>

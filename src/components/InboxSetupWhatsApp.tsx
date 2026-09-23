@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Loader2, X, Phone } from 'lucide-react';
 import { Button } from './ui/button';
 import { getAppServerOrigin, isBrowserDevMode } from '@/ipc';
@@ -14,6 +15,7 @@ import {
   trackInboxSetupCompleted,
   trackInboxSetupFailed,
 } from '../utils/telemetry';
+import type { LocaleKey } from '../i18n';
 
 interface InboxSetupWhatsAppProps {
   onConnected: () => void;
@@ -23,6 +25,8 @@ interface InboxSetupWhatsAppProps {
 export function InboxSetupWhatsApp({ onConnected, onCancel }: InboxSetupWhatsAppProps) {
   "use no memo";
 
+  const { t } = useTranslation();
+  const translate = useCallback((key: LocaleKey) => t(key), [t]);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(true);
@@ -110,7 +114,7 @@ export function InboxSetupWhatsApp({ onConnected, onCancel }: InboxSetupWhatsApp
         try {
           const data = JSON.parse(event.data);
           const message = typeof data?.message === 'string' ? data.message : null;
-          const nextError = message || 'WhatsApp connection failed. Please try again.';
+          const nextError = message || translate('inbox.setup.waConnectFailed');
           setError(nextError);
           trackInboxSetupFailed({
             channel: 'whatsapp',
@@ -118,7 +122,7 @@ export function InboxSetupWhatsApp({ onConnected, onCancel }: InboxSetupWhatsApp
             stage: 'disconnected',
           });
         } catch {
-          const nextError = 'WhatsApp connection failed. Please try again.';
+          const nextError = translate('inbox.setup.waConnectFailed');
           setError(nextError);
           trackInboxSetupFailed({
             channel: 'whatsapp',
@@ -210,9 +214,9 @@ export function InboxSetupWhatsApp({ onConnected, onCancel }: InboxSetupWhatsApp
               <Phone className="size-4 text-[var(--oa-text-muted)]" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-ui-base font-medium">Connect WhatsApp</h2>
+              <h2 className="text-ui-base font-medium">{translate('inbox.setup.waTitle')}</h2>
               <p className="mt-1 text-ui-sm text-[var(--oa-text-muted)]">
-                Scan a QR code from your phone to bring your chats into Inbox.
+                {translate('inbox.setup.waSubtitle')}
               </p>
             </div>
           </div>
@@ -255,10 +259,10 @@ export function InboxSetupWhatsApp({ onConnected, onCancel }: InboxSetupWhatsApp
               <Loader2 className="mb-1 size-7 animate-spin text-[var(--oa-text-muted)]" />
               <div className="space-y-1">
                 <p className="text-ui-base font-medium text-[var(--oa-text)]">
-                  Generating QR code
+                  {translate('inbox.setup.waGenerating')}
                 </p>
                 <p className="text-ui-sm text-[var(--oa-text-muted)]">
-                  Keep this view open while we establish the WhatsApp session.
+                  {translate('inbox.setup.waKeepOpen')}
                 </p>
               </div>
             </>
@@ -275,16 +279,16 @@ export function InboxSetupWhatsApp({ onConnected, onCancel }: InboxSetupWhatsApp
               >
                 <img
                   src={qrCode}
-                  alt="WhatsApp QR Code"
+                  alt={translate('inbox.setup.waQrAlt')}
                   className="h-[192px] w-[192px] rounded-[12px]"
                 />
               </div>
               <div className="space-y-1.5">
                 <h3 className="text-ui-base font-medium text-[var(--oa-text)]">
-                  Scan with WhatsApp
+                  {translate('inbox.setup.waScanWith')}
                 </h3>
                 <p className="mx-auto max-w-[260px] text-ui-sm text-[var(--oa-text-muted)]">
-                  Open WhatsApp on your phone, go to Settings {'>'} Linked Devices {'>'} Link a Device, and scan this QR code.
+                  {translate('inbox.setup.waScanSteps')}
                 </p>
               </div>
             </>
@@ -295,11 +299,11 @@ export function InboxSetupWhatsApp({ onConnected, onCancel }: InboxSetupWhatsApp
           className="space-y-2 pt-4"
           style={{ borderTop: 'var(--border-width) solid', ...dividerStyle }}
         >
-          <p className="text-ui-sm font-medium text-[var(--oa-text)]">After it connects</p>
+          <p className="text-ui-sm font-medium text-[var(--oa-text)]">{translate('inbox.setup.waAfter')}</p>
           <ol className="space-y-1 pl-4 text-ui-sm text-[var(--oa-text-muted)]">
-            <li>The setup view will close automatically.</li>
-            <li>Send yourself a message to create your WhatsApp thread in Inbox.</li>
-            <li>If the QR code expires, refresh and scan the newest one.</li>
+            <li>{translate('inbox.setup.waStep1')}</li>
+            <li>{translate('inbox.setup.waStep2')}</li>
+            <li>{translate('inbox.setup.waStep3')}</li>
           </ol>
         </div>
       </div>
@@ -319,15 +323,15 @@ export function InboxSetupWhatsApp({ onConnected, onCancel }: InboxSetupWhatsApp
           }}
           className="text-[var(--oa-text-muted)]"
         >
-          Cancel
+          {translate('common.cancel')}
         </Button>
         {error ? (
           <Button variant="secondary" size="sm" onClick={() => void startSetup()}>
-            Try again
+            {translate('common.tryAgain')}
           </Button>
         ) : (
           <span className="text-ui-xs text-[var(--oa-text-muted)]">
-            Updates automatically
+            {translate('inbox.setup.waUpdatesAuto')}
           </span>
         )}
       </div>

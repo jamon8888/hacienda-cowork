@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   API_BASE_URL_PICKER_INPUT_ID,
   API_BASE_URL_PICKER_EDIT_INPUT_ID,
@@ -67,6 +68,7 @@ export function ResponsesApiBaseUrlPicker({
   onBaseURLChange,
   onSelectedBaseURLIdChange,
 }: ResponsesApiBaseUrlPickerProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -143,7 +145,7 @@ export function ResponsesApiBaseUrlPicker({
           <div className="space-y-3 p-3">
             <ComboboxInput
               ref={inputRef}
-              placeholder="Search providers"
+              placeholder={t('responses.searchPlaceholder')}
               inputGroupClassName="w-full"
               showTrigger={false}
               data-testid={API_BASE_URL_PICKER_INPUT_ID}
@@ -169,15 +171,15 @@ export function ResponsesApiBaseUrlPicker({
                 data-base-url-id="custom"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-foreground">Custom endpoint</div>
+                  <div className="truncate text-foreground">{t('responses.customEndpoint')}</div>
                   <div className="truncate text-ui-xs text-muted-foreground">
-                    {baseURL?.trim() || 'Enter any Responses-compatible base URL'}
+                    {baseURL?.trim() || t('responses.customHint')}
                   </div>
                 </div>
               </ComboboxItem>
               {filteredOptions.length === 0 && (
                 <div className="rounded-control bg-muted/40 px-3 py-4 text-center text-ui-sm text-muted-foreground">
-                  No matching base URLs
+                  {t('responses.noMatch')}
                 </div>
               )}
             </ComboboxList>

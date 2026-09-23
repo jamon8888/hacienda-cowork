@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { vault, workspace } from '@/ipc';
 import type { VaultNoteContext, VaultResolvedLink } from '../../shared/types/vault';
@@ -153,6 +154,7 @@ export function MarkdownNoteContextCard({
   onContextChange,
 }: MarkdownNoteContextCardProps) {
   const [context, setContext] = useState<VaultNoteContext | null>(initialContext);
+  const { t } = useTranslation();
   const [error, setError] = useState<string | null>(initialError);
   const refreshTimerRef = useRef<number | null>(null);
 
@@ -162,7 +164,7 @@ export function MarkdownNoteContextCard({
     try {
       nextContext = await vault.getNoteContext({ filePath });
     } catch (nextError) {
-      nextErrorMessage = nextError instanceof Error ? nextError.message : 'Failed to load note context';
+      nextErrorMessage = nextError instanceof Error ? nextError.message : t('note.loadFailed');
     }
 
     if (nextErrorMessage) {
@@ -236,13 +238,13 @@ export function MarkdownNoteContextCard({
     <>
       {error ? (
         <div className="grid items-start gap-x-5 gap-y-2 md:grid-cols-[minmax(0,120px)_minmax(0,1fr)]">
-          <dt className="text-ui-sm text-[var(--oa-text-muted)]">Links</dt>
+          <dt className="text-ui-sm text-[var(--oa-text-muted)]">{t('note.links')}</dt>
           <dd className="text-ui-sm text-[var(--oa-text-muted)]">{error}</dd>
         </div>
       ) : null}
 
       <div className="grid items-start gap-x-5 gap-y-2 md:grid-cols-[minmax(0,120px)_minmax(0,1fr)]">
-        <dt className="text-ui-sm text-[var(--oa-text-muted)]">Linked from</dt>
+        <dt className="text-ui-sm text-[var(--oa-text-muted)]">{t('note.linkedFrom')}</dt>
         <dd className="min-w-0">
           <LinkGroup count={note.backlinks.length}>
             <div className="flex flex-wrap gap-2">
@@ -256,7 +258,7 @@ export function MarkdownNoteContextCard({
               ))}
               {note.backlinks.length > backlinks.length ? (
                 <span className="self-center text-ui-xs text-[var(--oa-text-faint)]">
-                  +{note.backlinks.length - backlinks.length} more
+                  {t('note.moreCount', { count: note.backlinks.length - backlinks.length })}
                 </span>
               ) : null}
             </div>
@@ -265,7 +267,7 @@ export function MarkdownNoteContextCard({
       </div>
 
       <div className="grid items-start gap-x-5 gap-y-2 md:grid-cols-[minmax(0,120px)_minmax(0,1fr)]">
-        <dt className="text-ui-sm text-[var(--oa-text-muted)]">Links to</dt>
+        <dt className="text-ui-sm text-[var(--oa-text-muted)]">{t('note.linksTo')}</dt>
         <dd className="min-w-0">
           <LinkGroup count={note.outgoingLinks.length}>
             <div className="flex flex-wrap gap-2">
@@ -280,7 +282,7 @@ export function MarkdownNoteContextCard({
               ))}
               {note.outgoingLinks.length > outgoingLinks.length ? (
                 <span className="self-center text-ui-xs text-[var(--oa-text-faint)]">
-                  +{note.outgoingLinks.length - outgoingLinks.length} more
+                  {t('note.moreCount', { count: note.outgoingLinks.length - outgoingLinks.length })}
                 </span>
               ) : null}
             </div>

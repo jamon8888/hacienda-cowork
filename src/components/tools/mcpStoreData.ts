@@ -14,14 +14,16 @@ export type McpStoreCategory =
   | 'data'
   | 'academic';
 
-export const MCP_STORE_CATEGORIES: Record<McpStoreCategory, { label: string; order: number }> = {
-  productivity: { label: 'Productivity', order: 1 },
-  finance: { label: 'Finance & Payments', order: 2 },
-  data: { label: 'Data & Analytics', order: 3 },
-  research: { label: 'Research & Life Sciences', order: 4 },
-  developer: { label: 'Developer Tools', order: 5 },
-  healthcare: { label: 'Healthcare', order: 6 },
-  academic: { label: 'Academic', order: 7 },
+import type { LocaleKey } from '../../../shared/locales';
+
+export const MCP_STORE_CATEGORIES: Record<McpStoreCategory, { labelKey: LocaleKey; order: number }> = {
+  productivity: { labelKey: 'tools.store.catProductivity', order: 1 },
+  finance: { labelKey: 'tools.store.catFinance', order: 2 },
+  data: { labelKey: 'tools.store.catData', order: 3 },
+  research: { labelKey: 'tools.store.catResearch', order: 4 },
+  developer: { labelKey: 'tools.store.catDeveloper', order: 5 },
+  healthcare: { labelKey: 'tools.store.catHealthcare', order: 6 },
+  academic: { labelKey: 'tools.store.catAcademic', order: 7 },
 };
 
 export interface McpStoreEntry {

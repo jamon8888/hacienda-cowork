@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import { tr } from '../../src/i18n';
 
@@ -108,6 +109,7 @@ function buildPinnedAgentTab(
 }
 
 export function AgentSidebar({ className }: AgentSidebarProps) {
+  const { t } = useTranslation();
   const {
     state,
     registerSidebarTab,
@@ -619,10 +621,10 @@ export function AgentSidebar({ className }: AgentSidebarProps) {
           <div className="flex flex-1 items-center justify-center px-6 py-8 transition-colors">
             <div className="max-w-[248px] text-center">
               <p className="text-ui-base font-medium text-foreground">
-                Drop agent tabs here
+                {t('agent.sidebar.dropHint')}
               </p>
               <p className="mt-2 text-ui-sm text-muted-foreground">
-                Drag an agent tab from the main area into this sidebar to keep the conversation beside your work.
+                {t('agent.sidebar.dropDesc')}
               </p>
               <button
                 type="button"
@@ -634,7 +636,7 @@ export function AgentSidebar({ className }: AgentSidebarProps) {
                 onClick={() => createPinnedAgent()}
               >
                 <Plus className="size-3.5" />
-                Create Agent in Sidebar
+                {t('agent.sidebar.createAgent')}
               </button>
               {isDragTarget ? (
                 <div
@@ -645,7 +647,7 @@ export function AgentSidebar({ className }: AgentSidebarProps) {
                     border: 'var(--border-width) dashed color-mix(in srgb, var(--oa-border, var(--border)) 72%, transparent)',
                   }}
                 >
-                  Drop agent tab
+                  {t('agent.sidebar.dropTab')}
                 </div>
               ) : null}
             </div>

@@ -9,6 +9,7 @@ import { buildMacUpdateInstallScript } from './utils/macUpdateInstall';
 import { checkForUpdatesSafely } from './utils/updateCheck';
 import { isUpdaterDiskFullError, isUpdaterHttpStatusError } from './utils/transientNetworkErrors';
 import { distributionProductConfig, hasUpdateFeed } from '../shared/productConfig';
+import { t } from './i18n';
 
 const UPDATE_INTERVAL = 30 * 60 * 1000;
 
@@ -114,12 +115,12 @@ export function installDownloadedUpdate(): boolean {
 
 export async function checkForUpdatesManually(): Promise<boolean> {
   if (!app.isPackaged) {
-    emitUpdateError('Update checks are unavailable in development mode.');
+    emitUpdateError(t('appUpdate.errorDevUnavailable'));
     return false;
   }
 
   if (!hasUpdateFeed()) {
-    emitUpdateError('This distribution does not provide an automatic update feed.');
+    emitUpdateError(t('appUpdate.errorNoFeed'));
     return false;
   }
 
@@ -135,7 +136,7 @@ export async function checkForUpdatesManually(): Promise<boolean> {
     return true;
   } catch (error) {
     manualCheckInProgress = false;
-    const message = error instanceof Error ? error.message : 'Unknown update error';
+    const message = error instanceof Error ? error.message : t('appUpdate.errorUnknown');
     emitUpdateError(message);
     return false;
   }
@@ -197,8 +198,8 @@ export function initAutoUpdater() {
       manualCheckInProgress = false;
     }
     const notification = new Notification({
-      title: 'Update Available',
-      body: `A new version ${info.version} is available and will be downloaded automatically.`
+      title: t('appUpdate.notificationTitle'),
+      body: t('appUpdate.notificationBody', { version: info.version })
     });
     notification.show();
   });
@@ -212,7 +213,7 @@ export function initAutoUpdater() {
   });
 
   autoUpdater.on('error', (err) => {
-    const message = err?.message ?? String(err ?? 'Failed to check for updates.');
+    const message = err?.message ?? String(err ?? t('appUpdate.errorUnknown'));
     if (isUpdaterDiskFullError(message)) {
       console.warn('[Auto-Updater] Disk full during update copy (ignored for Sentry):', message);
       if (manualCheckInProgress) {

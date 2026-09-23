@@ -7,7 +7,7 @@
 
 import i18next from 'i18next';
 import { app } from 'electron';
-import { resources, supportedLanguages, type SupportedLanguage } from '../shared/locales';
+import { resources, supportedLanguages, type LocaleKey, type SupportedLanguage } from '../shared/locales';
 
 let initialized = false;
 
@@ -64,8 +64,9 @@ export async function initI18nMain(configLocale?: string | null): Promise<void> 
 
 /**
  * Translate a key. Use in menu.ts and other main process code.
+ * Keys are compiler-checked against the shared locale catalog.
  */
-export function t(key: string, options?: Record<string, unknown>): string {
+export function t(key: LocaleKey, options?: Record<string, unknown>): string {
   return i18next.t(key, options);
 }
 

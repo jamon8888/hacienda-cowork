@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { REMOTION_VIEWER_ID } from '../../shared/element-ids';
 import { readFile } from '../api';
 import { remotion } from '@/ipc';
@@ -16,6 +17,7 @@ type ViewerState =
   | { status: 'error'; message: string };
 
 export function RemotionViewer({ filePath, refreshKey = 0 }: RemotionViewerProps) {
+  const { t } = useTranslation();
   const [state, setState] = useState<ViewerState>({ status: 'loading' });
   const [revision, setRevision] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -91,7 +93,7 @@ export function RemotionViewer({ filePath, refreshKey = 0 }: RemotionViewerProps
   if (state.status === 'loading') {
     return (
       <div id={REMOTION_VIEWER_ID} data-testid={REMOTION_VIEWER_ID} className="h-full w-full flex items-center justify-center text-muted-foreground">
-        Starting Remotion Studio...
+        {t('remotion.starting')}
       </div>
     );
   }
@@ -100,7 +102,7 @@ export function RemotionViewer({ filePath, refreshKey = 0 }: RemotionViewerProps
     return (
       <div id={REMOTION_VIEWER_ID} data-testid={REMOTION_VIEWER_ID} className="h-full w-full flex items-center justify-center px-8">
         <div className="text-center">
-          <div className="text-ui-base font-medium text-foreground mb-2">Remotion failed to start</div>
+          <div className="text-ui-base font-medium text-foreground mb-2">{t('remotion.failed')}</div>
           <div className="text-ui-sm text-muted-foreground whitespace-pre-wrap">{state.message}</div>
         </div>
       </div>
