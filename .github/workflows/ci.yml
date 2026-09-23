@@ -45,6 +45,7 @@ jobs:
       - run: pnpm run test:unit
       - run: pnpm run test:vitest
       - run: pnpm run test:qwen-download-contract
+      - run: pnpm run test:basemind-download-contract
       - run: pnpm audit --audit-level=high
       - name: Verify the standalone shadcn preset
         run: |
@@ -164,6 +165,7 @@ jobs:
             libopenblas-dev
       - run: pnpm install --frozen-lockfile
       - run: pnpm run download:oix -- --current-platform
+      - run: pnpm run download:basemind -- --current-platform
       - run: pnpm run download:pdfcpu -- --current-platform
       - run: pnpm run download:qwen-asr -- --current-platform
       - run: pnpm run build:js-repl-runtime

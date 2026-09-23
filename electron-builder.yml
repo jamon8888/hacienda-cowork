@@ -92,6 +92,7 @@ files:
   - "!resources/codex-skills/**"
   - "!resources/browser-extension-relay/**"
   - "!resources/browser-extension-relay.zip"
+  - "!resources/basemind/**"
   - "!resources/qwen-asr/**"
   - "!resources/*.qcow2"
   - build/**
@@ -170,6 +171,8 @@ mac:
   sign: null
   notarize: false
   extraResources:
+    - from: resources/basemind/darwin-${arch}
+      to: basemind
     - from: resources/oix/darwin-${arch}
       to: oix
     - from: resources/pdfcpu/darwin-${arch}/pdfcpu
@@ -227,6 +230,8 @@ win:
   icon: ./resources/icons/app.ico
   artifactName: ${productName}-win-${arch}-${buildVersion}.${ext}
   extraResources:
+    - from: resources/basemind/win32-${arch}
+      to: basemind
     - from: resources/oix/win32-${arch}
       to: oix
     # OIX ships the version-matched Codex sandbox helpers. The app also needs
@@ -255,6 +260,11 @@ linux:
     - target: deb
       arch: x64
   extraResources:
+    - from: resources/basemind/linux-${arch}
+      to: basemind
+    # SSE2-baseline for AVX2-less CPUs; resolver picks basemind-noavx2.
+    - from: resources/basemind/linux-x64-noavx2
+      to: basemind-noavx2
     - from: resources/oix/linux-${arch}
       to: oix
     - from: resources/pdfcpu/linux-${arch}/pdfcpu
