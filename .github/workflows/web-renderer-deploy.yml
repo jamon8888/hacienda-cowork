@@ -40,7 +40,7 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       - uses: actions/checkout@v4
         if: steps.deployment.outputs.enabled == 'true'
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         if: steps.deployment.outputs.enabled == 'true'
       - uses: actions/setup-node@v4
         if: steps.deployment.outputs.enabled == 'true'
