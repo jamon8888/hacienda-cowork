@@ -200,7 +200,6 @@ const handlers: Record<string, Record<string, HandlerFn>> = {
   },
 
   // ========== Basemind MCP Server Lifecycle ==========
-  // No download/clearCache endpoints yet — phase-2 / #22.
   basemind: {
     register: async () => {
       const { registerBasemindServer } = await import('../utils/basemindManager');
@@ -219,6 +218,10 @@ const handlers: Record<string, Record<string, HandlerFn>> = {
     cpuFeatures: async () => {
       const { cpuFeaturesWithBuild } = await import('../handlers/cpuFeatures');
       return cpuFeaturesWithBuild();
+    },
+    download: async ([stage]: [import('../handlers/basemindDownload').BasemindDownloadStage?] = []) => {
+      const { runBasemindDownload } = await import('../handlers/basemindDownload');
+      return runBasemindDownload(stage);
     },
   },
 
