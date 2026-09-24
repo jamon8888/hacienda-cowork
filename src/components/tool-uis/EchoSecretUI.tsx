@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { LocaleKey } from '../../i18n';
 import { ECHO_SECRET_INPUT_ID, ECHO_SECRET_TEST_BUTTON_ID, ECHO_SECRET_SAVE_BUTTON_ID, ECHO_SECRET_LAST_RESULT_ID } from '../../../shared/element-ids';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -16,6 +18,8 @@ interface EchoSecretSettings {
 }
 
 export function EchoSecretUI({ serverId }: EchoSecretUIProps) {
+  const { t } = useTranslation();
+  const translate = (key: LocaleKey) => t(key);
   const [settings, setSettings] = useState<EchoSecretSettings>({
     defaultMessage: 'test-secret',
     lastResult: null,
@@ -110,9 +114,9 @@ export function EchoSecretUI({ serverId }: EchoSecretUIProps) {
     >
       <div className="space-y-4">
         <div className="space-y-1">
-          <h4 className="text-ui-sm font-medium text-foreground">Echo Secret Configuration</h4>
+          <h4 className="text-ui-sm font-medium text-foreground">{translate('tools.echo.title')}</h4>
           <p className="max-w-2xl text-ui-sm leading-6 text-muted-foreground">
-            Test the tool with a secret message and optionally save that value as the default for future runs.
+            {translate('tools.echo.desc')}
           </p>
         </div>
 
@@ -127,13 +131,13 @@ export function EchoSecretUI({ serverId }: EchoSecretUIProps) {
 
         <div className="space-y-2">
           <Label className="text-ui-sm font-medium text-foreground">
-            Secret Message
+            {translate('tools.echo.label')}
           </Label>
           <Input
             type="text"
             value={secretInput}
             onChange={(e) => setSecretInput(e.target.value)}
-            placeholder="Enter a secret message"
+            placeholder={translate('tools.echo.placeholder')}
             data-testid={ECHO_SECRET_INPUT_ID}
           />
         </div>
@@ -146,7 +150,7 @@ export function EchoSecretUI({ serverId }: EchoSecretUIProps) {
             size="sm"
             data-testid={ECHO_SECRET_TEST_BUTTON_ID}
           >
-            {testing ? 'Testing...' : 'Test Tool'}
+            {testing ? translate('tools.echo.testing') : translate('tools.echo.testTool')}
           </Button>
           <Button
             onClick={handleSaveDefault}
@@ -155,7 +159,7 @@ export function EchoSecretUI({ serverId }: EchoSecretUIProps) {
             size="sm"
             data-testid={ECHO_SECRET_SAVE_BUTTON_ID}
           >
-            Save as Default
+            {translate('tools.echo.saveDefault')}
           </Button>
         </div>
 
@@ -164,7 +168,7 @@ export function EchoSecretUI({ serverId }: EchoSecretUIProps) {
             className="space-y-2 pt-4"
             style={{ borderTop: 'var(--border-width) solid color-mix(in srgb, var(--oa-border, var(--border)) 40%, transparent)' }}
           >
-            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Last result</p>
+            <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{translate('tools.echo.lastResult')}</p>
             <p
               className="rounded-[14px] px-3 py-2 text-ui-sm leading-6 text-foreground"
               style={{
@@ -183,7 +187,7 @@ export function EchoSecretUI({ serverId }: EchoSecretUIProps) {
           style={{ borderTop: 'var(--border-width) solid color-mix(in srgb, var(--oa-border, var(--border)) 40%, transparent)' }}
         >
           <p className="text-ui-sm leading-6 text-muted-foreground">
-            <strong>Current default:</strong> {settings.defaultMessage}
+            <strong>{translate('tools.echo.currentDefault')}</strong> {settings.defaultMessage}
           </p>
         </div>
       </div>

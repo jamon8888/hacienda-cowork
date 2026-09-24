@@ -1,4 +1,5 @@
 import { CirclePause, CirclePlay, Flag, Pencil } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '../../src/lib/utils';
 
 type ThreadGoalSummaryProps = {
@@ -18,6 +19,7 @@ export function ThreadGoalSummary({
   onToggleStatus,
   onEdit,
 }: ThreadGoalSummaryProps) {
+  const { t } = useTranslation();
   const active = status === 'active';
 
   return (
@@ -31,10 +33,10 @@ export function ThreadGoalSummary({
             'size-2 shrink-0 rounded-full',
             active ? 'animate-pulse bg-emerald-500 motion-reduce:animate-none' : 'bg-[var(--oa-text-faint)]',
           )}
-          aria-label={`Goal ${status}`}
+          aria-label={t('goal.statusAria', { status })}
         />
         <Flag className="size-3.5 shrink-0 text-[var(--oa-text-muted)]" />
-        <span className="shrink-0 text-ui-xs font-medium text-[var(--oa-text-strong)]">Goal</span>
+        <span className="shrink-0 text-ui-xs font-medium text-[var(--oa-text-strong)]">{t('goal.label')}</span>
         <p className="min-w-0 flex-1 truncate text-ui-xs text-[var(--oa-text)]" title={objective}>
           {objective}
         </p>
@@ -48,7 +50,7 @@ export function ThreadGoalSummary({
               onClick={onToggleStatus}
               disabled={saving}
               className="rounded-full p-1 text-[var(--oa-text-muted)] hover:bg-[var(--oa-bg-hover)] disabled:opacity-50"
-              aria-label={active ? 'Pause goal' : 'Resume goal'}
+              aria-label={active ? t('goal.pauseAria') : t('goal.resumeAria')}
             >
               {active ? <CirclePause className="size-3.5" /> : <CirclePlay className="size-3.5" />}
             </button>
@@ -56,7 +58,7 @@ export function ThreadGoalSummary({
               type="button"
               onClick={onEdit}
               className="rounded-full p-1 text-[var(--oa-text-muted)] hover:bg-[var(--oa-bg-hover)]"
-              aria-label="Edit goal"
+              aria-label={t('goal.editAria')}
             >
               <Pencil className="size-3.5" />
             </button>

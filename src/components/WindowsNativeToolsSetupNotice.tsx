@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Shield, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { nativeTools, getRuntimeSystemInfo } from '@/ipc';
@@ -37,6 +38,7 @@ export function WindowsNativeToolsSetupNotice() {
   "use no memo";
 
   const { showToast, dismissToast } = useToast();
+  const { t } = useTranslation();
   const { openSettings } = useLayoutActions();
   const [isVisible, setIsVisible] = useState(false);
   const [isSettingUp, setIsSettingUp] = useState(false);
@@ -154,13 +156,13 @@ export function WindowsNativeToolsSetupNotice() {
 
             <div className="min-w-0 flex-1">
               <span className="block text-ui-sm font-medium text-[var(--oa-text-strong, var(--foreground))]">
-                Windows sandbox setup
+                {t('windows.sandboxTitle')}
               </span>
               <span className="mt-0.5 block text-ui-xs leading-4 text-muted-foreground">
-                Creates local sandbox accounts and configures folder permissions for Interpreter execution on this machine.
+                {t('windows.sandboxDesc')}
               </span>
               <span className="mt-1 block text-ui-xs leading-4 text-muted-foreground">
-                Windows will ask for admin approval once.
+                {t('windows.sandboxAdmin')}
               </span>
               <div className="mt-3 flex items-center gap-2">
                 <Button
@@ -170,7 +172,7 @@ export function WindowsNativeToolsSetupNotice() {
                   size="sm"
                   className="h-8 px-2.5 text-ui-sm text-muted-foreground"
                 >
-                  Not now
+                  {t('common.notNow')}
                 </Button>
                 <Button
                   onClick={handleSetup}
@@ -179,7 +181,7 @@ export function WindowsNativeToolsSetupNotice() {
                   size="sm"
                   className="h-8 px-3"
                 >
-                  {isSettingUp ? 'Setting up...' : 'Set up now'}
+                  {isSettingUp ? t('windows.settingUp') : t('windows.setUpNow')}
                 </Button>
               </div>
             </div>

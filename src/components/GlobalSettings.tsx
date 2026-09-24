@@ -356,7 +356,7 @@ export function GlobalSettings({
               className="w-full justify-center"
               onClick={handleAskAgent}
             >
-              Ask Agent
+              {t('settings.askAgent')}
             </Button>
           </div>
         </aside>
@@ -580,14 +580,14 @@ export function GlobalSettings({
                 {activeTab === "permissions" && (
                   <SettingsPane>
                     <SettingsSection
-                      title="MCP Permissions"
+                      title={t("settings.global.mcpPermissions")}
                       sectionId="mcpPermissions"
                     >
                       <McpSettingsSectionContent />
                     </SettingsSection>
 
                     <SettingsSection
-                      title="Runtime Permissions"
+                      title={t("settings.global.runtimePermissions")}
                       sectionId="runtimePermissions"
                       className={blinkSectionId === 'runtimePermissions' ? 'animate-blink-border' : undefined}
                     >

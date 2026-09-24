@@ -11,6 +11,7 @@ import { AutomationViewer } from './automation/AutomationViewer';
 import { EDITOR_AREA_ID } from '../../shared/element-ids';
 import { OFFICE_EDITOR_EXTENSIONS } from '../../shared/utils/converterFormats';
 import { Suspense, lazy, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { isUnpackagedElectron, pathBasename } from '../ipc';
 import { trackFileOpened } from '../utils/telemetry';
 import { isRemoteWorkstationMode } from '../remote/remoteWorkstation';
@@ -38,6 +39,7 @@ interface EditorAreaProps {
 }
 
 export function EditorArea({ filePath, refreshKey, pdfPage }: EditorAreaProps) {
+  const { t } = useTranslation();
   // Determine file type based on extension (whitelist only)
   const extension = pathBasename(filePath).split('.').pop()?.toLowerCase();
   const isDevVideoToolingAvailable = DEV_VIDEO_TOOLING_BUILD_ENABLED && isUnpackagedElectron();
@@ -119,12 +121,12 @@ export function EditorArea({ filePath, refreshKey, pdfPage }: EditorAreaProps) {
       ) : type === 'automation' ? (
         <AutomationViewer filePath={filePath} />
       ) : type === 'movie' ? (
-        <Suspense fallback={<div className="flex h-full items-center justify-center text-muted-foreground">Loading movie editor...</div>}>
+          <Suspense fallback={<div className="flex h-full items-center justify-center text-muted-foreground">{t('editors.area.movieLoading')}</div>}>
           <LazyMovieViewer filePath={filePath} refreshKey={refreshKey} />
         </Suspense>
       ) : type === 'remotion' ? (
         LazyRemotionViewer ? (
-          <Suspense fallback={<div className="flex h-full items-center justify-center text-muted-foreground">Loading Remotion Studio...</div>}>
+          <Suspense fallback={<div className="flex h-full items-center justify-center text-muted-foreground">{t('editors.area.remotionLoading')}</div>}>
             <LazyRemotionViewer filePath={filePath} refreshKey={refreshKey} />
           </Suspense>
         ) : null
@@ -132,8 +134,8 @@ export function EditorArea({ filePath, refreshKey, pdfPage }: EditorAreaProps) {
         <div className="flex flex-col h-full">
           <div className="flex-1 flex items-center justify-center text-muted-foreground px-8">
             <div className="text-center">
-              <div className="text-lg mb-2">Development-only file type</div>
-              <div className="text-ui-base">.{extension} files are available only in development mode</div>
+              <div className="text-lg mb-2">{t('editors.area.devOnlyTitle')}</div>
+              <div className="text-ui-base">{t('editors.area.devOnlyDesc', { ext: extension })}</div>
             </div>
           </div>
         </div>
@@ -143,8 +145,8 @@ export function EditorArea({ filePath, refreshKey, pdfPage }: EditorAreaProps) {
         <div className="flex flex-col h-full">
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
             <div className="text-center">
-              <div className="text-lg mb-2">File type not supported</div>
-              <div className="text-ui-base">.{extension} files cannot be viewed</div>
+              <div className="text-lg mb-2">{t('editors.area.unsupportedTitle')}</div>
+              <div className="text-ui-base">{t('editors.area.unsupportedDesc', { ext: extension })}</div>
             </div>
           </div>
         </div>

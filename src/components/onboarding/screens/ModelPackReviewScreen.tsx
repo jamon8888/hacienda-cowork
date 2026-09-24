@@ -1148,17 +1148,17 @@ export function ModelPackReviewScreen({
                 </div>
                 <div className="min-w-0 space-y-0.5">
                   <p className="text-[13px] font-medium leading-5 text-[var(--oa-text-strong)]">
-                    Search
+                    {t('onboarding.modelPack.searchTab')}
                   </p>
                   <p className="text-[11px] leading-4 text-[var(--oa-text-muted)]">
-                    Browse all models.
+                    {t('onboarding.modelPack.browseHint')}
                   </p>
                 </div>
               </button>
             </div>
 
             <p className="text-center text-[11px] text-[var(--oa-text-muted)]">
-              Add more models in settings. Usage goes down slower with cheaper models.
+              {t('onboarding.modelPack.settingsHint')}
             </p>
           </div>
         )}
@@ -1181,7 +1181,7 @@ export function ModelPackReviewScreen({
                   <Input
                     value={hostedQuery}
                     onChange={(event) => setHostedQuery(event.target.value)}
-                    placeholder="Search models"
+                    placeholder={t('onboarding.modelPack.searchPlaceholder')}
                     className="h-10 pl-9"
                     autoFocus
                   />
@@ -1192,7 +1192,7 @@ export function ModelPackReviewScreen({
                   onClick={() => setShowHostedSearch(false)}
                   className="rounded-full px-4"
                 >
-                  Close
+                  {t('common.close')}
                 </Button>
               </div>
 
@@ -1207,7 +1207,7 @@ export function ModelPackReviewScreen({
                 {hostedCatalogLoading && (
                   <div className="flex items-center justify-center py-8 text-[12px] text-[var(--oa-text-muted)]">
                     <Loader2 className="mr-2 size-4 animate-spin" />
-                    Loading models
+                    {t('onboarding.modelPack.loadingModels')}
                   </div>
                 )}
 
@@ -1270,7 +1270,7 @@ export function ModelPackReviewScreen({
 
                 {!hostedCatalogLoading && hostedModalResults.length === 0 && (
                   <p className="px-1 py-8 text-center text-[11px] text-[var(--oa-text-muted)]">
-                    No matching models.
+                    {t('onboarding.modelPack.noMatch')}
                   </p>
                 )}
               </div>

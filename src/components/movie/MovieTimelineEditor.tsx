@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Code2, Film, Link2, Volume2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -144,6 +145,7 @@ export function MovieTimelineEditor({
 }) {
   "use no memo";
 
+  const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const scrubStateRef = useRef<ScrubState | null>(null);
@@ -270,7 +272,7 @@ export function MovieTimelineEditor({
         style={{ gridTemplateColumns: `${TIMELINE_LABEL_WIDTH}px minmax(0, 1fr)` }}
       >
         <div className="px-3 py-2">
-          <div className="text-ui-xs font-medium text-[var(--oa-text-muted)]">Timeline</div>
+          <div className="text-ui-xs font-medium text-[var(--oa-text-muted)]">{t('movie.timeline')}</div>
         </div>
         <div
           className="overflow-hidden px-2 py-2"
@@ -387,7 +389,7 @@ export function MovieTimelineEditor({
                         <button
                           type="button"
                           data-movie-handle="start"
-                          aria-label="Trim clip start"
+                          aria-label={t("movie.trimStart")}
                           className="absolute inset-y-0 left-0 z-10 w-3 cursor-ew-resize bg-black/[0.08] transition-colors hover:bg-black/[0.16]"
                           onPointerDown={(event) => {
                             event.preventDefault();
@@ -399,7 +401,7 @@ export function MovieTimelineEditor({
                         <button
                           type="button"
                           data-movie-handle="end"
-                          aria-label="Trim clip end"
+                          aria-label={t("movie.trimEnd")}
                           className="absolute inset-y-0 right-0 z-10 w-3 cursor-ew-resize bg-black/[0.08] transition-colors hover:bg-black/[0.16]"
                           onPointerDown={(event) => {
                             event.preventDefault();

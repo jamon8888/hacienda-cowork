@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Loader2, X, Send } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -14,6 +15,7 @@ import {
   trackInboxSetupCompleted,
   trackInboxSetupFailed,
 } from '../utils/telemetry';
+import type { LocaleKey } from '../i18n';
 
 interface InboxSetupTelegramProps {
   onConnected: () => void;
@@ -23,6 +25,8 @@ interface InboxSetupTelegramProps {
 export function InboxSetupTelegram({ onConnected, onCancel }: InboxSetupTelegramProps) {
   "use no memo";
 
+  const { t } = useTranslation();
+  const translate = (key: LocaleKey) => t(key);
   const [botToken, setBotToken] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -48,7 +52,7 @@ export function InboxSetupTelegram({ onConnected, onCancel }: InboxSetupTelegram
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to connect');
+        throw new Error(data.error || translate('inbox.setup.tgFailed'));
       }
 
       trackInboxSetupCompleted({ channel: 'telegram' });
@@ -89,9 +93,9 @@ export function InboxSetupTelegram({ onConnected, onCancel }: InboxSetupTelegram
               <Send className="size-4 text-[var(--oa-text-muted)]" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-ui-base font-medium">Connect Telegram</h2>
+              <h2 className="text-ui-base font-medium">{translate('inbox.setup.tgTitle')}</h2>
               <p className="mt-1 text-ui-sm text-[var(--oa-text-muted)]">
-                Add a bot token to route Telegram messages into Inbox.
+                {translate('inbox.setup.tgSubtitle')}
               </p>
             </div>
           </div>
@@ -111,22 +115,22 @@ export function InboxSetupTelegram({ onConnected, onCancel }: InboxSetupTelegram
 
       <div className="flex flex-1 flex-col gap-4 px-1 py-4">
         <div className="space-y-2">
-          <p className="text-ui-sm text-[var(--oa-text-muted)]">
-            Create a bot with{' '}
+            <p className="text-ui-sm text-[var(--oa-text-muted)]">
+              {translate('inbox.setup.tgCreateStart')}{' '}
             <button
               onClick={() => openExternal('https://t.me/BotFather')}
               className="text-[var(--oa-link)] underline-offset-4 hover:underline"
             >
               @BotFather
             </button>
-            {' '}on Telegram, then paste the token here.
+            {' '}{translate('inbox.setup.tgCreateEnd')}
           </p>
         </div>
 
         <div className="space-y-3 rounded-[18px] px-4 py-4" style={panelStyle}>
           <div className="space-y-1.5">
             <label className="block text-ui-sm font-medium text-[var(--oa-text)]">
-              Bot token
+              {translate('inbox.setup.tgTokenLabel')}
             </label>
             <p className="text-ui-sm text-[var(--oa-text-muted)]">
               The token usually looks like{' '}
@@ -170,9 +174,9 @@ export function InboxSetupTelegram({ onConnected, onCancel }: InboxSetupTelegram
           className="space-y-2 pt-4"
           style={{ borderTop: 'var(--border-width) solid', ...dividerStyle }}
         >
-          <p className="text-ui-sm font-medium text-[var(--oa-text)]">What happens next</p>
+          <p className="text-ui-sm font-medium text-[var(--oa-text)]">{translate('inbox.setup.tgNext')}</p>
           <p className="text-ui-sm text-[var(--oa-text-muted)]">
-            We verify the token, connect the bot, and return you to the Inbox rail when the setup is complete.
+            {translate('inbox.setup.tgNextBody')}
           </p>
         </div>
       </div>
@@ -190,7 +194,7 @@ export function InboxSetupTelegram({ onConnected, onCancel }: InboxSetupTelegram
           }}
           className="text-[var(--oa-text-muted)]"
         >
-          Cancel
+          {translate('common.cancel')}
         </Button>
         <Button
           onClick={handleConnect}
@@ -200,10 +204,10 @@ export function InboxSetupTelegram({ onConnected, onCancel }: InboxSetupTelegram
           {connecting ? (
             <>
               <Loader2 className="size-4 animate-spin" />
-              Connecting...
+              {translate('inbox.setup.tgConnecting')}
             </>
           ) : (
-            'Connect'
+            translate('common.connect')
           )}
         </Button>
       </div>

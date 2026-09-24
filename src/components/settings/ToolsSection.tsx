@@ -554,15 +554,15 @@ export function ToolsSectionContent() {
   return (
     <div className="space-y-3" data-testid={TOOLS_SECTION_ID} data-tool-toggle={TOOL_TOGGLE_SWITCH_ID}>
       <p className="text-ui-xs text-muted-foreground">
-        Add the apps and services you want Interpreter to use.
+        {t('toolsSection.desc')}
       </p>
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="Search tools, apps, and services"
-          aria-label="Search tools"
+          placeholder={t('toolsSection.searchPlaceholder')}
+          aria-label={t('toolsSection.searchAria')}
           spellCheck={false}
           className="pl-9 pr-9"
         />
@@ -571,7 +571,7 @@ export function ToolsSectionContent() {
             type="button"
             onClick={() => setSearchQuery('')}
             className="absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-black/[0.04] hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/[0.06]"
-            aria-label="Clear tools search"
+            aria-label={t('toolsSection.clearAria')}
           >
             <X className="size-3.5" />
           </button>

@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FolderOpen, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { workspace, pathBasename } from '@/ipc';
@@ -20,6 +21,7 @@ export function WorkspaceSwitchBanner({
   onSwitched,
   onDismiss,
 }: WorkspaceSwitchBannerProps) {
+  const { t } = useTranslation();
   const [isChanging, setIsChanging] = useState(false);
   const folderName = pathBasename(targetWorkspacePath) || targetWorkspacePath;
 
@@ -78,7 +80,7 @@ export function WorkspaceSwitchBanner({
           title={targetWorkspacePath}
           className="max-w-[min(24rem,45vw)] justify-start overflow-hidden text-ellipsis rounded-full px-3 text-ui-sm text-[var(--oa-text-strong)] disabled:opacity-50"
         >
-          {isChanging ? 'Changing...' : `${actionLabelPrefix} "${folderName}"`}
+          {isChanging ? t('tabs.changing') : `${actionLabelPrefix} "${folderName}"`}
         </Button>
         {onDismiss && (
           <Button
@@ -86,7 +88,7 @@ export function WorkspaceSwitchBanner({
             size="icon-xs"
             onClick={onDismiss}
             className="rounded-full text-[var(--oa-text-faint)] hover:bg-[var(--oa-bg-hover)] hover:text-[var(--oa-text-strong)]"
-            aria-label="Dismiss"
+            aria-label={t('tabs.dismiss')}
           >
             <X />
           </Button>

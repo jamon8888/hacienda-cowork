@@ -19,6 +19,8 @@ import {
 import { diffWords } from 'diff';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { LocaleKey } from '../../../src/i18n';
 import { COLLAPSE_TRANSITION, FAST_TWEEN } from '@/lib/animationConfig';
 import { useLiveToolCall } from '@/hooks/useLiveToolCall';
 import { TOOL_CALL_ID } from '../../../shared/element-ids';
@@ -293,8 +295,8 @@ function commandPromptFor(tc: ToolCallInfo): string | null {
   return isJsReplToolCall(tc) ? null : '$';
 }
 
-function commandInputLabelFor(tc: ToolCallInfo): string {
-  return isJsReplToolCall(tc) ? 'Code' : 'Command';
+function commandInputLabelKeyFor(tc: ToolCallInfo): LocaleKey {
+  return isJsReplToolCall(tc) ? 'toolFallback.inputCode' : 'toolFallback.inputCommand';
 }
 
 function toolIsQuestion(tc: ToolCallInfo): boolean {
@@ -1787,7 +1789,8 @@ const OutputText = React.memo(function OutputText(props: {
   const text = props.text.trimEnd();
   const variant = props.variant ?? 'output';
   const showCopyButton = variant !== 'editor';
-  const copyLabel = `Copy ${props.label.toLowerCase()}`;
+  const { t } = useTranslation();
+  const copyLabel = t('toolFallback.copyLabel', { label: props.label.toLowerCase() });
 
   const totalLines = useMemo(() => countLines(text), [text]);
   const isLarge = totalLines > OUTPUT_LARGE_THRESHOLD_LINES;
@@ -1820,7 +1823,7 @@ const OutputText = React.memo(function OutputText(props: {
             className="oa-tool-output-show-more"
             onClick={() => setExpanded(true)}
           >
-            Show full output ({totalLines} lines)
+            {t('toolFallback.showFullOutput', { count: totalLines })}
           </button>
         ) : null}
       </div>
@@ -1835,10 +1838,11 @@ function ToolBodySections(props: {
   outputLabel?: string;
   details?: string;
 }) {
+  const { t } = useTranslation();
   const sections = [
-    props.params ? <OutputText key="params" label={props.paramsLabel ?? 'Params'} text={props.params} variant={props.paramsLabel === 'Command' ? 'command' : 'params'} /> : null,
-    props.output ? <OutputText key="output" label={props.outputLabel ?? 'Output'} text={props.output} variant="output" /> : null,
-    props.details && props.details !== props.output ? <OutputText key="details" label="Details" text={props.details} variant="details" /> : null,
+    props.params ? <OutputText key="params" label={props.paramsLabel ?? t('toolFallback.params')} text={props.params} variant={props.paramsLabel === 'Command' ? 'command' : 'params'} /> : null,
+    props.output ? <OutputText key="output" label={props.outputLabel ?? t('toolFallback.output')} text={props.output} variant="output" /> : null,
+    props.details && props.details !== props.output ? <OutputText key="details" label={t('toolFallback.details')} text={props.details} variant="details" /> : null,
   ].filter(Boolean);
 
   if (sections.length === 0) return null;
@@ -1938,7 +1942,8 @@ function extractCatHeredocWriteContent(command: string): string | null {
 }
 
 function CommandWritePreview(props: { content: string }) {
-  return <OutputText label="Content" text={props.content} variant="editor" />;
+  const { t } = useTranslation();
+  return <OutputText label={t('toolFallback.preview')} text={props.content} variant="editor" />;
 }
 
 export function shouldStackToolHeader(params: {
@@ -2326,16 +2331,16 @@ function commandSequenceActions(tc: ToolCallInfo) {
   return actions.length > 1 ? actions : null;
 }
 
-function commandOutputLabel(actions: ReturnType<typeof extractCommandActions>, state: ToolCallInfo['state']) {
-  if (state === 'error') return 'Error';
-  if (actions.length !== 1) return 'Output';
+function commandOutputLabelKey(actions: ReturnType<typeof extractCommandActions>, state: ToolCallInfo['state']): LocaleKey {
+  if (state === 'error') return 'toolFallback.cmdError';
+  if (actions.length !== 1) return 'toolFallback.cmdOutput';
 
   const first = actions[0];
-  if (!first) return 'Output';
-  if (first.kind === 'read') return 'Preview';
-  if (first.kind === 'search') return 'Matches';
-  if (first.kind === 'list') return 'Contents';
-  return 'Output';
+  if (!first) return 'toolFallback.cmdOutput';
+  if (first.kind === 'read') return 'toolFallback.cmdPreview';
+  if (first.kind === 'search') return 'toolFallback.cmdMatches';
+  if (first.kind === 'list') return 'toolFallback.cmdContents';
+  return 'toolFallback.cmdOutput';
 }
 
 function CommandSequenceRow(props: {
@@ -2395,7 +2400,8 @@ function CommandExecutionSequence(props: {
   inputLabel?: string;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const outputLabel = commandOutputLabel(props.actions, props.state);
+  const { t } = useTranslation();
+  const outputLabel = t(commandOutputLabelKey(props.actions, props.state));
 
   useEffect(() => {
     if (!props.collapseSignal) return;
@@ -2403,7 +2409,7 @@ function CommandExecutionSequence(props: {
   }, [props.collapseSignal]);
 
   return (
-    <HoverTooltip label="Click to expand" disabled={detailsOpen}>
+      <HoverTooltip label={t('toolFallback.expandHint')} disabled={detailsOpen}>
       <div
         className="oa-tool-call oa-command-sequence"
         data-open={detailsOpen ? 'true' : undefined}
@@ -2440,6 +2446,7 @@ function CommandExecutionSequence(props: {
 }
 
 function CommandExecutionBody({ tc }: { tc: ToolCallInfo }) {
+  const { t } = useTranslation();
   if (tc.item?.type !== 'commandExecution') return null;
 
   const actions = visibleCommandActions(commandActionsFor(tc));
@@ -2447,10 +2454,10 @@ function CommandExecutionBody({ tc }: { tc: ToolCallInfo }) {
   const output = tc.output?.trim();
   const parsed = actions.filter((entry) => entry.kind !== 'run');
   const fallback = actions.filter((entry) => entry.kind === 'run');
-  const label = commandOutputLabel(actions, tc.state);
+  const label = t(commandOutputLabelKey(actions, tc.state));
   const language = commandLanguageFor(tc);
   const prompt = commandPromptFor(tc);
-  const inputLabel = commandInputLabelFor(tc);
+  const inputLabel = t(commandInputLabelKeyFor(tc));
 
   if (actions.length > 1) {
     return (
@@ -2525,7 +2532,9 @@ function ReasoningBody({ tc }: { tc: ToolCallInfo }) {
   );
 }
 
-function ReadBody({ tc, label = 'Preview' }: { tc: ToolCallInfo; label?: string }) {
+function ReadBody({ tc, label }: { tc: ToolCallInfo; label?: string }) {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('toolFallback.preview');
   const output = tc.output?.trim();
   const details = tc.state === 'error' && !output ? tc.details?.trim() : undefined;
 
@@ -2533,13 +2542,14 @@ function ReadBody({ tc, label = 'Preview' }: { tc: ToolCallInfo; label?: string 
     <ToolBodySections
       params={paramsTextForToolCall(tc)}
       output={output}
-      outputLabel={label}
+      outputLabel={resolvedLabel}
       details={details}
     />
   );
 }
 
 function SearchBody({ tc }: { tc: ToolCallInfo }) {
+  const { t } = useTranslation();
   const output = tc.output?.trim();
   const details = tc.state === 'error' && !output ? tc.details?.trim() : undefined;
 
@@ -2547,7 +2557,7 @@ function SearchBody({ tc }: { tc: ToolCallInfo }) {
     <ToolBodySections
       params={paramsTextForToolCall(tc)}
       output={output}
-      outputLabel="Output"
+      outputLabel={t('toolFallback.output')}
       details={details}
     />
   );
@@ -2747,6 +2757,7 @@ function FileDiffView(props: { diff: string }) {
 }
 
 function FileChangeBody({ tc }: { tc: ToolCallInfo }) {
+  const { t } = useTranslation();
   if (tc.item?.type !== 'fileChange') return null;
 
   const singleChange = tc.item.changes.length === 1;
@@ -2787,7 +2798,7 @@ function FileChangeBody({ tc }: { tc: ToolCallInfo }) {
             ) : null}
             {!diff && filePath ? (
               <div className="oa-file-change-entry-empty">
-                {change.kind.type === 'delete' ? 'Deleted file' : 'Updated file'}
+                {change.kind.type === 'delete' ? t('toolFallback.fileDeleted') : t('toolFallback.fileUpdated')}
               </div>
             ) : null}
           </div>
@@ -2798,6 +2809,7 @@ function FileChangeBody({ tc }: { tc: ToolCallInfo }) {
 }
 
 function ToolBody({ tc }: { tc: ToolCallInfo }) {
+  const { t } = useTranslation();
   if (!tc.item) {
     return <GenericBody tc={tc} />;
   }
@@ -2810,7 +2822,7 @@ function ToolBody({ tc }: { tc: ToolCallInfo }) {
   if (tc.item.type === 'fileChange') return <FileChangeBody tc={tc} />;
   if (tc.item.type === 'plan') return <PlanBody tc={tc} />;
   if (tc.item.type === 'webSearch') return <SearchBody tc={tc} />;
-  if (tc.item.type === 'imageView') return <ReadBody tc={tc} label="Path" />;
+  if (tc.item.type === 'imageView') return <ReadBody tc={tc} label={t('toolFallback.path')} />;
   if (tc.item.type === 'collabAgentToolCall') {
     return <SubagentBody tc={tc} pending={tc.state === 'loading'} />;
   }
@@ -2821,7 +2833,7 @@ function ToolBody({ tc }: { tc: ToolCallInfo }) {
     }
 
     const name = toolName(tc.item);
-    if (READ_TOOLS.has(name)) return <ReadBody tc={tc} label="Preview" />;
+    if (READ_TOOLS.has(name)) return <ReadBody tc={tc} label={t('toolFallback.preview')} />;
     if (SEARCH_TOOLS.has(name)) return <SearchBody tc={tc} />;
     if (LIST_TOOLS.has(name)) return <ListBody tc={tc} />;
   }
@@ -2863,6 +2875,7 @@ const ToolCallCardInner: FC<ToolCallCardProps> = ({
     [detachedActive, tc],
   );
   const body = <ToolBody tc={tc} />;
+  const { t } = useTranslation();
   const bodyInnerClassName = tc.item?.type === 'fileChange'
     ? 'oa-tool-body-inner oa-tool-body-inner--file-change'
     : 'oa-tool-body-inner';
@@ -3000,7 +3013,7 @@ const ToolCallCardInner: FC<ToolCallCardProps> = ({
         onHoverDetachedToolCallId?.(null);
       }}
     >
-      <HoverTooltip label="Click to expand" disabled={!openable || open}>
+      <HoverTooltip label={t('toolFallback.expandHint')} disabled={!openable || open}>
         <button
           type="button"
           onClick={() => {
@@ -3194,6 +3207,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
   hoveredDetachedToolCallId,
   onHoverDetachedToolCallId,
 }) => {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const visible = useMemo(
     () => toolCalls.filter((tc) => !shouldHideToolCall(tc)),
@@ -3327,7 +3341,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
       data-background-active={detachedGroupToolCallIds.length > 0 ? 'true' : undefined}
       data-background-hovered={detachedHovered ? 'true' : undefined}
     >
-      <HoverTooltip label="Click to show work" disabled={open}>
+      <HoverTooltip label={t('toolFallback.showWork')} disabled={open}>
         <button
           type="button"
           className="oa-activity-trigger"
@@ -3381,7 +3395,7 @@ export const ToolCallGroup: FC<ToolCallGroupProps> = ({
                     collapseSignal={collapseSignal}
                     language={commandLanguageFor(tc)}
                     prompt={commandPromptFor(tc)}
-                    inputLabel={commandInputLabelFor(tc)}
+                    inputLabel={t(commandInputLabelKeyFor(tc))}
                   />
                 );
                 }
@@ -3426,6 +3440,7 @@ export const DetachedToolCallRail: FC<{
 }) => {
   "use no memo";
 
+  const { t } = useTranslation();
   const [stopping, setStopping] = useState(false);
   const commandToolCallIds = useMemo(
     () => toolCalls
@@ -3474,7 +3489,7 @@ export const DetachedToolCallRail: FC<{
           <button
             type="button"
             className="oa-background-strip-stop"
-            aria-label="Stop running commands"
+            aria-label={t('toolFallback.stopAria')}
             disabled={stopping}
             onClick={async (event) => {
               event.stopPropagation();
@@ -3489,7 +3504,7 @@ export const DetachedToolCallRail: FC<{
               }
             }}
           >
-            Stop running commands
+            {t('composer.stopCommands')}
           </button>
         ) : null}
       </div>

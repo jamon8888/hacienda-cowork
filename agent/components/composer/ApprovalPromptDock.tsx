@@ -601,6 +601,7 @@ function PermissionPrompt(props: {
   onApprove: (mode: 'once' | 'session', extraAnswers?: QuestionResponse) => Promise<void>;
   onDeny: () => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const reduced = useReducedMotion();
   const appIcon = getApprovalAppIcon(props.approval);
   const [permissionCardDraft, setPermissionCardDraft] = useState(() => (
@@ -668,7 +669,7 @@ function PermissionPrompt(props: {
             void props.onDeny();
           }}
         >
-          Don&apos;t allow
+          {t('approvals.queue.deny')}
         </Button>
         <div className="flex flex-wrap items-start gap-2">
           <Button
@@ -681,7 +682,7 @@ function PermissionPrompt(props: {
               approve('once');
             }}
           >
-            Allow once
+            {t('approvals.queue.allowOnce')}
           </Button>
           {supportsSessionApproval(props.approval) ? (
             <Button
@@ -694,7 +695,7 @@ function PermissionPrompt(props: {
                 approve('session');
               }}
             >
-              Allow for this session
+              {t('approvals.queue.allowSession')}
             </Button>
           ) : null}
         </div>

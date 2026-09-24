@@ -1363,7 +1363,7 @@ export function ToolAddonsScreen({ onNext: _onNext, bucket }: ToolAddonsScreenPr
       <div className="w-full space-y-4">
         <OnboardingHeading
           title={t('onboarding.toolAddons.title')}
-          description="Connect Interpreter to your other applications."
+          description={t('onboarding.toolAddons.desc')}
         />
 
         <div className="space-y-3">
@@ -1491,10 +1491,10 @@ export function ToolAddonsScreen({ onNext: _onNext, bucket }: ToolAddonsScreenPr
                     >
                       <div className="space-y-1.5">
                         <h4 className="text-[14px] font-medium text-[var(--oa-text-strong)]">
-                          {hasCompletedDeepScan ? 'Scan complete' : 'Scan computer for more tools'}
+                          {hasCompletedDeepScan ? t('onboarding.toolAddons.deepScanComplete') : t('onboarding.toolAddons.deepScanMore')}
                         </h4>
                         <p className="text-[12px] leading-5 text-[var(--oa-text-muted)]">
-                          Search this computer for more available integrations.
+                          {t('onboarding.toolAddons.deepScanHint')}
                         </p>
                       </div>
 
@@ -1508,7 +1508,7 @@ export function ToolAddonsScreen({ onNext: _onNext, bucket }: ToolAddonsScreenPr
                           className="rounded-full px-3 shadow-none"
                         >
                           {isDeepScanning ? <Loader2 className="size-3.5 animate-spin" /> : hasCompletedDeepScan ? <Check className="size-3.5" /> : null}
-                          {isDeepScanning ? t('onboarding.toolAddons.pleaseWait') : hasCompletedDeepScan ? 'Scan complete' : 'Scan computer'}
+                          {isDeepScanning ? t('onboarding.toolAddons.pleaseWait') : hasCompletedDeepScan ? t('onboarding.toolAddons.deepScanComplete') : t('onboarding.toolAddons.deepScanBtn')}
                         </Button>
                       </div>
                     </div>

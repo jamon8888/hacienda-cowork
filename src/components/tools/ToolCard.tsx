@@ -13,6 +13,9 @@
  */
 
 import { cn } from '@/lib/utils';
+import { useTranslation } from 'react-i18next';
+import type { LocaleKey } from '../../i18n';
+import type { TOptions } from 'i18next';
 import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
 import {
@@ -92,6 +95,8 @@ export function ToolCard({
   onCompleteAuth,
   className,
 }: ToolCardProps) {
+  const { t } = useTranslation();
+  const translate = (key: LocaleKey, options?: TOptions) => t(key, options);
   const isSettingsMode = mode === 'edit';
   const isInstalled = !!tool;
   const isBuiltin = tool?.id.startsWith('builtin-') ?? false;
@@ -104,8 +109,8 @@ export function ToolCard({
     : false;
   const isPending = needsAuth || isConnecting;
 
-  const name = tool?.name || storeEntry?.name || 'Unknown';
-  const description = storeEntry?.description || (isInstalled ? `${toolCount} tool${toolCount !== 1 ? 's' : ''}` : '');
+  const name = tool?.name || storeEntry?.name || translate('tools.card.unknownName');
+  const description = storeEntry?.description || (isInstalled ? translate('tools.card.toolCount', { count: toolCount }) : '');
   const isClickable = mode === 'edit' && onClick && !isPending && !globallyDisabled;
 
   const hasVisibleActions =
@@ -185,7 +190,7 @@ export function ToolCard({
       return (
         <span className="flex items-center gap-1 text-ui-xs text-primary shrink-0">
           <Loader2 className="size-3 animate-spin" />
-          Complete in browser
+          {translate('tools.store.authBrowser')}
         </span>
       );
     }
@@ -200,15 +205,15 @@ export function ToolCard({
 
     if (isFailed) {
       if (isSettingsMode) {
-        return <span className="shrink-0 text-[11px] font-medium text-destructive">Failed</span>;
+        return <span className="shrink-0 text-[11px] font-medium text-destructive">{translate('tools.card.failed')}</span>;
       }
 
-      return <span className="shrink-0 text-ui-xs font-medium text-destructive">Failed</span>;
+      return <span className="shrink-0 text-ui-xs font-medium text-destructive">{translate('tools.card.failed')}</span>;
     }
 
     if (isConnected) {
       return (
-        <span className="size-1.5 rounded-full bg-emerald-500 shrink-0" role="status" aria-label="Connected" />
+        <span className="size-1.5 rounded-full bg-emerald-500 shrink-0" role="status" aria-label={translate('tools.card.connectedAria')} />
       );
     }
 
@@ -272,7 +277,7 @@ export function ToolCard({
           <Switch
             checked={!globallyDisabled}
             onCheckedChange={handleGlobalToggle}
-            aria-label={`${globallyDisabled ? 'Enable' : 'Disable'} ${name} globally`}
+            aria-label={translate('tools.card.toggleGlobalAria', { action: globallyDisabled ? translate('tools.card.enable') : translate('tools.card.disableAction'), name })}
           />
         </div>
       );
@@ -285,7 +290,7 @@ export function ToolCard({
             checked={enabled && !globallyDisabled}
             onCheckedChange={handleToggle}
             disabled={globallyDisabled}
-            aria-label={`${enabled ? 'Disable' : 'Enable'} ${name}`}
+            aria-label={translate('tools.card.toggleAria', { action: enabled ? translate('tools.card.disableAction') : translate('tools.card.enable'), name })}
           />
         </div>
       );
@@ -329,7 +334,7 @@ export function ToolCard({
               {name}
             </span>
             {storeEntry && (
-              <BadgeCheck className="size-3 shrink-0 text-muted-foreground/70" aria-label="Verified" />
+              <BadgeCheck className="size-3 shrink-0 text-muted-foreground/70" aria-label={translate('tools.card.verifiedAria')} />
             )}
             {renderStatus()}
           </div>
@@ -359,7 +364,7 @@ export function ToolCard({
         <div className={cn('mt-auto flex items-center gap-3', isSettingsMode && 'pl-10')}>
           {globallyDisabled && onNavigateToGlobalTools && (
             <>
-              <span className="text-ui-xs text-muted-foreground">Disabled globally</span>
+              <span className="text-ui-xs text-muted-foreground">{translate('tools.card.disabledGlobally')}</span>
               <button
                 type="button"
                 className="text-ui-xs text-primary hover:underline"
@@ -368,7 +373,7 @@ export function ToolCard({
                   onNavigateToGlobalTools();
                 }}
               >
-                Enable
+                {translate('tools.card.enable')}
               </button>
             </>
           )}
@@ -383,7 +388,7 @@ export function ToolCard({
               }}
             >
               <X className="size-3" />
-              Cancel
+              {translate('common.cancel')}
             </button>
           )}
 
@@ -396,7 +401,7 @@ export function ToolCard({
                 onDelete();
               }}
             >
-              Delete
+              {translate('common.delete')}
             </button>
           )}
         </div>

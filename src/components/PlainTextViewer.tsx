@@ -11,6 +11,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Highlight from '@tiptap/extension-highlight';
 import { useEffect, useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useTranslation } from 'react-i18next';
 import { readFile, writeFile } from '../api';
 import { useFileRefresh } from '../hooks/useFileRefresh';
 import { trackDocumentEdited } from '../utils/telemetry';
@@ -78,6 +79,7 @@ function tiptapToPlainText(doc: Record<string, unknown>): string {
 
 export const PlainTextViewer = forwardRef<PlainTextViewerRef, PlainTextViewerProps>(
   function PlainTextViewer({ filePath }, ref) {
+    const { t } = useTranslation();
     const [content, setContent] = useState<Record<string, unknown> | null>(null);
     const [loading, setLoading] = useState(true);
     const [showLoading, setShowLoading] = useState(false);
@@ -356,9 +358,9 @@ export const PlainTextViewer = forwardRef<PlainTextViewerRef, PlainTextViewerPro
 
     if (loading && showLoading) {
       return (
-        <div className="flex items-center justify-center h-full text-muted-foreground">
-          Loading...
-        </div>
+      <div className="flex items-center justify-center h-full text-muted-foreground">
+        {t('common.loading')}
+      </div>
       );
     }
 
@@ -375,19 +377,19 @@ export const PlainTextViewer = forwardRef<PlainTextViewerRef, PlainTextViewerPro
       return (
         <div className="flex items-center justify-center h-full">
           <div className="text-center space-y-3">
-            <div className="text-muted-foreground">Unable to load this file</div>
+            <div className="text-muted-foreground">{t('viewers.videoError')}</div>
             <div className="flex items-center justify-center gap-2">
               <button
                 onClick={() => setReloadTrigger(t => t + 1)}
                 className="px-3 py-1.5 text-ui-base rounded-control bg-muted hover:bg-muted/80 text-foreground transition-colors"
               >
-                Try again
+                {t('common.tryAgain')}
               </button>
               <button
                 onClick={() => openFeedbackPopover()}
                 className="px-3 py-1.5 text-ui-base rounded-control bg-muted hover:bg-muted/80 text-foreground transition-colors"
               >
-                Report bug
+                {t('viewers.videoReport')}
               </button>
             </div>
           </div>

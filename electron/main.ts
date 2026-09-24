@@ -2035,16 +2035,16 @@ function bindWindowEvents(window: BrowserWindow, options: { primary: boolean; se
 
     const session = getWindowSessionByWindowId(options.windowId);
     const workspacePath = session?.workspacePath ?? null;
-    const reasonLabel = reason === 'oom' ? 'out of memory' : reason;
+    const reasonLabel = reason === 'oom' ? t('crash.window.reasonOom') : reason;
 
     dialog.showMessageBox(window, {
       type: 'error',
-      buttons: ['Reopen', 'Close'],
+      buttons: [t('crash.window.reopen'), t('crash.window.close')],
       defaultId: 0,
       cancelId: 1,
-      title: 'Window Error',
-      message: 'This window encountered an unexpected error.',
-      detail: `Reason: ${reasonLabel} (code ${exitCode}).\nYou can reopen the window to continue where you left off.`,
+      title: t('crash.window.title'),
+      message: t('crash.window.message'),
+      detail: t('crash.window.detail', { reason: reasonLabel, code: exitCode }),
       noLink: true,
     }).then(async ({ response }) => {
       if (response === 0) {

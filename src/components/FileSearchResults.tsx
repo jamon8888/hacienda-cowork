@@ -447,7 +447,7 @@ export const FileSearchResults = forwardRef<FileSearchResultsRef, FileSearchResu
         {hasSearchedSystem && systemResults.length > 0 && (
           <>
             <div className="px-4 py-1.5 text-ui-sm text-muted-foreground font-normal">
-              Found on Computer
+              {t('search.foundComputer')}
             </div>
             {systemResults.map((result, index) => {
               const overallIndex = systemResultsStartIndex + index;
@@ -480,7 +480,7 @@ export const FileSearchResults = forwardRef<FileSearchResultsRef, FileSearchResu
         {showEmptyAction && (
           <>
             <div className="px-4 py-1.5 text-ui-sm font-normal text-muted-foreground">
-              Action
+              {t('search.actionSection')}
             </div>
             <div className="px-2 pb-2">
               <button

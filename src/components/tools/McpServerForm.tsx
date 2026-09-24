@@ -5,7 +5,8 @@
  * Uses useMcpServerForm hook for state management.
  */
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, TriangleAlert } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -24,6 +25,7 @@ import {
   AlertDialogTitle,
 } from '../ui/alert-dialog';
 import type { useMcpServerForm } from '../../hooks/useMcpServerForm';
+import type { LocaleKey } from '../../i18n';
 
 export interface McpServerFormProps {
   /** Form hook instance from useMcpServerForm */
@@ -51,6 +53,8 @@ export function McpServerForm({
   const { formState, isSaving, saveServer } = form;
   const [saved, setSaved] = useState(false);
   const [showStdioWarning, setShowStdioWarning] = useState(false);
+  const { t } = useTranslation();
+  const translate = useCallback((key: LocaleKey) => t(key), [t]);
 
   const handleSave = async () => {
     // Show warning dialog for stdio transport when adding new server
@@ -81,19 +85,19 @@ export function McpServerForm({
             <AlertDialogMedia className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
               <TriangleAlert />
             </AlertDialogMedia>
-            <AlertDialogTitle>Local Tool Server</AlertDialogTitle>
+            <AlertDialogTitle>{translate('tools.mcpForm.stdioTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This tool server will run code locally on your computer.
-              Only add servers from sources you trust.
+              {translate('tools.mcpForm.stdioDescription1')}
+              {translate('tools.mcpForm.stdioDescription2')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{translate('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={() => {
               setShowStdioWarning(false);
               doSave();
             }}>
-              Add Server
+              {translate('tools.mcpForm.addServer')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -101,7 +105,7 @@ export function McpServerForm({
 
       <FieldGroup>
       <Field>
-        <FieldLabel htmlFor="mcp-server-name">Server Name</FieldLabel>
+        <FieldLabel htmlFor="mcp-server-name">{translate('tools.mcpForm.serverName')}</FieldLabel>
         <Input
           id="mcp-server-name"
           type="text"
@@ -113,7 +117,7 @@ export function McpServerForm({
       </Field>
 
       <FieldSet>
-        <FieldLegend variant="label">Transport</FieldLegend>
+        <FieldLegend variant="label">{translate('tools.mcpForm.transport')}</FieldLegend>
         <div className="flex gap-1 p-1 rounded-control bg-muted">
           {(['stdio', 'http', 'sse', 'websocket'] as const).map((t) => (
             <Button
@@ -138,7 +142,7 @@ export function McpServerForm({
       {formState.transport === 'stdio' && (
         <>
           <Field>
-            <FieldLabel htmlFor="mcp-command">Command</FieldLabel>
+            <FieldLabel htmlFor="mcp-command">{translate('tools.mcpForm.command')}</FieldLabel>
             <Input
               id="mcp-command"
               type="text"
@@ -148,7 +152,7 @@ export function McpServerForm({
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="mcp-args">Arguments</FieldLabel>
+            <FieldLabel htmlFor="mcp-args">{translate('tools.mcpForm.arguments')}</FieldLabel>
             <Input
               id="mcp-args"
               type="text"
@@ -158,7 +162,7 @@ export function McpServerForm({
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="mcp-env">Environment Variables</FieldLabel>
+            <FieldLabel htmlFor="mcp-env">{translate('tools.mcpForm.envVars')}</FieldLabel>
             <Textarea
               id="mcp-env"
               value={formState.env}
@@ -167,16 +171,16 @@ export function McpServerForm({
               rows={3}
               className="font-mono resize-none"
             />
-            <FieldDescription>One per line: KEY=VALUE</FieldDescription>
+            <FieldDescription>{translate('tools.mcpForm.envHint')}</FieldDescription>
           </Field>
         </>
       )}
 
       {formState.transport !== 'stdio' && (
         <Field>
-          <FieldLabel htmlFor="mcp-url">
-            {formState.transport === 'websocket' ? 'WebSocket URL' : 'URL'}
-          </FieldLabel>
+            <FieldLabel htmlFor="mcp-url">
+              {formState.transport === 'websocket' ? translate('tools.mcpForm.wsUrl') : translate('tools.mcpForm.url')}
+            </FieldLabel>
           <Input
             id="mcp-url"
             type="text"
@@ -189,7 +193,7 @@ export function McpServerForm({
 
       {(formState.transport === 'http' || formState.transport === 'sse') && (
         <Field>
-          <FieldLabel htmlFor="mcp-headers">HTTP Headers</FieldLabel>
+            <FieldLabel htmlFor="mcp-headers">{translate('tools.mcpForm.httpHeaders')}</FieldLabel>
           <Textarea
             id="mcp-headers"
             value={formState.headers}
@@ -198,18 +202,18 @@ export function McpServerForm({
             rows={4}
             className="font-mono resize-none"
           />
-          <FieldDescription>One per line: Header-Name: value</FieldDescription>
+            <FieldDescription>{translate('tools.mcpForm.headersHint')}</FieldDescription>
         </Field>
       )}
 
       <FieldSet>
-        <FieldLegend variant="label">Tool approval</FieldLegend>
+        <FieldLegend variant="label">{translate('tools.mcpForm.approval')}</FieldLegend>
         <div className="grid gap-2 sm:grid-cols-3">
           {([
-            ['auto', 'Auto', 'Allow tool calls without asking.'],
-            ['prompt', 'Prompt', 'Ask before tool calls run.'],
-            ['approve', 'Approve', 'Require the model to request approval first.'],
-          ] as const).map(([mode, label, description]) => (
+            ['auto', 'tools.mcpForm.approvalAuto', 'tools.mcpForm.approvalAutoDesc'],
+            ['prompt', 'tools.mcpForm.approvalPrompt', 'tools.mcpForm.approvalPromptDesc'],
+            ['approve', 'tools.mcpForm.approvalApprove', 'tools.mcpForm.approvalApproveDesc'],
+          ] as const).map(([mode, labelKey, descriptionKey]) => (
             <button
               key={mode}
               type="button"
@@ -221,13 +225,13 @@ export function McpServerForm({
                   : 'border-border bg-background text-muted-foreground hover:text-foreground'
               )}
             >
-              <span className="block text-ui-sm font-medium">{label}</span>
-              <span className="mt-1 block text-ui-xs leading-5">{description}</span>
+              <span className="block text-ui-sm font-medium">{translate(labelKey)}</span>
+              <span className="mt-1 block text-ui-xs leading-5">{translate(descriptionKey)}</span>
             </button>
           ))}
         </div>
         <FieldDescription>
-          Uses the same approval modes as app tools.
+          {translate('tools.mcpForm.approvalNote')}
         </FieldDescription>
       </FieldSet>
 
@@ -240,7 +244,7 @@ export function McpServerForm({
             disabled={!formState.name.trim() || isSaving || saved}
             size="sm"
           >
-            {saved ? <Check className="size-4" /> : isSaving ? 'Saving...' : isNew ? 'Add' : 'Save'}
+            {saved ? <Check className="size-4" /> : isSaving ? translate('tools.mcpForm.saving') : isNew ? translate('tools.mcpForm.add') : translate('common.save')}
           </Button>
           {onCancel && (
             <Button
@@ -250,7 +254,7 @@ export function McpServerForm({
               size="sm"
               disabled={isSaving || saved}
             >
-              Cancel
+              {translate('common.cancel')}
             </Button>
           )}
         </div>
@@ -264,7 +268,7 @@ export function McpServerForm({
             size="sm"
             disabled={isSaving || saved}
           >
-            {confirmingDelete ? 'Confirm?' : 'Delete'}
+            {confirmingDelete ? translate('tools.mcpForm.confirmDelete') : translate('common.delete')}
           </Button>
         )}
       </div>

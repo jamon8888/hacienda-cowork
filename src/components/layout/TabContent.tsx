@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FileX } from 'lucide-react';
 import type { Tab } from '../../../shared/types/layout';
 import { EditorArea } from '../EditorArea';
@@ -24,6 +25,7 @@ interface TabContentProps {
 }
 
 export const TabContent = React.memo(function TabContent({ activeTab }: TabContentProps) {
+  const { t } = useTranslation();
   const { closeTab } = useLayoutActions();
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
   const [dismissedPaths, setDismissedPaths] = useState<Set<string>>(new Set());
@@ -82,7 +84,7 @@ export const TabContent = React.memo(function TabContent({ activeTab }: TabConte
         aria-live="polite"
       >
         <FileX className="size-16 text-muted-foreground mb-4" />
-        <p className="text-muted-foreground text-lg mb-2">File not found</p>
+        <p className="text-muted-foreground text-lg mb-2">{t('tabs.fileNotFound')}</p>
         <p className="text-muted-foreground text-ui-base mb-6 max-w-md text-center">
           {activeTab.path}
         </p>
@@ -90,9 +92,9 @@ export const TabContent = React.memo(function TabContent({ activeTab }: TabConte
           variant="outline"
           onClick={() => closeTab(activeTab.id)}
           className="px-4 py-2"
-          aria-label={`Close ${activeTab.label}`}
+          aria-label={t('tabs.closeTabAria', { name: activeTab.label })}
         >
-          Close Tab
+          {t('tabs.closeTab')}
         </Button>
       </div>
     );
@@ -108,8 +110,8 @@ export const TabContent = React.memo(function TabContent({ activeTab }: TabConte
     const isDirectory = activePathIsDirectory === true;
     const targetWorkspacePath = isDirectory ? activeTab.path : pathDirname(activeTab.path);
     const bannerMessage = isDirectory
-      ? 'This folder is not in the workspace.'
-      : 'This file is not in the workspace.';
+      ? t('tabs.notInWorkspaceFolder')
+      : t('tabs.notInWorkspaceFile');
 
     return (
       <div className="h-full flex flex-col">
@@ -118,7 +120,7 @@ export const TabContent = React.memo(function TabContent({ activeTab }: TabConte
             message={bannerMessage}
             displayPath={activeTab.path}
             targetWorkspacePath={targetWorkspacePath}
-            actionLabelPrefix="Change workspace to"
+            actionLabelPrefix={t('tabs.changeWorkspaceTo')}
             onDismiss={() => setDismissedPaths(prev => new Set(prev).add(activeTab.path!))}
           />
         )}
@@ -127,8 +129,8 @@ export const TabContent = React.memo(function TabContent({ activeTab }: TabConte
             <div className="editor-area flex h-full flex-col bg-background">
               <div className="flex-1 flex items-center justify-center text-muted-foreground">
                 <div className="text-center">
-                  <div className="text-lg mb-2">Folder cannot be displayed</div>
-                  <div className="text-ui-base">Folders can be browsed in the explorer, not displayed in the editor.</div>
+              <div className="text-lg mb-2">{t('tabs.folderNotDisplayed')}</div>
+              <div className="text-ui-base">{t('tabs.folderBrowseHint')}</div>
                 </div>
               </div>
             </div>

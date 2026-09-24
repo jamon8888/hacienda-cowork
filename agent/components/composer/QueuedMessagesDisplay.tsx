@@ -1,4 +1,6 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import type { LocaleKey } from '../../../src/i18n';
 import { CornerDownRight } from 'lucide-react';
 import {
   QUEUED_MESSAGES_CLEAR_ALL_ID,
@@ -20,17 +22,17 @@ interface QueuedMessagesDisplayProps {
   onSendAfterNextTool: (pendingInputId: string) => void;
 }
 
-function getStageLabel(pendingInput: AgentPendingInput): string {
+function getStageLabelKey(pendingInput: AgentPendingInput): LocaleKey {
   switch (pendingInput.stage) {
     case 'afterNextTool':
       return pendingInput.afterNextToolState === 'submitted'
-        ? 'Pending'
-        : 'Sending';
+        ? 'composer.queue.stagePending'
+        : 'composer.queue.stageSending';
     case 'interrupting':
-      return 'Stopping conversation';
+      return 'composer.queue.stageStopping';
     case 'endOfTurn':
     default:
-      return 'Queued conversation';
+      return 'composer.queue.stageQueued';
   }
 }
 
@@ -63,6 +65,7 @@ function PendingMessageActions({
   onQueueForEndOfTurn: (pendingInputId: string) => void;
   onSendAfterNextTool: (pendingInputId: string) => void;
 }) {
+  const { t } = useTranslation();
   if (pendingInput.stage === 'afterNextTool' && pendingInput.afterNextToolState === 'submitted') {
     return null;
   }
@@ -81,7 +84,7 @@ function PendingMessageActions({
           style={actionStyle}
           onClick={() => onQueueForEndOfTurn(pendingInput.id)}
         >
-          send at end of turn
+          {t('composer.queue.sendEndOfTurn')}
         </button>
       </div>
     );
@@ -96,17 +99,17 @@ function PendingMessageActions({
           style={actionStyle}
           onClick={() => onInterruptNow(pendingInput.id)}
         >
-          send immediately
+          {t('composer.queue.sendNow')}
         </button>
         {!isAgentPendingInputSteerLocked(pendingInput) ? (
           <button
             type="button"
             className={actionClassName}
             style={actionStyle}
-            onClick={() => onQueueForEndOfTurn(pendingInput.id)}
-          >
-            send at end of turn
-          </button>
+          onClick={() => onQueueForEndOfTurn(pendingInput.id)}
+        >
+          {t('composer.queue.sendEndOfTurn')}
+        </button>
         ) : null}
       </div>
     );
@@ -121,26 +124,26 @@ function PendingMessageActions({
           style={actionStyle}
           onClick={() => onSendAfterNextTool(pendingInput.id)}
         >
-          after next tool
+          {t('composer.queue.afterNextTool')}
         </button>
       ) : null}
       <button
         type="button"
         className={actionClassName}
         style={actionStyle}
-        onClick={() => onEdit(pendingInput.id)}
-      >
-        edit
-      </button>
+          onClick={() => onEdit(pendingInput.id)}
+        >
+          {t('composer.queue.editAction')}
+        </button>
       <button
         type="button"
         data-testid={QUEUED_MESSAGES_CLEAR_ALL_ID}
         className={actionClassName}
         style={actionStyle}
-        onClick={() => onRemove(pendingInput.id)}
-      >
-        remove
-      </button>
+          onClick={() => onRemove(pendingInput.id)}
+        >
+          {t('composer.queue.removeAction')}
+        </button>
     </div>
   );
 }
@@ -154,6 +157,7 @@ export function QueuedMessagesDisplay({
   onQueueForEndOfTurn,
   onSendAfterNextTool,
 }: QueuedMessagesDisplayProps) {
+  const { t } = useTranslation();
   if (pendingInputs.length === 0) {
     return null;
   }
@@ -172,7 +176,7 @@ export function QueuedMessagesDisplay({
               style={{ color: 'var(--oa-text-muted, var(--text-muted))' }}
             >
               <CornerDownRight className="size-4 shrink-0" strokeWidth={1.8} aria-hidden="true" />
-              <span>{getStageLabel(pendingInput)}</span>
+              <span>{t(getStageLabelKey(pendingInput))}</span>
             </div>
 
             <div
