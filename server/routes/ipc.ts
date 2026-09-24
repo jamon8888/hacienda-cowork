@@ -197,6 +197,15 @@ const handlers: Record<string, Record<string, HandlerFn>> = {
       const { getWorkspaceScanStatus } = await import('../handlers/workspaceScan');
       return getWorkspaceScanStatus();
     },
+    getCodeIndexingEnabled: async () => {
+      const { getCodeIndexingEnabled } = await import('../configStore');
+      return { enabled: await getCodeIndexingEnabled() };
+    },
+    setCodeIndexingEnabled: async ([value]: [boolean]) => {
+      const { setCodeIndexingEnabled } = await import('../configStore');
+      await setCodeIndexingEnabled(value);
+      return { enabled: value };
+    },
   },
 
   // ========== Search (basemind code/document search) ==========
