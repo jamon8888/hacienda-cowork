@@ -56,12 +56,6 @@ const ipcMocks = vi.hoisted(() => ({
   openExternal: vi.fn(async () => undefined),
 }));
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-  }),
-}));
-
 vi.mock('../../contexts/ToolServersContext', () => ({
   useToolServers: () => toolServersContextMocks,
 }));
