@@ -28,7 +28,7 @@ describe('MarkdownDiffGroup', () => {
       />,
     );
 
-    expect(screen.getByText('Modifies 2 lines, adds 1 line')).toBeVisible();
+    expect(screen.getByText('Lines: 2 modified, 1 added.')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: 'Reject' }));
     await user.click(screen.getByRole('button', { name: 'Accept' }));

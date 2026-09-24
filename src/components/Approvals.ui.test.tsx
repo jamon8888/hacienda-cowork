@@ -194,7 +194,7 @@ describe('Approvals runtime restart UX', () => {
 
     expect(await screen.findByText('Restart Interpreter?')).toBeVisible();
     expect(
-      screen.getByText('2 conversations are still running. Restarting will stop those conversations for every agent.'),
+      screen.getByText('Running conversations: 2. Restarting stops them for every agent.'),
     ).toBeVisible();
     expect(apiMocks.respondApproval).not.toHaveBeenCalled();
 
