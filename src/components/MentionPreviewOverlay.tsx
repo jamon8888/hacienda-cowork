@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   MENTION_PREVIEW_END_EVENT,
   MENTION_PREVIEW_START_EVENT,
@@ -116,6 +117,7 @@ function computePopoverPosition(
 }
 
 export function MentionPreviewOverlay() {
+  const { t } = useTranslation();
   const [preview, setPreview] = useState<MentionPreviewDetail | null>(null);
   const [position, setPosition] = useState<PreviewPosition>({
     left: 0,
@@ -267,7 +269,7 @@ export function MentionPreviewOverlay() {
           }}
         >
           {thumbnailLoading ? (
-            <span className="text-ui-xs text-[var(--oa-text-muted)]">Loading...</span>
+            <span className="text-ui-xs text-[var(--oa-text-muted)]">{t('common.loading')}</span>
           ) : (
             <img
               src={thumbnailUrl || undefined}

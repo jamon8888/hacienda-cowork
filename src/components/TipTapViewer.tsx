@@ -183,6 +183,7 @@ export const TipTapViewer = forwardRef<TipTapViewerRef, TipTapViewerProps>(
   "use no memo";
   const { t } = useTranslation();
 
+  const { t } = useTranslation();
   // Use ref to hold latest onUpdate callback to avoid stale closures
   const onUpdateRef = useRef(onUpdate);
   const viewerContainerRef = useRef<HTMLDivElement>(null);
@@ -1020,7 +1021,7 @@ export const TipTapViewer = forwardRef<TipTapViewerRef, TipTapViewerProps>(
               className="h-7 px-2.5 text-ui-sm"
               onClick={handleLinkUnlinkedMention}
             >
-              Link
+              {t('editors.tipLink')}
             </Button>
             <Button
               type="button"
@@ -1029,14 +1030,14 @@ export const TipTapViewer = forwardRef<TipTapViewerRef, TipTapViewerProps>(
               className="h-7 px-2.5 text-ui-sm"
               onClick={handleIgnoreUnlinkedMention}
             >
-              Ignore
+              {t('editors.tipIgnore')}
             </Button>
             <button
               type="button"
               onClick={handleOpenUnlinkedMentionTarget}
               className="ml-auto text-ui-xs text-[var(--oa-link)]"
             >
-              Open note
+              {t('editors.tipOpenNote')}
             </button>
           </div>
         </div>

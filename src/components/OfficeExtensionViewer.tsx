@@ -68,7 +68,7 @@ export function OfficeExtensionViewer({ filePath, refreshKey = 0 }: OfficeExtens
   const activeIframeRef = useRef<HTMLIFrameElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
 
   const buildUrl = useCallback((path: string, bustCache = false) => {
     return buildOfficeExtensionOpenUrl({
@@ -306,7 +306,7 @@ export function OfficeExtensionViewer({ filePath, refreshKey = 0 }: OfficeExtens
       <div className="w-full h-full flex items-center justify-center text-muted-foreground">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
-          Checking installation...
+          {t('viewers.officeChecking')}
         </div>
       </div>
     );
@@ -347,7 +347,7 @@ export function OfficeExtensionViewer({ filePath, refreshKey = 0 }: OfficeExtens
     return (
       <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-muted-foreground">
         <div className="text-center">
-          <p className="text-foreground mb-2">Installing Office extensions</p>
+          <p className="text-foreground mb-2">{t('viewers.officeInstallTitle')}</p>
           <p className="text-sm">
             {formatBytes(viewerState.bytesDownloaded)}
             {viewerState.totalBytes > 0 && ` / ${formatBytes(viewerState.totalBytes)}`}
@@ -369,7 +369,7 @@ export function OfficeExtensionViewer({ filePath, refreshKey = 0 }: OfficeExtens
       <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-muted-foreground">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
-          Preparing Office extensions...
+          {t('viewers.officePreparing')}
         </div>
       </div>
     );
@@ -380,7 +380,7 @@ export function OfficeExtensionViewer({ filePath, refreshKey = 0 }: OfficeExtens
       <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-muted-foreground">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
-          Finishing installation...
+          {t('viewers.officeFinishing')}
         </div>
       </div>
     );
@@ -391,7 +391,7 @@ export function OfficeExtensionViewer({ filePath, refreshKey = 0 }: OfficeExtens
       <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-muted-foreground">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
-          Opening your document...
+          {t('viewers.officeOpening')}
         </div>
       </div>
     );

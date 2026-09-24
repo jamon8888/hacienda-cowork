@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { LocaleKey } from '../i18n';
 import { NylasUI } from './tool-uis/NylasUI';
 import { EchoSecretUI } from './tool-uis/EchoSecretUI';
 import { TOOL_SERVER_CARD_ID } from '../../shared/element-ids';
@@ -31,6 +33,8 @@ interface ToolServerCardProps {
 }
 
 export function ToolServerCard({ server, onDelete, onToggle }: ToolServerCardProps) {
+  const { t } = useTranslation();
+  const translate = (key: LocaleKey, options?: Record<string, unknown>) => t(key, options);
   const [expanded, setExpanded] = useState(false);
 
   const isRunning = server.state.status === 'connected';
@@ -52,10 +56,10 @@ export function ToolServerCard({ server, onDelete, onToggle }: ToolServerCardPro
             variant={isConnected ? 'default' : server.state.status === 'failed' ? 'destructive' : 'secondary'}
             className={`rounded-full px-2.5 py-0.5 text-ui-xs font-medium${isConnected ? ' bg-emerald-600' : ''}`}
           >
-            {isConnected ? 'Connected' :
-             server.state.status === 'connected' ? 'No tools' :
-             server.state.status === 'connecting' ? 'Connecting...' :
-             server.state.status === 'failed' ? 'Failed' : 'Stopped'}
+            {isConnected ? translate('tools.grid.connected') :
+             server.state.status === 'connected' ? translate('tools.grid.noTools') :
+             server.state.status === 'connecting' ? translate('tools.store.connecting') :
+             server.state.status === 'failed' ? translate('tools.card.failed') : translate('tools.card.stopped')}
           </Badge>
         </div>
 
@@ -65,15 +69,15 @@ export function ToolServerCard({ server, onDelete, onToggle }: ToolServerCardPro
 
         {server.state.status === 'failed' && (
           <div className="mt-1 p-2 rounded bg-muted">
-            <p className="text-ui-sm font-normal text-foreground">Connection Error</p>
-            <p className="text-ui-sm text-muted-foreground">{server.state.error || 'Unknown error'}</p>
+            <p className="text-ui-sm font-normal text-foreground">{translate('tools.server.connectionError')}</p>
+            <p className="text-ui-sm text-muted-foreground">{server.state.error || t('common.unknownError')}</p>
           </div>
         )}
 
         {isConnected && (
           <div className="flex gap-3 text-ui-sm text-muted-foreground">
-            <span>{tools.length} tools</span>
-            <span>{resources.length} resources</span>
+            <span>{translate('tools.server.toolsCount', { count: tools.length })}</span>
+            <span>{translate('tools.server.resourcesCount', { count: resources.length })}</span>
           </div>
         )}
 
@@ -84,23 +88,23 @@ export function ToolServerCard({ server, onDelete, onToggle }: ToolServerCardPro
             variant="outline"
             size="xs"
           >
-            {isRunning ? 'Stop' : 'Start'}
+            {isRunning ? translate('tools.server.stop') : translate('tools.server.start')}
           </Button>
           <Button
             onClick={() => setExpanded(!expanded)}
             variant="ghost"
             size="xs"
           >
-            {expanded ? 'Hide' : 'Details'}
+            {expanded ? translate('tools.server.hide') : translate('tools.server.details')}
           </Button>
           {onDelete && (
-            <Button
-              onClick={onDelete}
-              variant="ghost"
-              size="xs"
-            >
-              Delete
-            </Button>
+          <Button
+            onClick={onDelete}
+            variant="ghost"
+            size="xs"
+          >
+            {translate('common.delete')}
+          </Button>
           )}
         </div>
       </div>
@@ -117,7 +121,7 @@ export function ToolServerCard({ server, onDelete, onToggle }: ToolServerCardPro
             <div>
               {tools.length > 0 && (
                 <div className="mb-3">
-                  <h4 className="text-ui-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Available Tools</h4>
+                  <h4 className="text-ui-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">{translate('tools.server.availableTools')}</h4>
                   <div className="space-y-1">
                     {tools.map(tool => (
                       <div key={tool.name} className="text-ui-sm break-words">
@@ -131,7 +135,7 @@ export function ToolServerCard({ server, onDelete, onToggle }: ToolServerCardPro
 
               {resources.length > 0 && (
                 <div>
-                  <h4 className="text-ui-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Resources</h4>
+                  <h4 className="text-ui-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">{translate('tools.server.resourcesTitle')}</h4>
                   <div className="space-y-1">
                     {resources.map(resource => (
                       <div key={resource.uri} className="text-ui-sm break-words">

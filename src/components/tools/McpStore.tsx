@@ -6,6 +6,8 @@
  */
 
 import { cn } from '@/lib/utils';
+import { useTranslation } from 'react-i18next';
+import type { LocaleKey } from '../../i18n';
 import { Badge } from '../ui/badge';
 import { Loader2 } from 'lucide-react';
 import {
@@ -29,6 +31,8 @@ export interface McpStoreProps {
 }
 
 export function McpStore({ onAddServer, existingServerUrls, toolServers = [], className }: McpStoreProps) {
+  const { t } = useTranslation();
+  const translate = (key: LocaleKey) => t(key);
   // Create a map of URL to server state for quick lookup
   const serverStateByUrl = new Map<string, ToolServer['state']>();
   for (const server of toolServers) {
@@ -45,10 +49,10 @@ export function McpStore({ onAddServer, existingServerUrls, toolServers = [], cl
     <div className={cn('space-y-4', className)}>
       <div className="space-y-0.5">
         <h4 className="text-ui-sm font-medium text-foreground">
-          MCP Store
+          {translate('tools.store.title')}
         </h4>
         <p className="text-ui-xs text-muted-foreground">
-          Click to add integrations to your workspace
+          {translate('tools.store.subtitle')}
         </p>
       </div>
 
@@ -59,7 +63,7 @@ export function McpStore({ onAddServer, existingServerUrls, toolServers = [], cl
         return (
           <div key={category} className="space-y-2">
             <h5 className="text-ui-xs text-muted-foreground uppercase tracking-wider">
-              {MCP_STORE_CATEGORIES[category].label}
+              {translate(MCP_STORE_CATEGORIES[category].labelKey)}
             </h5>
             <div className="grid grid-cols-2 gap-4">
               {entries.map((entry) => {
@@ -101,6 +105,8 @@ interface McpStoreCardProps {
 }
 
 function McpStoreCard({ entry, isAdded, needsAuth, isConnecting, isConnected, onAdd }: McpStoreCardProps) {
+  const { t } = useTranslation();
+  const translate = (key: LocaleKey) => t(key);
   const handleClick = () => {
     if (!isAdded) {
       onAdd();
@@ -120,7 +126,7 @@ function McpStoreCard({ entry, isAdded, needsAuth, isConnecting, isConnected, on
       return (
         <span className="flex items-center gap-1 text-ui-xs text-primary shrink-0">
           <Loader2 className="size-3 animate-spin" />
-          Complete in browser
+          {translate('tools.store.authBrowser')}
         </span>
       );
     }
@@ -128,22 +134,22 @@ function McpStoreCard({ entry, isAdded, needsAuth, isConnecting, isConnected, on
       return (
         <span className="flex items-center gap-1 text-ui-xs text-muted-foreground shrink-0">
           <Loader2 className="size-3 animate-spin" />
-          Connecting
+          {translate('tools.store.connecting')}
         </span>
       );
     }
     if (isConnected) {
       return (
-        <Badge variant="default" className="rounded-full px-2.5 py-0.5 text-ui-xs font-medium shrink-0 bg-emerald-600">
-          Connected
-        </Badge>
+          <Badge variant="default" className="rounded-full px-2.5 py-0.5 text-ui-xs font-medium shrink-0 bg-emerald-600">
+            {translate('tools.grid.connected')}
+          </Badge>
       );
     }
     if (isAdded) {
       return (
-        <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-ui-xs font-medium shrink-0">
-          Added
-        </Badge>
+          <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-ui-xs font-medium shrink-0">
+            {translate('tools.store.added')}
+          </Badge>
       );
     }
     return null;

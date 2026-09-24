@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import type { LocaleKey } from "../i18n";
+import type { TOptions } from "i18next";
 import {
   CheckCircle2,
   Circle,
@@ -41,18 +44,18 @@ function hasAllPermissions(status: PermissionStatus | null): boolean {
   return Boolean(status?.accessibilityGranted && status.screenRecordingGranted);
 }
 
-function screenRecordingDetail(status: ScreenRecordingStatus | undefined): string {
+function screenRecordingDetailKey(status: ScreenRecordingStatus | undefined): LocaleKey {
   switch (status) {
     case "granted":
-      return "Granted";
+      return "cua.setup.srGranted";
     case "not-determined":
-      return "Not requested yet";
+      return "cua.setup.srNotRequested";
     case "denied":
-      return "Needs System Settings";
+      return "cua.setup.srNeedsSettings";
     case "restricted":
-      return "Restricted by macOS";
+      return "cua.setup.srRestricted";
     default:
-      return "Checking";
+      return "cua.setup.srChecking";
   }
 }
 
@@ -63,6 +66,8 @@ function useIsMac(): boolean {
 export function ComputerUseSetupModalHost() {
   "use no memo";
 
+  const { t } = useTranslation();
+  const translate = useCallback((key: LocaleKey, options?: TOptions) => t(key, options), [t]);
   const isMac = useIsMac();
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<PermissionStatus | null>(null);
@@ -260,12 +265,10 @@ export function ComputerUseSetupModalHost() {
               </div>
               <div className="min-w-0 space-y-2">
                 <AlertDialogTitle className="text-[18px] leading-6">
-                  Computer Use Setup
+                  {translate("cua.setup.title")}
                 </AlertDialogTitle>
                 <AlertDialogDescription className="max-w-[36rem] text-pretty">
-                  Interpreter needs two macOS permissions before it can use other apps for you.
-                  Keep this window open while System Settings is open; Interpreter will check
-                  automatically and continue when both items are granted.
+                  {translate("cua.setup.intro")}
                 </AlertDialogDescription>
               </div>
             </div>
@@ -274,17 +277,17 @@ export function ComputerUseSetupModalHost() {
           <div className="grid gap-3 sm:grid-cols-2">
             <PermissionCard
               icon={<MousePointer2 className="size-4" />}
-              title="Accessibility"
-              description="Lets Interpreter inspect app controls, then click and type only when you approve computer use."
-              detail={status?.accessibilityGranted ? "Status: Granted" : "Status: Not granted"}
+              title={translate("cua.setup.accessTitle")}
+              description={translate("cua.setup.accessDesc")}
+              detail={status?.accessibilityGranted ? translate("cua.setup.statusGranted") : translate("cua.setup.statusNotGranted")}
               completed={Boolean(status?.accessibilityGranted)}
               active={activeStep === "accessibility"}
             />
             <PermissionCard
               icon={<Monitor className="size-4" />}
-              title="Screen Recording"
-              description="Lets Interpreter verify what is visible on screen while it works in native apps."
-              detail={`Status: ${status?.screenRecordingGranted ? "Granted" : screenRecordingDetail(status?.screenRecordingStatus)}`}
+              title={translate("cua.setup.screenTitle")}
+              description={translate("cua.setup.screenDesc")}
+              detail={translate("cua.setup.statusDetail", { value: translate(screenRecordingDetailKey(status?.screenRecordingStatus)) })}
               completed={Boolean(status?.screenRecordingGranted)}
               active={activeStep === "screen-recording"}
             />
@@ -320,18 +323,18 @@ export function ComputerUseSetupModalHost() {
 
         <AlertDialogFooter className="px-6 pb-5 sm:px-7 sm:pb-6">
           <Button variant="secondary" onClick={checkAgain} disabled={activeStep !== null}>
-            {activeStep === "check" ? "Checking..." : "Check Again"}
+            {activeStep === "check" ? translate("cua.setup.checking") : translate("cua.setup.checkAgain")}
           </Button>
           {!ready && nextStep ? (
             <Button onClick={() => void requestPermission(nextStep)} disabled={activeStep !== null}>
               <Settings className="mr-2 size-4" />
               {activeStep === nextStep
                 ? nextStep === "accessibility"
-                  ? "Opening Accessibility..."
-                  : "Opening Screen Recording..."
+                  ? translate("cua.setup.openAccess")
+                  : translate("cua.setup.openScreen")
                 : nextStep === "accessibility"
-                  ? "Open Accessibility Settings"
-                  : "Open Screen Recording Settings"}
+                  ? translate("cua.setup.openAccessSettings")
+                  : translate("cua.setup.openScreenSettings")}
             </Button>
           ) : (
             <Button
@@ -341,7 +344,7 @@ export function ComputerUseSetupModalHost() {
               }}
               disabled={!ready || activeStep !== null}
             >
-              Done
+              {translate("cua.setup.done")}
             </Button>
           )}
         </AlertDialogFooter>

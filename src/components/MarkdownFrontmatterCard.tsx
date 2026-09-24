@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FocusEvent, KeyboardEvent, ReactNode } from 'react';
 import { X } from 'lucide-react';
 
@@ -470,6 +471,7 @@ function renderFrontmatterEditor(
 }
 
 export function MarkdownFrontmatterCard({ frontmatter, onChange, onClose, readOnly = false, children }: MarkdownFrontmatterCardProps) {
+  const { t } = useTranslation();
   const preferredFieldOrder = ['title', 'aliases', 'tags'];
   const mergedData = preferredFieldOrder.reduce<Record<string, unknown>>((result, key) => {
     result[key] = frontmatter?.data[key] ?? (key === 'title' ? '' : []);
@@ -541,14 +543,14 @@ export function MarkdownFrontmatterCard({ frontmatter, onChange, onClose, readOn
 
   return (
     <section
-      aria-label="Document metadata"
+      aria-label={t("frontmatter.docMeta")}
       data-testid={MARKDOWN_FRONTMATTER_CARD_ID}
       className="relative mb-6 rounded-[16px] border border-black/[0.06] bg-[var(--oa-surface-center)] shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:border-white/[0.08] dark:shadow-[0_10px_32px_rgba(0,0,0,0.4)]"
     >
       <button
         type="button"
         onClick={onClose}
-        aria-label="Hide metadata"
+        aria-label={t("frontmatter.hideMeta")}
         className="absolute right-5 top-5 inline-flex size-7 items-center justify-center rounded-[8px] text-[#6b7280] transition-colors hover:bg-black/[0.045] hover:text-[#202123] dark:text-[#b4b4b4] dark:hover:bg-white/[0.06] dark:hover:text-[#f5f5f5]"
       >
         <X className="size-4" />

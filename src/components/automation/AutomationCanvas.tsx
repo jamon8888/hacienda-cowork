@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AutomationBlock as AutomationBlockType, AutomationAction, BlockOutput, AutomationConstant } from '../../types/automation';
 import type { ToolServer } from '../../api';
 import { AutomationBlock } from './AutomationBlock';
@@ -134,6 +135,7 @@ export function AutomationCanvas({
   constants,
   workspacePath,
 }: AutomationCanvasProps) {
+  const { t } = useTranslation();
   const [dragOver, setDragOver] = useState(false);
 
   // The entire canvas is a fallback drop target — drops onto the background append to end
@@ -181,8 +183,8 @@ export function AutomationCanvas({
       {blocks.length === 0 ? (
         <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
           <div className="py-8 text-center">
-            <div className="text-ui-base mb-1">No blocks yet</div>
-            <div className="text-ui-sm">Click a tool from the palette, or drag one here.</div>
+            <div className="text-ui-base mb-1">{t('automation.canvasEmpty')}</div>
+            <div className="text-ui-sm">{t('automation.canvasHint')}</div>
           </div>
         </div>
       ) : (

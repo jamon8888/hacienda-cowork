@@ -216,7 +216,7 @@ export function HostedModelPicker({
         >
           <Check className="size-4 shrink-0 text-foreground" />
           <div className="min-w-0 flex-1">
-            <div className="text-ui-xs text-muted-foreground">Selected model</div>
+            <div className="text-ui-xs text-muted-foreground">{t('models.selectedLabel')}</div>
             <div className="truncate text-ui-sm font-medium text-foreground">
               {selectedCatalogModel?.name || selectedModelId}
             </div>
@@ -237,7 +237,7 @@ export function HostedModelPicker({
             <ChevronDown
               className={`size-4 transition-transform duration-150 ${showMore ? 'rotate-180' : ''}`}
             />
-            <span>{showMore ? 'Hide models' : 'More models'}</span>
+            <span>{showMore ? t('models.hideMore') : t('models.moreModels')}</span>
             {loading && (
               <RefreshCw className="ml-auto size-3.5 animate-spin text-muted-foreground" />
             )}
@@ -259,7 +259,7 @@ export function HostedModelPicker({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   role="combobox"
-                  placeholder="Search models..."
+                  placeholder={t('models.searchPh')}
                   className="h-8 border-0 bg-transparent pl-8 shadow-none focus-visible:ring-0"
                   data-testid={HOSTED_MODEL_PICKER_SEARCH_INPUT_ID}
                 />

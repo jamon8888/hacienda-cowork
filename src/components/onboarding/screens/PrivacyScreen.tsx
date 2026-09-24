@@ -205,7 +205,7 @@ export function PrivacyScreen({ onNext }: PrivacyScreenProps) {
                 className="inline-flex items-center rounded-full border-solid px-4 py-2 text-[13px] text-[var(--oa-text-muted)] shadow-none transition-[background-color,border-color,color] duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)] [border-width:var(--border-width)] hover:border-[var(--oa-border)] hover:bg-[var(--oa-bg-input)] hover:text-[var(--oa-text-strong)]"
                 style={{ borderColor: 'var(--oa-border)' }}
               >
-                Close
+                {t('common.close')}
               </button>
 
               <button

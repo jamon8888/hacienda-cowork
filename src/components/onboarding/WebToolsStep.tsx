@@ -6,6 +6,8 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { LocaleKey } from '../../i18n';
 import { ChevronLeft, Globe, Info } from 'lucide-react';
 import { Checkbox } from '../ui/checkbox';
 
@@ -15,6 +17,8 @@ interface WebToolsStepProps {
 }
 
 export function WebToolsStep({ onComplete, onBack }: WebToolsStepProps) {
+  const { t } = useTranslation();
+  const translate = (key: LocaleKey) => t(key);
   const [webSearchEnabled, setWebSearchEnabled] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -37,16 +41,16 @@ export function WebToolsStep({ onComplete, onBack }: WebToolsStepProps) {
           className="flex items-center gap-1 text-ui-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ChevronLeft className="size-4" />
-          Back
+            {translate('common.back')}
         </button>
 
         {/* Header */}
         <div className="text-center space-y-3">
           <h1 className="text-3xl font-normal leading-[1.1] text-foreground">
-            Web Tools
+            {translate('onboarding.webtools.title')}
           </h1>
           <p className="text-base text-muted-foreground">
-            Some tools require an internet connection and route queries through our servers.
+            {translate('onboarding.webtools.subtitle')}
           </p>
         </div>
 
@@ -65,10 +69,10 @@ export function WebToolsStep({ onComplete, onBack }: WebToolsStepProps) {
             <div className="flex-1 space-y-1">
               <div className="flex items-center gap-2">
                 <Globe className="size-4 text-muted-foreground" />
-                <span className="text-ui-sm text-foreground font-medium">Web Search</span>
+                <span className="text-ui-sm text-foreground font-medium">{translate('onboarding.webtools.searchTitle')}</span>
               </div>
               <p className="text-ui-xs text-muted-foreground">
-                Search the web, visit websites, and run code. Powered by our Web Agent.
+                {translate('onboarding.webtools.searchDesc')}
               </p>
             </div>
           </label>
@@ -81,19 +85,19 @@ export function WebToolsStep({ onComplete, onBack }: WebToolsStepProps) {
             className="text-ui-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 mx-auto"
           >
             <Info className="size-3" />
-            How does this work?
+            {translate('onboarding.webtools.howItWorks')}
           </button>
 
           {showDetails && (
             <div className="p-3 rounded-control bg-muted/50 text-ui-xs space-y-2">
               <p className="text-muted-foreground">
-                Web search queries are sent through our API to perform searches and fetch web pages. We process the results and return them to your agent.
+                {translate('onboarding.webtools.privacyBody')}
               </p>
               <p className="text-muted-foreground">
-                <strong className="text-foreground">What we log:</strong> Search queries are logged for 30 days to prevent abuse.
+                <strong className="text-foreground">{translate('onboarding.webtools.logTitle')}</strong> {translate('onboarding.webtools.logBody')}
               </p>
               <p className="text-muted-foreground">
-                <strong className="text-foreground">What we don't store:</strong> Search results, web page contents, and your agent's analysis are not stored.
+                <strong className="text-foreground">{translate('onboarding.webtools.noStoreTitle')}</strong> {translate('onboarding.webtools.noStoreBody')}
               </p>
             </div>
           )}
@@ -101,7 +105,7 @@ export function WebToolsStep({ onComplete, onBack }: WebToolsStepProps) {
 
         {/* Help text */}
         <p className="text-ui-xs text-muted-foreground text-center">
-          You can change this anytime in Settings
+          {translate('onboarding.webtools.changeHint')}
         </p>
 
         {/* Continue button */}

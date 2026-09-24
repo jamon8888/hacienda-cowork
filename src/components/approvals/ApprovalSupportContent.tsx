@@ -1,4 +1,5 @@
 import { type DragEvent, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Eye } from 'lucide-react';
 import { browserControl } from '@/ipc';
 import type { QuestionOption, QuestionRequest } from '../../../shared/types/approval';
@@ -414,6 +415,7 @@ function PermissionCardPreview({
 }: {
   card: unknown;
 }) {
+  const { t } = useTranslation();
   const blocks = permissionCardPreviewBlocks(card);
   if (blocks.length === 0) {
     return null;
@@ -544,7 +546,7 @@ function PermissionCardPreview({
                 }}
               >
                 <Eye className="size-3" />
-                <span>Show tab</span>
+                <span>{t('approvals.support.showTab')}</span>
               </Button>
             </div>
           );
@@ -735,6 +737,7 @@ export function ApprovalSupportContent({
 }: {
   approval: QuestionRequest;
 }) {
+  const { t } = useTranslation();
   const files = toStringList(approval.context?.files);
   const paths = toStringList(approval.context?.paths);
   const permissionCardBlocksCount = permissionCardPreviewBlocks(approval.context?.permissionCard).length;
@@ -799,7 +802,7 @@ export function ApprovalSupportContent({
             borderLeft: '2px solid color-mix(in srgb, rgb(217 119 6) 48%, transparent)',
           }}
         >
-          <div className="text-ui-xs text-[var(--oa-text-faint)]">Note</div>
+          <div className="text-ui-xs text-[var(--oa-text-faint)]">{t('approvals.support.noteLabel')}</div>
           <div className="mt-1 whitespace-pre-line text-ui-sm leading-6 text-[var(--oa-text)]">
             {warningText}
           </div>
@@ -824,7 +827,7 @@ export function ApprovalSupportContent({
       )}
 
       {files.length > 0 && (
-        <ApprovalDetailField label="Files" inset>
+        <ApprovalDetailField label={t("approvals.support.filesLabel")} inset>
           <div className="space-y-1 font-mono text-[11px] leading-5 text-[var(--oa-text-muted)]">
             {files.map((file, fileIndex) => (
               <div key={fileIndex} className="break-all">{file}</div>
@@ -834,13 +837,13 @@ export function ApprovalSupportContent({
       )}
 
       {hasCommand && (
-        <ApprovalDetailField label="Command" inset>
+        <ApprovalDetailField label={t("approvals.support.commandLabel")} inset>
           <HighlightedCommand command={approval.context.command} />
         </ApprovalDetailField>
       )}
 
       {paths.length > 0 && files.length === 0 && (
-        <ApprovalDetailField label="Paths" inset>
+        <ApprovalDetailField label={t("approvals.support.pathsLabel")} inset>
           <div className="space-y-1 font-mono text-[11px] leading-5 text-[var(--oa-text-muted)]">
             {paths.map((path, pathIndex) => (
               <div key={pathIndex} className="break-all">{path}</div>

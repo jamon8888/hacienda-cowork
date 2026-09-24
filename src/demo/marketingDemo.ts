@@ -19,6 +19,7 @@ import type {
 } from '../../shared/types/provider';
 import type { v2 } from '../../server/handlers/codex-generated-types/index';
 import { DEFAULT_STT_SETTINGS } from '../../shared/types/stt';
+import { tr } from '../i18n';
 import { DEFAULT_TTS_SETTINGS } from '../../shared/types/tts';
 import { getRemoteWorkstationLayoutState, isRemoteWorkstationMode } from '../remote/remoteWorkstation';
 import {
@@ -2402,11 +2403,10 @@ export function getMarketingDemoFolderChildren(folderPath: string): { children: 
   const normalizedPath = folderPath.replace(/^\/+/, '').replace(/\/+$/, '');
   const children = findNodeChildren(marketingDemoTree, normalizedPath);
   if (!children) {
-    throw new Error(`Demo folder not found: ${folderPath}`);
+throw new Error(tr('errors.ui.demoFolderMissing', { path: folderPath }));
   }
   return { children: cloneMarketingDemoTreeNodes(children) };
 }
-
 export function getMarketingDemoProfilesResponse(): {
   profiles: Profile[];
   defaultProfileId: string | null;
@@ -2426,7 +2426,7 @@ export function getMarketingDemoUserName(): { userName: string } {
 export function readMarketingDemoFile(filePath: string): { content: string } {
   const content = marketingDemoFiles.get(filePath);
   if (content === undefined) {
-    throw new Error(`Demo file not found: ${filePath}`);
+    throw new Error(tr('errors.ui.demoFileMissing', { path: filePath }));
   }
   return { content };
 }

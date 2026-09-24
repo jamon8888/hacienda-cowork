@@ -1,6 +1,7 @@
 import { Check, Loader2, X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { PlanChecklistState } from '../../src/hooks/use-chat';
 
@@ -73,6 +74,7 @@ function StatusIcon({ status, isRunning }: {
 }
 
 export function PlanChecklistCard({ plan, isRunning, onDismiss }: PlanChecklistCardProps) {
+  const { t } = useTranslation();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLOListElement>(null);
   const shouldReduceMotion = useReducedMotion();
@@ -167,7 +169,7 @@ export function PlanChecklistCard({ plan, isRunning, onDismiss }: PlanChecklistC
         <section
           className="oa-composer-surface oa-interactive-surface relative overflow-hidden py-[14px] pl-[14px] pr-12"
           style={{ borderRadius: 'var(--oa-radius-22)' }}
-          aria-label="Agent plan checklist"
+          aria-label={t('plan.listAria')}
         >
           <button
             type="button"
@@ -175,7 +177,7 @@ export function PlanChecklistCard({ plan, isRunning, onDismiss }: PlanChecklistC
             style={{
               border: 'var(--border-width) solid transparent',
             }}
-            aria-label="Dismiss plan checklist"
+            aria-label={t('plan.dismissAria')}
             onClick={onDismiss}
           >
             <X className="h-3.5 w-3.5" strokeWidth={2.2} />
@@ -260,7 +262,7 @@ export function PlanChecklistCard({ plan, isRunning, onDismiss }: PlanChecklistC
               }}
             >
               <StatusIcon status="completed" isRunning={isRunning} />
-              <span>Plan complete</span>
+              <span>{t('plan.complete')}</span>
             </div>
           ) : null}
         </section>

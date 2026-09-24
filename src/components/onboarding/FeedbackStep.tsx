@@ -5,6 +5,7 @@
  */
 
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Bug } from 'lucide-react';
 import { getRuntimeSystemInfo } from '@/ipc';
 import { flashFeedbackButton } from '../../utils/feedback';
@@ -16,6 +17,7 @@ interface FeedbackStepProps {
 }
 
 export function FeedbackStep({ onComplete, telemetryEnabled }: FeedbackStepProps) {
+  const { t } = useTranslation();
   const isWindows10Unsupported = useMemo(() => {
     const { platform, osRelease } = getRuntimeSystemInfo();
     if (platform !== 'win32') return false;
@@ -39,15 +41,15 @@ export function FeedbackStep({ onComplete, telemetryEnabled }: FeedbackStepProps
         {/* Header */}
         <div className="text-center space-y-3">
           <h1 className="text-3xl font-normal leading-[1.1] text-foreground">
-            Help Improve Interpreter Beta
+            {t('onboarding.feedback.betaTitle')}
           </h1>
           <p className="text-base text-muted-foreground">
             {telemetryEnabled
-              ? "During the Interpreter beta, we're improving things quickly and your feedback helps us prioritize what to fix next."
-              : "During the Interpreter beta, feedback is especially important because telemetry is off and we rely on your reports to improve the app."}
+              ? t('onboarding.feedback.bodyTelemetry')
+              : t('onboarding.feedback.bodyNoTelemetry')}
           </p>
           <p className="text-base text-muted-foreground">
-            If you hit a bug or want to suggest something, please click Feedback.
+            {t('onboarding.feedback.bodyCta')}
           </p>
         </div>
 
@@ -56,7 +58,7 @@ export function FeedbackStep({ onComplete, telemetryEnabled }: FeedbackStepProps
             className="rounded-[var(--control-radius-lg)] bg-destructive/10 px-4 py-3 text-ui-sm text-destructive"
             style={{ border: 'var(--border-width) solid oklch(from var(--destructive) l c h / 0.4)' }}
           >
-            Windows 10 is currently unsupported in this beta. You can still try Interpreter, but we can&apos;t promise that everything will work reliably yet. If you run into issues, we&apos;d especially appreciate bug feedback while we improve Windows 10 support.
+            {t('onboarding.feedback.win10')}
           </div>
         )}
 
@@ -74,14 +76,14 @@ export function FeedbackStep({ onComplete, telemetryEnabled }: FeedbackStepProps
               className="pointer-events-none"
             >
               <Bug />
-              Feedback
+              {t('onboarding.feedback.feedbackBtn')}
             </Button>
           </div>
         </div>
 
         {/* Description */}
         <p className="text-ui-sm text-muted-foreground text-center">
-          The feedback form can include logs and screenshots, which helps us debug issues much faster.
+          {t('onboarding.feedback.formNote')}
         </p>
 
         {/* Start button */}
@@ -89,7 +91,7 @@ export function FeedbackStep({ onComplete, telemetryEnabled }: FeedbackStepProps
           onClick={handleClick}
           className="w-full py-2 rounded-control bg-foreground text-background text-ui-sm font-medium hover:opacity-90 transition-opacity"
         >
-          Start
+          {t('onboarding.feedback.start')}
         </button>
       </div>
     </div>

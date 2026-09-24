@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { OnboardingHeading, OnboardingScreenShell } from '../components/OnboardingScreenShell';
 import { useOnboarding } from '../OnboardingContext';
 import { useInterpreterTokenUsage } from '../../../hooks/useInterpreterTokenUsage';
@@ -19,6 +20,7 @@ function resolveCreditsLoaded(totalCredits: number | null): number {
 }
 
 export function InterpreterCreditsLoadedScreen({ onNext }: InterpreterCreditsLoadedScreenProps) {
+  const { t } = useTranslation();
   const { currentStep, setFooterConfig } = useOnboarding();
   const { totalCredits } = useInterpreterTokenUsage();
   const [animatedCredits, setAnimatedCredits] = useState(0);
@@ -88,8 +90,8 @@ export function InterpreterCreditsLoadedScreen({ onNext }: InterpreterCreditsLoa
     >
       <div className="flex w-full flex-col items-center space-y-4 py-6">
         <OnboardingHeading
-          title="Interpreter usage ready"
-          description="Your account now includes Interpreter-managed usage."
+          title={t("onboarding.credits.readyTitle")}
+          description={t("onboarding.credits.readyDesc")}
           className="space-y-1.5 pb-1.5"
           descriptionClassName="max-w-[30rem] text-ui-sm leading-5"
         />
@@ -103,10 +105,10 @@ export function InterpreterCreditsLoadedScreen({ onNext }: InterpreterCreditsLoa
         >
           <div className="space-y-1">
             <p className="text-ui-sm text-[var(--oa-text-strong)]">
-              Usage enabled
+              {t('onboarding.credits.usageEnabled')}
             </p>
             <p className="text-ui-xs leading-5 text-[var(--oa-text-muted)]">
-              You&apos;re on the free tier. You can check your remaining usage in Settings anytime.
+              {t('onboarding.credits.usageHint')}
             </p>
           </div>
           <div
@@ -126,7 +128,7 @@ export function InterpreterCreditsLoadedScreen({ onNext }: InterpreterCreditsLoa
             />
           </div>
           <p className="text-ui-xs text-[var(--oa-text-muted)]">
-            Ready to use Interpreter-managed models
+            {t('onboarding.credits.readyHint')}
           </p>
         </div>
       </div>

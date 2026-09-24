@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, Loader2, Trash2, X } from 'lucide-react';
 import { getApiUrl } from '../../src/ipc';
 import type { v2 } from '../../server/handlers/codex-generated-types';
@@ -19,6 +20,7 @@ function isThreadGoal(value: unknown): value is v2.ThreadGoal {
 }
 
 export function ThreadGoalBar({ threadId, readOnly = false }: ThreadGoalBarProps) {
+  const { t } = useTranslation();
   const [goal, setGoal] = useState<v2.ThreadGoal | null>(null);
   const [draft, setDraft] = useState('');
   const [editing, setEditing] = useState(false);
@@ -124,7 +126,7 @@ export function ThreadGoalBar({ threadId, readOnly = false }: ThreadGoalBarProps
           style={{ borderRadius: 'var(--oa-radius-22)' }}
         >
           <Loader2 className="size-3 animate-spin" />
-          Loading goal
+          {t('goal.loading')}
         </div>
       </div>
     );
@@ -140,7 +142,7 @@ export function ThreadGoalBar({ threadId, readOnly = false }: ThreadGoalBarProps
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
               <label htmlFor={`thread-goal-${threadId}`} className="text-ui-xs font-medium text-[var(--oa-text-strong)]">
-                Goal
+                {t('goal.label')}
               </label>
               <button
                 type="button"
@@ -150,7 +152,7 @@ export function ThreadGoalBar({ threadId, readOnly = false }: ThreadGoalBarProps
                   setEditing(false);
                   setError(null);
                 }}
-                aria-label="Close goal editor"
+                aria-label={t('goal.closeEditor')}
               >
                 <X className="size-3.5" />
               </button>
@@ -161,7 +163,7 @@ export function ThreadGoalBar({ threadId, readOnly = false }: ThreadGoalBarProps
               onChange={(event) => setDraft(event.target.value)}
               rows={3}
               autoFocus
-              placeholder="Describe the outcome this agent should continue working toward"
+              placeholder={t('goal.draftPlaceholder')}
               className="w-full resize-none rounded-[6.08px] border border-[var(--oa-border)] bg-[var(--oa-bg-input)] px-3 py-2 text-ui-sm leading-5 text-[var(--oa-text)] outline-none focus:border-[var(--oa-text-muted)]"
             />
             {error ? <p className="text-ui-xs text-destructive">{error}</p> : null}
@@ -174,7 +176,7 @@ export function ThreadGoalBar({ threadId, readOnly = false }: ThreadGoalBarProps
                   className="mr-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-ui-xs text-[var(--oa-text-muted)] hover:bg-[var(--oa-bg-hover)] disabled:opacity-50"
                 >
                   <Trash2 className="size-3.5" />
-                  Clear
+                  {t('goal.clear')}
                 </button>
               ) : null}
               <button

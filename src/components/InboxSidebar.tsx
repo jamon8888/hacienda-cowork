@@ -240,7 +240,7 @@ export function InboxSidebar() {
     return (
       <div className="flex h-full flex-col items-center justify-center p-4">
         <Loader2 className="size-6 animate-spin text-[var(--oa-text-muted)]" />
-        <p className="mt-2 text-ui-base text-[var(--oa-text-muted)]">Loading...</p>
+        <p className="mt-2 text-ui-base text-[var(--oa-text-muted)]">{t('common.loading')}</p>
       </div>
     );
   }
@@ -255,10 +255,10 @@ export function InboxSidebar() {
         <div className="px-2 pb-5 pt-2">
           <div className="flex items-center gap-2">
             <Mail className="size-4 text-[var(--oa-text-muted)]" />
-            <h2 className="text-ui-base font-medium">Inbox</h2>
+            <h2 className="text-ui-base font-medium">{t('inbox.title')}</h2>
           </div>
           <p className="mt-3 max-w-[260px] text-ui-sm text-[var(--oa-text-muted)]">
-            Connect a messaging account to bring conversations into the Inbox rail.
+            {t('inbox.emptyHint')}
           </p>
         </div>
 
@@ -277,7 +277,7 @@ export function InboxSidebar() {
           )}
 
           <div className="mb-2 px-2 text-ui-xs font-medium tracking-[0.01em] text-[var(--oa-text-muted)]">
-            Available channels
+            {t('inbox.channelsTitle')}
           </div>
 
           <div className="space-y-1">
@@ -294,14 +294,14 @@ export function InboxSidebar() {
                     <Mail className="size-5 text-[var(--oa-text-muted)]" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-ui-base font-medium">Email</p>
+                    <p className="text-ui-base font-medium">{t('inbox.emailChannel')}</p>
                     <p className="truncate text-ui-sm text-[var(--oa-text-muted)]">
-                      {connecting ? 'Connecting your email account...' : 'Connect your email account'}
+                      {connecting ? t('inbox.emailConnecting') : t('inbox.emailConnect')}
                     </p>
                   </div>
                 </div>
                 <span className="shrink-0 text-ui-xs text-[var(--oa-text-muted)]">
-                  {connecting ? 'Waiting' : 'OAuth'}
+                  {connecting ? t('inbox.waitingBadge') : 'OAuth'}
                 </span>
               </div>
             </button>
@@ -321,7 +321,7 @@ export function InboxSidebar() {
                   <div className="min-w-0">
                     <p className="text-ui-base font-medium">WhatsApp</p>
                     <p className="truncate text-ui-sm text-[var(--oa-text-muted)]">
-                      Scan a QR code from your phone
+                      {t('inbox.whatsappHint')}
                     </p>
                   </div>
                 </div>
@@ -344,12 +344,12 @@ export function InboxSidebar() {
                   <div className="min-w-0">
                     <p className="text-ui-base font-medium">Telegram</p>
                     <p className="truncate text-ui-sm text-[var(--oa-text-muted)]">
-                      Connect with a bot token
+                      {t('inbox.telegramHint')}
                     </p>
                   </div>
                 </div>
                 <span className="shrink-0 text-ui-xs text-[var(--oa-text-muted)]">
-                  Token
+                  {t('inbox.tokenBadge')}
                 </span>
               </div>
             </button>
@@ -366,7 +366,7 @@ export function InboxSidebar() {
       <div className="flex items-center justify-between px-2 pb-2 pt-2">
         <div className="flex min-w-0 items-center gap-2">
           <Mail className="size-4 flex-shrink-0 text-[var(--oa-text-muted)]" />
-          <h2 className="text-ui-base font-medium">Inbox</h2>
+          <h2 className="text-ui-base font-medium">{t('inbox.title')}</h2>
         </div>
         <div className="flex flex-shrink-0 items-center gap-1">
           <Button
@@ -528,7 +528,7 @@ export function InboxSidebar() {
               'var(--border-width) solid color-mix(in srgb, var(--oa-border, var(--border)) 56%, transparent)',
           }}
         >
-          <p className="mb-2 px-2 text-ui-sm text-[var(--oa-text-muted)]">Add account</p>
+          <p className="mb-2 px-2 text-ui-sm text-[var(--oa-text-muted)]">{t('inbox.addAccount')}</p>
           <div className="flex gap-2">
             {unconfiguredChannels.map(ch => {
               const Icon = CHANNEL_ICONS[ch.channel];

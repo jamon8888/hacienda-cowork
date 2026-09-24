@@ -406,12 +406,12 @@ export function SpeechToTextSectionContent() {
 
   return (
     <>
-      <SettingsGroup title="Model download">
+      <SettingsGroup title={t("stt.downloadTitle")}>
         <SettingsRow
           label={sttModelLabel}
           description={sttModelInstalled
-            ? 'Speech-to-text controls are enabled.'
-            : 'Download at least one STT model to enable speech-to-text controls.'}
+            ? t("stt.enabledDesc")
+            : t("stt.installDesc")}
         >
           <Button
             variant="outline"

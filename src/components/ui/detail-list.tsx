@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react"
 import { Button } from "./button"
 import { cn } from "@/lib/utils"
@@ -239,10 +240,11 @@ interface DetailListHeaderProps {
 }
 
 export function DetailListHeader({ title, onBack, breadcrumbs }: DetailListHeaderProps) {
+  const { t } = useTranslation()
   // If breadcrumbs provided, render breadcrumb navigation
   if (breadcrumbs && breadcrumbs.length > 0) {
     return (
-      <nav className="flex items-center gap-1 mb-4 text-ui-sm" aria-label="Breadcrumb">
+      <nav className="flex items-center gap-1 mb-4 text-ui-sm" aria-label={t("detailList.breadcrumb")}>
         {breadcrumbs.map((crumb, index) => (
           <div key={index} className="flex items-center gap-1">
             {index > 0 && <ChevronRight className="size-3 text-muted-foreground" />}
@@ -270,7 +272,7 @@ export function DetailListHeader({ title, onBack, breadcrumbs }: DetailListHeade
         variant="ghost"
         size="icon-sm"
         onClick={onBack}
-        aria-label="Go back"
+        aria-label={t("detailList.goBack")}
         className="text-muted-foreground shrink-0"
       >
         <ChevronLeft className="size-4" />

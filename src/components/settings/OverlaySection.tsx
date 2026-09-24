@@ -186,8 +186,8 @@ export function OverlaySectionContent() {
     runtimePlatform === "darwin" || runtimePlatform === "linux";
   const isLinuxPlatform = runtimePlatform === "linux";
   const screenCaptureLabel = requiresAccessibilityPermission
-    ? "Screen Recording"
-    : "Screen Capture";
+    ? t("overlay.setup.screenTitleRecording")
+    : t("overlay.setup.screenTitleCapture");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [settingsState, setSettingsState] =
     useState<InterpreterOverlaySettings>(DEFAULT_INTERPRETER_OVERLAY_SETTINGS);
@@ -487,7 +487,7 @@ export function OverlaySectionContent() {
   async function resolveStripeCustomerId(): Promise<string | null> {
     if (!session?.access_token) {
       showToast(
-        "Sign in before upgrading to unlock Interpreter Overlay.",
+        t("overlay.setup.upgradeSignIn"),
         "error",
         7000,
       );
@@ -516,14 +516,14 @@ export function OverlaySectionContent() {
         status: customerResponse.status,
         result: customerResult,
       });
-      showToast("Unable to open checkout right now. Please try again.", "error", 8000);
+      showToast(t("overlay.setup.upgradeCheckoutError"), "error", 8000);
       return null;
     }
 
     const customerId = customerResult?.data?.customer_id;
     if (!customerId) {
       console.error("[OverlaySection] new_customer response missing customer_id", customerResult);
-      showToast("Unable to open checkout right now. Please try again.", "error", 8000);
+      showToast(t("overlay.setup.upgradeCheckoutError"), "error", 8000);
       return null;
     }
 
@@ -536,7 +536,7 @@ export function OverlaySectionContent() {
     }
 
     setIsOpeningCheckout(true);
-    const genericCheckoutError = "Unable to open checkout right now. Please try again.";
+    const genericCheckoutError = t("overlay.setup.upgradeCheckoutError");
     try {
       const customerId = await resolveStripeCustomerId();
       if (!customerId || !session?.access_token) {
@@ -802,35 +802,35 @@ export function OverlaySectionContent() {
     permissionStatus !== null && nextMissingPermission === null;
 
   let primaryActionLabel = requiresAccessibilityPermission
-    ? "Enable Accessibility"
-    : "Allow Screen Capture";
+    ? t("overlay.setup.enableAccessibility")
+    : t("overlay.setup.allowCapture");
   if (isPermissionStatusLoading) {
     primaryActionLabel = requiresAccessibilityPermission
-      ? "Checking permissions..."
-      : "Checking screen capture...";
+      ? t("overlay.setup.checkingPermissions")
+      : t("overlay.setup.checkingCapture");
   } else if (nextMissingPermission === "screen-recording") {
     primaryActionLabel =
       requiresAccessibilityPermission
       && permissionStatus?.screenRecordingStatus === "denied"
-        ? "Open Screen Recording Settings"
+        ? t("overlay.setup.openRecordingSettings")
         : requiresAccessibilityPermission
-          ? "Enable Screen Recording"
-          : "Allow Screen Capture";
+          ? t("overlay.setup.enableRecording")
+          : t("overlay.setup.allowCapture");
   } else if (isReadyToEnable) {
-    primaryActionLabel = "Enable Overlay";
+    primaryActionLabel = t("overlay.setup.enableOverlay");
   }
 
-  let activeActionLabel = "Working...";
+  let activeActionLabel = t("overlay.setup.working");
   if (activePermissionRequest === "accessibility") {
-    activeActionLabel = "Waiting for Accessibility permission...";
+    activeActionLabel = t("overlay.setup.waitingAccess");
   } else if (activePermissionRequest === "screen-recording") {
     activeActionLabel = requiresAccessibilityPermission
-      ? "Waiting for Screen Recording permission..."
+      ? t("overlay.setup.waitingRecording")
       : isLinuxPlatform
-        ? "Waiting for screen-share approval..."
-        : "Verifying screen capture...";
+        ? t("overlay.setup.waitingShare")
+        : t("overlay.setup.verifyingCapture");
   } else if (activePermissionRequest === "enable") {
-    activeActionLabel = "Finishing Overlay setup...";
+    activeActionLabel = t("overlay.setup.finishing");
   }
 
   const accessibilityStepState: "completed" | "in-progress" | "pending" =
@@ -981,7 +981,7 @@ export function OverlaySectionContent() {
                     "color-mix(in srgb, var(--card) 90%, var(--oa-bg-subtle) 10%)",
                 }}
               >
-                Checking system permission status...
+                {t("overlay.setup.checkingStatus")}
               </div>
             )}
             {!isPermissionStatusLoading && (
@@ -992,23 +992,23 @@ export function OverlaySectionContent() {
                 )}
               >
                 {requiresAccessibilityPermission ? renderPermissionCard({
-                  title: "Accessibility",
+                  title: t("overlay.setup.accessTitle"),
                   description:
-                    "Allows Overlay to click and type in other apps.",
-                  detail: `Status: ${permissionStatus?.accessibilityGranted ? "Granted" : "Not granted"}`,
+                    t("overlay.setup.accessDesc"),
+                  detail: permissionStatus?.accessibilityGranted ? t("overlay.setup.statusGranted") : t("overlay.setup.statusNotGranted"),
                   state: accessibilityStepState,
                 }) : null}
                 {renderPermissionCard({
                   title: screenCaptureLabel,
                   description:
                     requiresAccessibilityPermission
-                      ? "Allows Overlay to understand what is visible on screen."
+                      ? t("overlay.setup.screenDesc")
                       : isLinuxPlatform
-                        ? "Allows Overlay to understand what is visible on screen. Your desktop environment may show a screen-share prompt."
-                        : "Verifies that Overlay can capture what is visible on screen in this Windows session.",
+                        ? t("overlay.setup.screenDescLinux")
+                        : t("overlay.setup.screenDescWindows"),
                   detail: permissionStatus?.screenRecordingGranted
-                    ? "Status: Granted"
-                    : `Status: Not granted (${getScreenRecordingPermissionDetail(permissionStatus?.screenRecordingStatus ?? "unknown")})`,
+                    ? t("overlay.setup.statusGranted")
+                    : t("overlay.setup.screenNotGrantedDetail", { detail: getScreenRecordingPermissionDetail(permissionStatus?.screenRecordingStatus ?? "unknown") }),
                   state: screenRecordingStepState,
                 })}
               </div>
@@ -1036,7 +1036,7 @@ export function OverlaySectionContent() {
               }}
               disabled={isRequestingPermissions}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={handlePrimaryPermissionAction}
@@ -1077,17 +1077,15 @@ export function OverlaySectionContent() {
                     <LockKeyhole className="size-4" aria-hidden="true" />
                   </span>
                   <div className="text-ui-sm font-medium leading-6 text-foreground">
-                    Upgrade to unlock Interpreter Overlay
+                    {t("overlay.setup.upgradeTitle")}
                   </div>
                 </div>
                 <div className="mt-3 max-w-2xl space-y-2 text-ui-sm leading-6 text-muted-foreground text-pretty">
                   <p>
-                    Overlay lets Interpreter work from a global shortcut, read the active screen,
-                    and help fill forms or operate desktop apps without opening the main window.
+                    {t("overlay.setup.upgradeBody1")}
                   </p>
                   <p>
-                    It is available on paid plans. The shortcut and form-filling requests stay off
-                    until this account has an active paid subscription.
+                    {t("overlay.setup.upgradeBody2")}
                   </p>
                 </div>
               </div>
@@ -1098,7 +1096,7 @@ export function OverlaySectionContent() {
                   disabled={isOpeningCheckout}
                   className="gap-2"
                 >
-                  {isOpeningCheckout ? "Opening checkout..." : "Upgrade to unlock"}
+                  {isOpeningCheckout ? t("overlay.setup.upgradeOpenCheckout") : t("overlay.setup.upgradeButton")}
                   {!isOpeningCheckout ? <ExternalLink className="size-4" aria-hidden="true" /> : null}
                 </Button>
               </div>
@@ -1146,10 +1144,10 @@ export function OverlaySectionContent() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
             <div className="min-w-0 flex-1">
               <div className="text-ui-sm font-medium leading-6 text-foreground">
-                Hidden agent model
+                {t("overlay.setup.hiddenModel")}
               </div>
               <div className="mt-1 max-w-2xl text-ui-sm leading-6 text-muted-foreground text-pretty">
-                Choose the fast model used when Overlay delegates a bounded task to a hidden agent.
+                {t("overlay.setup.hiddenModelDesc")}
               </div>
             </div>
             <div className="w-full sm:max-w-[20rem]">
@@ -1162,7 +1160,7 @@ export function OverlaySectionContent() {
                 })}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choose a model" />
+                  <SelectValue placeholder={t("overlay.setup.chooseModel")} />
                 </SelectTrigger>
                 <SelectContent align="start" position="popper">
                   {voiceProfiles.map((profile) => (
@@ -1192,10 +1190,10 @@ export function OverlaySectionContent() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
             <div className="min-w-0 flex-1">
               <div className="text-ui-sm font-medium leading-6 text-foreground">
-                Typed overlay model
+                {t("overlay.setup.typedModel")}
               </div>
               <div className="mt-1 max-w-2xl text-ui-sm leading-6 text-muted-foreground text-pretty">
-                Choose the model used when you type into the Overlay.
+                {t("overlay.setup.typedModelDesc")}
               </div>
             </div>
             <div className="w-full sm:max-w-[20rem]">
@@ -1208,11 +1206,11 @@ export function OverlaySectionContent() {
                 })}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choose a model" />
+                  <SelectValue placeholder={t("overlay.setup.chooseModel")} />
                 </SelectTrigger>
                 <SelectContent align="start" position="popper">
                   <SelectItem value={OVERLAY_TEXT_DEFAULT_PROFILE_VALUE}>
-                    App default
+                    {t("overlay.setup.appDefault")}
                   </SelectItem>
                   {voiceProfiles.map((profile) => (
                     <SelectItem key={profile.id} value={profile.id}>
@@ -1243,12 +1241,12 @@ export function OverlaySectionContent() {
           <div className="space-y-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
               <div className="min-w-0 flex-1">
-                <div className="text-ui-sm font-medium leading-6 text-foreground">
-                  Advanced voice mode
-                </div>
-                <div className="mt-1 max-w-2xl text-ui-sm leading-6 text-muted-foreground text-pretty">
-                  Hold the Overlay shortcut to talk with a desktop agent through Realtime voice. Turn this off to use dictation into the prompt instead.
-                </div>
+              <div className="text-ui-sm font-medium leading-6 text-foreground">
+                {t("overlay.setup.advVoice")}
+              </div>
+              <div className="mt-1 max-w-2xl text-ui-sm leading-6 text-muted-foreground text-pretty">
+                {t("overlay.setup.advVoiceDesc")}
+              </div>
               </div>
               <div className="flex w-full justify-start sm:w-auto sm:justify-end">
                 <Switch
@@ -1264,7 +1262,7 @@ export function OverlaySectionContent() {
             <div className="grid gap-3 md:grid-cols-2">
               <div className="min-w-0 space-y-2">
                 <div className="text-ui-sm font-medium leading-6 text-foreground">
-                  Voice agent model
+                  {t("overlay.setup.voiceModel")}
                 </div>
                 <Select
                   value={advancedVoiceModelValue}
@@ -1274,16 +1272,16 @@ export function OverlaySectionContent() {
                     advancedVoiceModel,
                   })}
                 >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Choose a model" />
-                  </SelectTrigger>
-                  <SelectContent align="start" position="popper">
-                    {voiceProfiles.map((profile) => (
-                      <SelectItem key={profile.id} value={profile.id}>
-                        {profile.name}
-                      </SelectItem>
-                    ))}
-                    {!hasProfileModelValue(voiceProfiles, advancedVoiceModelValue) && (
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={t("overlay.setup.chooseModel")} />
+                </SelectTrigger>
+                <SelectContent align="start" position="popper">
+                  {voiceProfiles.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.name}
+                    </SelectItem>
+                  ))}
+                  {!hasProfileModelValue(voiceProfiles, advancedVoiceModelValue) && (
                       <SelectItem value={advancedVoiceModelValue}>
                         {advancedVoiceModelValue}
                       </SelectItem>
@@ -1293,7 +1291,7 @@ export function OverlaySectionContent() {
               </div>
               <div className="min-w-0 space-y-2">
                 <div className="text-ui-sm font-medium leading-6 text-foreground">
-                  Voice workspace
+                  {t("overlay.setup.voiceWorkspace")}
                 </div>
                 <Select
                   value={advancedVoiceWorkspaceValue}
@@ -1303,13 +1301,13 @@ export function OverlaySectionContent() {
                     advancedVoiceWorkspacePath: value === ADVANCED_VOICE_DESKTOP_WORKSPACE_VALUE ? null : value,
                   })}
                 >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Choose a workspace" />
-                  </SelectTrigger>
-                  <SelectContent align="start" position="popper">
-                    <SelectItem value={ADVANCED_VOICE_DESKTOP_WORKSPACE_VALUE}>
-                      Desktop
-                    </SelectItem>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={t("overlay.setup.chooseWorkspace")} />
+                </SelectTrigger>
+                <SelectContent align="start" position="popper">
+                  <SelectItem value={ADVANCED_VOICE_DESKTOP_WORKSPACE_VALUE}>
+                    {t("overlay.setup.desktop")}
+                  </SelectItem>
                     {recentWorkspaces.map((workspace) => (
                       <SelectItem key={workspace.path} value={workspace.path}>
                         {workspace.name}

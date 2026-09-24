@@ -1370,7 +1370,7 @@ export function MarkdownViewer({ filePath }: MarkdownViewerProps) {
                   className="text-xs"
                   onMouseDown={(e) => { e.preventDefault(); setIsMetadataOpen(true); }}
                 >
-                  Show Metadata
+                  {t('viewers.mdShowMetadata')}
                 </Button>
               </>
             ) : null}
@@ -1478,14 +1478,14 @@ export function MarkdownViewer({ filePath }: MarkdownViewerProps) {
                         }}
                       >
                         <div className="mb-3 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                          <span>Current</span>
+                          <span>{t('viewers.mdCurrent')}</span>
                           <Button
                             onClick={() => handleUndoHunk(segment.id)}
                             variant="ghost"
                             size="xs"
                             className="relative right-0 top-0"
                           >
-                            Undo
+                            {t('viewers.mdUndo')}
                           </Button>
                         </div>
                         <TipTapViewer
@@ -1507,14 +1507,14 @@ export function MarkdownViewer({ filePath }: MarkdownViewerProps) {
                         }}
                       >
                         <div className="mb-3 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                          <span>Proposed</span>
+                          <span>{t('viewers.mdProposed')}</span>
                           <Button
                             onClick={() => handleKeepHunk(segment.id)}
                             variant="ghost"
                             size="xs"
                             className="relative right-0 top-0"
                           >
-                            Keep
+                            {t('viewers.mdKeep')}
                           </Button>
                         </div>
                         <TipTapViewer
@@ -1644,7 +1644,7 @@ export function MarkdownViewer({ filePath }: MarkdownViewerProps) {
               size="xs"
               data-testid="undo-all-button"
             >
-              Undo All
+              {t('viewers.mdUndoAll')}
             </Button>
             <Button
               onClick={handleKeepAll}
@@ -1652,7 +1652,7 @@ export function MarkdownViewer({ filePath }: MarkdownViewerProps) {
               size="xs"
               data-testid="keep-all-button"
             >
-              Keep All
+              {t('viewers.mdKeepAll')}
             </Button>
           </div>
         </div>

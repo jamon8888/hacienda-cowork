@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { LocaleKey } from '../../i18n';
 import { Button } from '../ui/button';
 import { getAppServerOrigin, openExternal, isBrowserDevMode } from '@/ipc';
 
@@ -7,6 +9,8 @@ interface NylasUIProps {
 }
 
 export function NylasUI({ serverId: _serverId }: NylasUIProps) {
+  const { t } = useTranslation();
+  const translate = (key: LocaleKey) => t(key);
   const [configured, setConfigured] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -129,9 +133,9 @@ export function NylasUI({ serverId: _serverId }: NylasUIProps) {
     >
       <div className="space-y-4">
         <div className="space-y-1">
-          <h4 className="text-ui-sm font-medium text-foreground">Email Configuration</h4>
+          <h4 className="text-ui-sm font-medium text-foreground">{translate('tools.nylas.title')}</h4>
           <p className="max-w-2xl text-ui-sm leading-6 text-muted-foreground">
-            Connect an email account to let the tool access your mailbox through Nylas.
+            {translate('tools.nylas.desc')}
           </p>
         </div>
 
@@ -154,7 +158,7 @@ export function NylasUI({ serverId: _serverId }: NylasUIProps) {
               }}
             >
               <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                Connected
+                {translate('tools.nylas.connected')}
               </div>
               <div className="mt-1 text-ui-sm leading-6 text-foreground">{email}</div>
             </div>

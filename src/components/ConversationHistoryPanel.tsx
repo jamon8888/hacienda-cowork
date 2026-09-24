@@ -1523,7 +1523,7 @@ export function ConversationHistoryPanel({
                 {hiddenHistoricalCount > 0 ? (
                   <div className="flex justify-center pt-5">
                     <HistoryDisclosureButton onClick={handleShowMoreHistorical}>
-                      Show {nextPageSize} more
+                      {t('history.showMore', { count: nextPageSize })}
                     </HistoryDisclosureButton>
                   </div>
                 ) : null}
@@ -1531,7 +1531,7 @@ export function ConversationHistoryPanel({
                 {canCollapseHistorical ? (
                   <div className="flex justify-center pt-5">
                     <HistoryDisclosureButton onClick={handleCollapseHistorical}>
-                      Show less
+                      {t('history.showLess')}
                     </HistoryDisclosureButton>
                   </div>
                 ) : null}
@@ -1598,7 +1598,7 @@ export function ConversationHistoryPanel({
                     style={{ padding: '20px var(--unit-padding) 0' }}
                   >
                     <HistoryDisclosureButton onClick={handleShowMoreHistorical}>
-                      Show {nextPageSize} more
+                      {t('history.showMore', { count: nextPageSize })}
                     </HistoryDisclosureButton>
                   </div>
                 ) : null}
@@ -1609,7 +1609,7 @@ export function ConversationHistoryPanel({
                     style={{ padding: '20px var(--unit-padding) var(--unit-padding)' }}
                   >
                     <HistoryDisclosureButton onClick={handleCollapseHistorical}>
-                      Show less
+                      {t('history.showLess')}
                     </HistoryDisclosureButton>
                   </div>
                 ) : null}

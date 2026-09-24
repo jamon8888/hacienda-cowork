@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getFileUrl, getFileThumbnails } from '@/ipc';
 import { openFeedbackPopover } from '../utils/feedback';
 import { useFileRefresh } from '../hooks/useFileRefresh';
@@ -9,6 +10,7 @@ interface AudioViewerProps {
 }
 
 export function AudioViewer({ filePath }: AudioViewerProps) {
+  const { t } = useTranslation();
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [coverArt, setCoverArt] = useState<string | null>(null);
   const [error, setError] = useState(false);
@@ -51,19 +53,19 @@ export function AudioViewer({ filePath }: AudioViewerProps) {
 
         {error ? (
           <div className="text-center space-y-3">
-            <div className="text-muted-foreground">Unable to load this file</div>
+            <div className="text-muted-foreground">{t('viewers.videoError')}</div>
             <div className="flex items-center justify-center gap-2">
               <button
                 onClick={() => setReloadTrigger(t => t + 1)}
                 className="px-3 py-1.5 text-ui-base rounded-control bg-muted hover:bg-muted/80 text-foreground transition-colors"
               >
-                Try again
+                {t('common.tryAgain')}
               </button>
               <button
                 onClick={() => openFeedbackPopover()}
                 className="px-3 py-1.5 text-ui-base rounded-control bg-muted hover:bg-muted/80 text-foreground transition-colors"
               >
-                Report bug
+                {t('viewers.videoReport')}
               </button>
             </div>
           </div>
@@ -75,10 +77,10 @@ export function AudioViewer({ filePath }: AudioViewerProps) {
             style={{ outline: 'none' }}
             onError={() => setError(true)}
           >
-            Your browser does not support the audio element.
+            {t('audio.noSupport')}
           </audio>
         ) : (
-          <div className="text-muted-foreground">Loading...</div>
+          <div className="text-muted-foreground">{t('common.loading')}</div>
         )}
       </div>
     </div>

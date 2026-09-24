@@ -1,4 +1,6 @@
 import { Loader2, Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import type { LocaleKey } from '../../i18n';
 import { cn } from '@/lib/utils';
 
 export type SaveStatusState = 'saved' | 'unsaved' | 'saving';
@@ -7,10 +9,10 @@ interface SaveStatusProps {
   status: SaveStatusState;
 }
 
-const STATUS_LABELS: Record<SaveStatusState, string> = {
-  unsaved: 'Unsaved',
-  saving: 'Saving',
-  saved: 'Saved',
+const STATUS_LABEL_KEYS: Record<SaveStatusState, LocaleKey> = {
+  unsaved: 'editors.saveUnsaved',
+  saving: 'editors.saveSaving',
+  saved: 'editors.saveSaved',
 };
 
 /**
@@ -21,12 +23,13 @@ const STATUS_LABELS: Record<SaveStatusState, string> = {
  * - Shows text label on hover
  */
 export function SaveStatus({ status }: SaveStatusProps) {
+  const { t } = useTranslation();
   return (
     <div className="group flex items-center gap-1.5">
       {/* Text labels - stacked, crossfade on status change, visible on hover */}
       <div className="relative h-4 flex items-center">
         {/* Invisible spacer using longest label to reserve width */}
-        <span className="text-ui-sm invisible" aria-hidden="true">Unsaved</span>
+        <span className="text-ui-sm invisible" aria-hidden="true">{t('editors.saveUnsaved')}</span>
         {/* Actual labels positioned absolutely - only current status shows on hover */}
         {(['unsaved', 'saving', 'saved'] as const).map((s) => (
           <span
@@ -36,7 +39,7 @@ export function SaveStatus({ status }: SaveStatusProps) {
               status === s ? 'opacity-0 group-hover:opacity-100' : 'opacity-0'
             )}
           >
-            {STATUS_LABELS[s]}
+            {t(STATUS_LABEL_KEYS[s])}
           </span>
         ))}
       </div>

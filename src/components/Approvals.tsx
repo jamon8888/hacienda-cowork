@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { LocaleKey } from '../i18n';
+import type { TOptions } from 'i18next';
 import { denyApproval, respondApproval } from '../api';
 import { APPROVALS_LIST_ID } from '../../shared/element-ids';
 import { runtime as runtimeIpc, settings as settingsIpc } from '@/ipc';
@@ -50,6 +53,8 @@ export function Approvals({
   ownerAgentId?: string;
 }) {
   const { state } = useLayout();
+  const { t } = useTranslation();
+  const translate = useCallback((key: LocaleKey, options?: TOptions) => t(key, options), [t]);
   const { showToast, dismissToast } = useToast();
   const agentActivityMap = useAgentActivityMap();
   const [approvals, setApprovals] = useState<QuestionRequest[]>(() => getApprovalsSnapshot());
@@ -239,7 +244,7 @@ export function Approvals({
   if (loading) {
     return (
       <div className="px-1 py-3 text-ui-sm text-muted-foreground">
-        Loading approvals...
+        {translate('approvals.loading')}
       </div>
     );
   }
@@ -260,7 +265,7 @@ export function Approvals({
       <div className="flex h-full flex-col">
         {error && (
           <div className="mb-3 py-1 text-ui-sm text-destructive">
-            <div className="font-medium">Approval error</div>
+            <div className="font-medium">{translate('approvals.restart.errorTitle')}</div>
             <div className="mt-1 text-destructive/80">{error}</div>
           </div>
         )}
@@ -268,7 +273,7 @@ export function Approvals({
         <div className="flex-1 overflow-y-auto" data-testid={APPROVALS_LIST_ID}>
           {isEmpty ? (
             <div className="flex items-center justify-center py-3 text-muted-foreground text-ui-xs">
-              Tool approvals appear here when a command needs confirmation.
+              {translate('approvals.emptyHint')}
             </div>
           ) : (
             <div className="space-y-3 px-1 py-1">
@@ -325,22 +330,22 @@ export function Approvals({
             <AlertDialogMedia className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
               <AlertTriangle />
             </AlertDialogMedia>
-            <AlertDialogTitle>Restart Interpreter?</AlertDialogTitle>
+            <AlertDialogTitle>{translate('approvals.restart.title')}</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingRuntimeRestartApproval
-                ? `${pendingRuntimeRestartApproval.runningConversationCount} conversation${pendingRuntimeRestartApproval.runningConversationCount === 1 ? ' is' : 's are'} still running. Restarting will stop ${pendingRuntimeRestartApproval.runningConversationCount === 1 ? 'that conversation' : 'those conversations'} for every agent.`
+                ? translate('approvals.restart.description', { count: pendingRuntimeRestartApproval.runningConversationCount })
                 : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="px-6 pb-5 sm:px-7 sm:pb-6">
             <AlertDialogCancel className="sm:min-w-[9rem]">
-              Cancel
+              {translate('common.cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmPendingRuntimeRestart}
               className="sm:min-w-[10rem]"
             >
-              Restart now
+              {translate('approvals.restart.restartNow')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, CircleAlert, X } from 'lucide-react';
 import { openFeedbackPopover } from '../../utils/feedback';
 import type { ToastAction } from '../../contexts/ToastContext';
@@ -16,6 +17,7 @@ interface AppToastProps {
 const MAX_ERROR_LENGTH = 120;
 
 export function AppToast({ message, variant, onDismiss, autoDismissMs, actions }: AppToastProps) {
+  const { t } = useTranslation();
   useEffect(() => {
     if (autoDismissMs && autoDismissMs > 0) {
       const timer = setTimeout(onDismiss, autoDismissMs);
@@ -93,7 +95,7 @@ export function AppToast({ message, variant, onDismiss, autoDismissMs, actions }
                 onClick={() => openFeedbackPopover()}
                 className="mt-1 block text-ui-xs text-[var(--oa-text-muted)] transition-colors hover:text-[var(--oa-text-strong)]"
               >
-                Report bug
+                {t('viewers.videoReport')}
               </button>
             )}
           </div>

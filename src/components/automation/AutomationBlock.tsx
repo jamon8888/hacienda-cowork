@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   AUTOMATION_SERVERS_NEEDING_PROFILE,
   type AutomationBlock as AutomationBlockType,
@@ -39,6 +40,7 @@ export function AutomationBlock({
   constants,
   workspacePath,
 }: AutomationBlockProps) {
+  const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const output = blockOutputs[block.id];
   const needsProfile = AUTOMATION_SERVERS_NEEDING_PROFILE.has(block.serverId);
@@ -91,7 +93,7 @@ export function AutomationBlock({
           e.dataTransfer.effectAllowed = 'move';
         }}
       >
-        <span className="text-muted-foreground select-none" title="Drag to reorder">⠿</span>
+        <span className="text-muted-foreground select-none" title={t('automation.block.dragReorder')}>⠿</span>
 
         {isEditing ? (
           <input
@@ -126,7 +128,7 @@ export function AutomationBlock({
         <button
           className="ml-auto text-ui-xs text-muted-foreground shrink-0"
           onClick={() => dispatch({ type: 'REMOVE_BLOCK', blockId: block.id })}
-          title="Delete block"
+          title={t('automation.block.deleteBlock')}
         >
           ✕
         </button>
@@ -151,9 +153,9 @@ export function AutomationBlock({
       {needsProfile && profiles.length > 0 && (
         <div style={{ padding: `0 var(--spacing-sm) var(--spacing-xs)` }}>
           <label className="block text-ui-xs text-muted-foreground mb-0.5">
-            Model
+            {t('automation.block.modelLabel')}
             <span className="text-destructive ml-0.5">*</span>
-            <span className="ml-1 opacity-60">— model configuration for this agent</span>
+            <span className="ml-1 opacity-60">— {t('automation.block.modelHint')}</span>
           </label>
           <select
             className="w-full text-ui-sm bg-background text-foreground rounded"
@@ -168,7 +170,7 @@ export function AutomationBlock({
               context: { profileId: e.target.value || undefined },
             })}
           >
-            <option value="">— select model —</option>
+            <option value="">— {t('automation.block.selectModel')} —</option>
             {profiles.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -189,7 +191,7 @@ export function AutomationBlock({
           onClick={handleRun}
           disabled={isAnyRunning || (needsProfile && !block.context?.profileId)}
         >
-          {isRunning ? 'Running...' : 'Run'}
+          {isRunning ? t('automation.block.running') : t('automation.block.run')}
         </button>
         {output && (
           <button
@@ -197,7 +199,7 @@ export function AutomationBlock({
             style={{ padding: `var(--padding-sm) var(--spacing-xs)` }}
             onClick={() => dispatch({ type: 'CLEAR_BLOCK_OUTPUT', blockId: block.id })}
           >
-            Clear output
+            {t('automation.block.clearOutput')}
           </button>
         )}
       </div>

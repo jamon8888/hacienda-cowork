@@ -17,6 +17,7 @@ import {
 import { emitWorkspaceConfirmationRequested } from './events';
 import type { WorkspaceConfirmationRequestedEvent } from './registry';
 import { resolveSpecialFolderAlias } from './workspacePathAliases';
+import { t } from '../i18n';
 
 type PendingWorkspaceConfirmation = {
   resolve: (approved: boolean) => void;
@@ -45,12 +46,12 @@ function buildWorkspaceConfirmationEvent(workspacePath: string): WorkspaceConfir
   return {
     requestId: randomUUID(),
     workspacePath,
-    title: 'Change Workspace',
-    message: 'Are you sure you want to change to this workspace?',
-    permissionNote: 'Interpreter will have the ability to modify and delete files in:',
-    backupNote: 'Please make sure your files are backed up before proceeding.',
-    confirmLabel: 'Open Workspace',
-    cancelLabel: 'Cancel',
+    title: t('workspace.confirm.title'),
+    message: t('workspace.confirm.message'),
+    permissionNote: t('workspace.confirm.permissionNote'),
+    backupNote: t('workspace.confirm.backupNote'),
+    confirmLabel: t('workspace.confirm.confirmLabel'),
+    cancelLabel: t('workspace.confirm.cancelLabel'),
   };
 }
 

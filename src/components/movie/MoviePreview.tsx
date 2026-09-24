@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import type { MovieTimelineDefinition } from '../../../shared/movie-schema';
 
@@ -35,6 +36,7 @@ export const MoviePreview = memo(function MoviePreview({
   className?: string;
   style?: CSSProperties;
 }) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [bounds, setBounds] = useState({ width: 0, height: 0 });
 
@@ -103,7 +105,7 @@ export const MoviePreview = memo(function MoviePreview({
         </div>
       ) : (
         <div className="absolute inset-0 flex items-center justify-center px-8 text-center text-ui-sm text-white/48">
-          Movie runtime unavailable
+          {t('movie.previewUnavailable')}
         </div>
       )}
     </div>

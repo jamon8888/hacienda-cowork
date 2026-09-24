@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Eye, Loader2, Radio, RefreshCw } from 'lucide-react';
 import type { ChatMessage, ChatMessagePart } from '../../src/hooks/use-chat';
 import { mergeChatHistory } from '../../src/hooks/use-chat';
@@ -286,18 +287,19 @@ export function RemoteThreadViewer({
     if (!loading && !snapshot && error) signalReady();
   }, [error, loading, signalReady, snapshot]);
 
+  const { t } = useTranslation();
   const statusLabel = useMemo(() => {
-    if (!snapshot) return 'Connecting';
-    if (snapshot.status === 'working') return 'Working now';
+    if (!snapshot) return t('remote.threadConnecting');
+    if (snapshot.status === 'working') return t('remote.threadWorking');
     return snapshot.status.charAt(0).toUpperCase() + snapshot.status.slice(1);
-  }, [snapshot]);
+  }, [snapshot, t]);
 
   if (loading && !snapshot) {
     return (
       <div className="flex h-full items-center justify-center bg-[var(--oa-bg-app)] text-[var(--oa-text-muted)]">
         <div className="flex items-center gap-2 text-ui-sm">
           <Loader2 className="size-4 animate-spin" />
-          Joining the live thread
+          {t('remote.threadJoining')}
         </div>
       </div>
     );
@@ -307,7 +309,7 @@ export function RemoteThreadViewer({
     return (
       <div className="flex h-full items-center justify-center bg-[var(--oa-bg-app)] px-6 text-center">
         <div className="max-w-sm">
-          <p className="text-ui-base font-medium text-[var(--oa-text-strong)]">The live thread is reconnecting</p>
+          <p className="text-ui-base font-medium text-[var(--oa-text-strong)]">{t('remote.threadReconnecting')}</p>
           <p className="mt-2 text-ui-sm leading-6 text-[var(--oa-text-muted)]">{error}</p>
           <button
             type="button"
@@ -315,7 +317,7 @@ export function RemoteThreadViewer({
             className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-[var(--oa-border)] px-3 py-2 text-ui-sm text-[var(--oa-text)] hover:bg-[var(--oa-bg-hover)]"
           >
             <RefreshCw className="size-3.5" />
-            Reconnect
+            {t('remote.threadReconnect')}
           </button>
         </div>
       </div>
@@ -364,13 +366,13 @@ export function RemoteThreadViewer({
           </div>
           <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--oa-border)] px-2.5 py-1.5 text-ui-xs text-[var(--oa-text-muted)]">
             <Eye className="size-3.5" />
-            Read only
+            {t('remote.threadReadOnly')}
           </div>
         </div>
       </header> : null}
       {error ? (
         <div className="shrink-0 border-b border-[var(--oa-border)] px-4 py-1.5 text-center text-ui-xs text-[var(--oa-text-muted)]">
-          Connection interrupted. Showing the last durable snapshot while reconnecting.
+          {t('remote.threadInterrupted')}
         </div>
       ) : null}
       <ThreadMessages

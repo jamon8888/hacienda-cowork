@@ -17,7 +17,7 @@ describe('untrusted html rendering contracts', () => {
   test('HtmlViewer offers external-open fallback for blocked-preview html', () => {
     const source = readComponentSource('HtmlViewer.tsx');
     expect(source).toContain('htmlContainsBlockedPreviewContent');
-    expect(source).toContain('Open in default browser');
+    expect(source).toContain('viewers.html.openBrowser');
   });
 
   test('EmailView does not inject remote html directly into the app DOM', () => {

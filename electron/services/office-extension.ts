@@ -9,6 +9,7 @@ import * as Sentry from '@sentry/electron/main';
 import { sendTelemetry } from '../../server/telemetry';
 import { distributionProductConfig } from '../../shared/productConfig';
 import { shouldUpdateOoEditors } from '../utils/officeExtensionUpdate';
+import { t } from '../i18n';
 import { getCurrentProcessPortCleanupExclusions, killPortProcessSync } from '../utils/ports';
 import { assertRequiredFontMetadata, hasRequiredFontMetadata } from './office-extension-font-metadata';
 import {
@@ -325,13 +326,13 @@ export async function installOoEditors(options: InstallOptions = {}): Promise<vo
 
       const release = await fetchLatestGitHubRelease();
       if (!release) {
-        throw new Error('GitHub release unavailable (transient -- rate limit or network), try again later');
+        throw new Error(t('ooeditors.install.releaseUnavailable'));
       }
 
       const asset = findAssetForArch(release.assets, arch);
       if (!asset) {
         const available = release.assets.map(a => a.name).join(', ');
-        throw new Error(`No oo-editors asset for ${arch} in release ${release.tag_name} (available: ${available})`);
+        throw new Error(t('ooeditors.install.noAsset', { arch, tag: release.tag_name, available }));
       }
 
       progress({ stage: 'downloading', bytesDownloaded: 0, totalBytes: asset.size });
@@ -344,22 +345,22 @@ export async function installOoEditors(options: InstallOptions = {}): Promise<vo
         onProgress: progress,
       });
 
-      progress({ stage: 'extracting', message: 'Extracting files...' });
+      progress({ stage: 'extracting', message: t('ooeditors.install.extracting') });
       console.log(`[OfficeExtension] Extracting to ${ooEditorsDir}`);
 
       await extractZip(zipPath, ooEditorsDir);
 
-      progress({ stage: 'configuring', message: 'Configuring...' });
+      progress({ stage: 'configuring', message: t('ooeditors.install.configuring') });
 
       try {
         rmSync(zipPath);
       } catch {}
 
-      progress({ stage: 'complete', message: 'Installation complete' });
+      progress({ stage: 'complete', message: t('ooeditors.install.complete') });
       console.log('[OfficeExtension] Installation complete');
       trackOoEditorsEvent('Install complete', 'info', { arch, targetDir: ooEditorsDir });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = error instanceof Error ? error.message : t('common.unknownError');
       progress({ stage: 'error', error: errorMessage });
       console.error('[OfficeExtension] Installation failed:', error);
       trackOoEditorsEvent('Install failed', 'error', { error: errorMessage });
@@ -1064,14 +1065,14 @@ export async function convertFile(request: any, outputPath?: string): Promise<an
 
     if (!response.url) {
       console.error('[OfficeExtension] No URL in response:', response);
-      throw new Error('Conversion response missing URL');
+      throw new Error(t('ooeditors.install.convertNoUrl'));
     }
 
     console.log('[OfficeExtension] Conversion successful, file URL:', response.url);
     return response;
   } catch (error) {
     console.error('[OfficeExtension] Conversion failed:', error);
-    throw new Error(`Failed to convert file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(t('ooeditors.install.convertFailed', { error: error instanceof Error ? error.message : t('common.unknownError') }));
   }
 }
 

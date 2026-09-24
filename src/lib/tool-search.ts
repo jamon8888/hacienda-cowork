@@ -53,7 +53,7 @@ export function getStoreEntrySearchText(entry: McpStoreEntry): string {
     entry.url,
     entry.transport,
     entry.note,
-    MCP_STORE_CATEGORIES[entry.category]?.label,
+    MCP_STORE_CATEGORIES[entry.category]?.labelKey,
   ]);
 }
 

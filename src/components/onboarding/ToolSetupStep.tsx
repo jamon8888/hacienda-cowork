@@ -11,6 +11,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { LocaleKey } from '../../i18n';
+import type { TOptions } from 'i18next';
 import { ChevronLeft, Check, Plug, FolderSearch, Loader2, Server } from 'lucide-react';
 import { mcpDiscovery, servers } from '../../ipc';
 import { useToolServers } from '../../contexts/ToolServersContext';
@@ -48,12 +51,14 @@ const LIST_CONTAINER_STYLE = {
   border: 'var(--border-width) solid color-mix(in srgb, var(--oa-border, var(--border)) 42%, transparent)',
 } as const;
 
-function getSourceLabel(mcp: DiscoveredMcp): string {
-  if (mcp.id.startsWith('project-')) return 'Project';
+function getSourceLabel(mcp: DiscoveredMcp, projectLabel: string): string {
+  if (mcp.id.startsWith('project-')) return projectLabel;
   return mcp.source === 'claude-code' ? 'Claude Code' : 'Cursor';
 }
 
 export function ToolSetupStep({ onComplete, onBack }: ToolSetupStepProps) {
+  const { t } = useTranslation();
+  const translate = useCallback((key: LocaleKey, options?: TOptions) => t(key, options), [t]);
   const [loading, setLoading] = useState(true);
   const [discoveryResult, setDiscoveryResult] = useState<McpDiscoveryResult | null>(null);
   const [selectedMcps, setSelectedMcps] = useState<Set<string>>(new Set());
@@ -223,7 +228,7 @@ export function ToolSetupStep({ onComplete, onBack }: ToolSetupStepProps) {
       <div className="flex-1 flex flex-col items-center justify-center h-full px-8 py-12">
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
-          <span className="text-ui-sm">Scanning for tools...</span>
+          <span className="text-ui-sm">{translate('onboarding.tools.scanning')}</span>
         </div>
       </div>
     );
@@ -239,8 +244,8 @@ export function ToolSetupStep({ onComplete, onBack }: ToolSetupStepProps) {
     const parts: string[] = [];
     if (sources?.claudeCode.found) parts.push('Claude Code');
     if (sources?.cursor.found) parts.push('Cursor');
-    if (deepScanResults.length > 0) parts.push('projects');
-    return parts.length > 0 ? `from ${parts.join(' & ')}` : '';
+    if (deepScanResults.length > 0) parts.push(translate('onboarding.tools.projectsScope'));
+    return parts.length > 0 ? translate('onboarding.tools.foundFrom', { sources: parts.join(' & ') }) : '';
   };
 
   const totalSetupCount = installingMcps.length;
@@ -255,23 +260,23 @@ export function ToolSetupStep({ onComplete, onBack }: ToolSetupStepProps) {
             className="flex items-center gap-1 text-ui-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ChevronLeft className="size-4" />
-            Back
+            {translate('common.back')}
           </button>
         )}
 
         {/* Header */}
         <div className="text-center space-y-3">
           <h1 className="text-3xl font-normal leading-[1.1] text-foreground">
-            Connect your tools
+            {translate('onboarding.tools.title')}
           </h1>
           <p className="text-base text-muted-foreground">
             {setupPhase
               ? (setupComplete || setupTimedOut)
-                ? `Finished setting up ${totalSetupCount} tool${totalSetupCount === 1 ? '' : 's'}`
-                : `Setting up ${totalSetupCount} tool${totalSetupCount === 1 ? '' : 's'}...`
+                ? translate('onboarding.tools.finishedSetup', { count: totalSetupCount })
+                : translate('onboarding.tools.settingUp', { count: totalSetupCount })
               : hasDiscoveredMcps
-                ? `Found ${allDiscovered.length} tool${allDiscovered.length === 1 ? '' : 's'} ${getSourceDescription()}`
-                : 'Import tools from Claude Code or Cursor'}
+                ? translate('onboarding.tools.foundTools', { count: allDiscovered.length, source: getSourceDescription() })
+                : translate('onboarding.tools.importHint')}
           </p>
         </div>
 
@@ -313,7 +318,7 @@ export function ToolSetupStep({ onComplete, onBack }: ToolSetupStepProps) {
                     </span>
                     <span className="flex items-center gap-1 text-ui-xs text-muted-foreground shrink-0">
                       <Loader2 className="size-3 animate-spin" />
-                      Queued
+                      {translate('onboarding.tools.queued')}
                     </span>
                   </div>
                 );
@@ -353,11 +358,11 @@ export function ToolSetupStep({ onComplete, onBack }: ToolSetupStepProps) {
                             {mcp.name}
                           </span>
                           <span className="text-ui-xs text-muted-foreground shrink-0">
-                            {getSourceLabel(mcp)}
+                            {getSourceLabel(mcp, translate('onboarding.tools.sourceProject'))}
                           </span>
                         </div>
                         {isInstalled ? (
-                          <span className="text-ui-xs text-muted-foreground shrink-0">Added</span>
+                          <span className="text-ui-xs text-muted-foreground shrink-0">{translate('onboarding.tools.added')}</span>
                         ) : isSelected ? (
                           <Check className="size-4 text-foreground shrink-0" />
                         ) : null}
@@ -393,11 +398,11 @@ export function ToolSetupStep({ onComplete, onBack }: ToolSetupStepProps) {
                 </div>
                 <div className="min-w-0 flex-1 text-left">
                   <div className="text-ui-sm font-medium text-foreground">
-                    {isDeepScanning ? 'Scanning...' : 'Scan for more tools'}
+                    {isDeepScanning ? translate('onboarding.tools.scanningMore') : translate('onboarding.tools.scanMore')}
                   </div>
                   {!isDeepScanning && (
                     <p className="mt-0.5 text-ui-xs text-muted-foreground">
-                      Documents, Downloads, Desktop
+                      {translate('onboarding.tools.scanPlaces')}
                     </p>
                   )}
                 </div>
@@ -407,7 +412,7 @@ export function ToolSetupStep({ onComplete, onBack }: ToolSetupStepProps) {
             {/* Empty state */}
             {!hasDiscoveredMcps && !isDeepScanning && (
               <p className="text-ui-sm text-muted-foreground text-center">
-                No tools found. You can add tools later in Settings.
+                {translate('onboarding.tools.emptyState')}
               </p>
             )}
           </>
@@ -415,7 +420,7 @@ export function ToolSetupStep({ onComplete, onBack }: ToolSetupStepProps) {
 
         {/* Help text */}
         <p className="text-ui-xs text-muted-foreground text-center">
-          You can manage tools anytime in Settings
+          {translate('onboarding.tools.manageHint')}
         </p>
 
         {/* Continue button */}
@@ -424,7 +429,7 @@ export function ToolSetupStep({ onComplete, onBack }: ToolSetupStepProps) {
           disabled={setupPhase && !setupComplete && !setupTimedOut}
           className="w-full py-2 rounded-control bg-foreground text-background text-ui-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
         >
-          Continue
+          {translate('onboarding.tools.continueBtn')}
         </button>
       </div>
     </div>

@@ -323,21 +323,21 @@ export async function buildApplicationMenu(): Promise<void> {
         ...(isDev ? [{ role: 'toggleDevTools' as const }] : []),
         { type: 'separator' },
         {
-          label: 'Actual Size',
+          label: t('menu.view.actualSize'),
           accelerator: 'CmdOrCtrl+0',
           click: () => {
             void resetWindowZoom();
           },
         },
         {
-          label: 'Zoom In',
+          label: t('menu.view.zoomIn'),
           accelerator: 'CmdOrCtrl+=',
           click: () => {
             void changeWindowZoom(1);
           },
         },
         {
-          label: 'Zoom Out',
+          label: t('menu.view.zoomOut'),
           accelerator: 'CmdOrCtrl+-',
           click: () => {
             void changeWindowZoom(-1);

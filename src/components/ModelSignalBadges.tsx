@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+
 interface ExpensiveModelBadgeProps {
   className?: string;
 }
@@ -18,12 +20,13 @@ const USAGE_BADGE_STYLE = {
 };
 
 export function ExpensiveModelBadge({ className }: ExpensiveModelBadgeProps) {
+  const { t } = useTranslation();
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium leading-4 text-[var(--oa-text-muted)] ${className ?? ''}`}
       style={EXPENSIVE_BADGE_STYLE}
     >
-      Expensive
+      {t('models.expensive')}
     </span>
   );
 }
