@@ -4,11 +4,13 @@ import { join as pathJoin } from 'node:path';
 import { basemindScan, basemindRescan, resolveBasemindBinary, isDaemonRunning } from '../utils/basemindManager';
 import { isModelResourceReady } from '../utils/hubCache';
 import { getCurrentWorkspace } from '../utils/workspace';
+import { getCodeIndexingEnabled } from '../configStore';
 
 export interface WorkspaceScanRequest {
   /** Absolute workspace root (informational — MCP rescan is daemon-rooted). */
   workspacePath: string;
-  /** Paths to scan relative to the daemon workspace root. Defaults to ['safe'] (.redacted is dead per #18). */
+  /** Honored only when the code-indexing opt-in is on (#13); the corpus is the
+   * safe/ mirror otherwise (.redacted is dead per #18). */
   paths?: string[];
   /** Use --json for machine-readable output. */
   json?: boolean;
@@ -110,11 +112,21 @@ export function getWorkspaceScanStatus(): WorkspaceScanStatus {
 }
 
 /**
+ * #13/#18: code indexing is OFF by default — the rescan corpus is the safe/
+ * mirror only, so raw code is never embedded unless the user opts in.
+ * ponytail: one global flag; per-workspace if a split ever matters.
+ */
+export function resolveScanPaths(reqPaths: string[] | undefined, codeIndexingEnabled: boolean): string[] {
+  return codeIndexingEnabled ? (reqPaths ?? ['safe']) : ['safe'];
+}
+
+/**
  * Scan the safe/ mirror corpus with basemind.
  * Call this after safe-sync writes mirror files.
  */
 export async function workspaceScan(req: WorkspaceScanRequest): Promise<WorkspaceScanResult> {
-  const { workspacePath, paths = ['safe'], json = true } = req;
+  const { workspacePath, json = true } = req;
+  const paths = resolveScanPaths(req.paths, await getCodeIndexingEnabled());
 
   setIndexingState(true);
   const result = await basemindScan({
@@ -137,7 +149,8 @@ export async function workspaceScan(req: WorkspaceScanRequest): Promise<Workspac
  * Re-scan specific paths (faster than full scan for incremental updates).
  */
 export async function workspaceRescan(req: WorkspaceScanRequest): Promise<WorkspaceScanResult> {
-  const { workspacePath, paths = ['safe'], json = true } = req;
+  const { workspacePath, json = true } = req;
+  const paths = resolveScanPaths(req.paths, await getCodeIndexingEnabled());
 
   setIndexingState(true);
   const result = await basemindRescan({
