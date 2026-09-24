@@ -183,7 +183,6 @@ export const TipTapViewer = forwardRef<TipTapViewerRef, TipTapViewerProps>(
   "use no memo";
   const { t } = useTranslation();
 
-  const { t } = useTranslation();
   // Use ref to hold latest onUpdate callback to avoid stale closures
   const onUpdateRef = useRef(onUpdate);
   const viewerContainerRef = useRef<HTMLDivElement>(null);
