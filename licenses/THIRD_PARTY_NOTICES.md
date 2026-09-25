@@ -4,7 +4,7 @@ This file records explicit license choices and manual resolutions that are not
 fully represented by npm package metadata. It accompanies, and does not replace,
 the complete production dependency inventory generated from `pnpm-lock.yaml`.
 
-## JSZip 3.10.1 — MIT selected
+## JSZip 3.10.2 — MIT selected
 
 Interpreter Workstation uses JSZip under the MIT option of its
 `MIT OR GPL-3.0-or-later` license expression.
