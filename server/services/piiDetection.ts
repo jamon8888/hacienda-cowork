@@ -125,8 +125,27 @@ async function detectPii(
   return parseRedactTextResult(raw).detections;
 }
 
+/**
+ * Extract + redact one file through the daemon (`redact_text {file_path}` —
+ * xberg picks the format, incl. images via OCR). Returns `redacted_text: ''`
+ * when the tool answered with an error payload instead of throwing.
+ */
+async function redactFile(filePath: string): Promise<RedactTextResult> {
+  const manager = new ToolManager();
+  const raw = await manager.callTool(
+    'basemind',
+    'redact_text',
+    { file_path: filePath },
+    undefined,
+    undefined,
+    { threadId: await getAppMcpOwnerThreadId() },
+  );
+  return parseRedactTextResult(raw);
+}
+
 export const piiDetectionService = {
   detectPii,
+  redactFile,
   isPiiModelReady,
   parseRedactTextResult,
 };
