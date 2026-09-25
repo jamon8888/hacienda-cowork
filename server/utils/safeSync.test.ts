@@ -1,3 +1,7 @@
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 import {
@@ -7,7 +11,10 @@ import {
   scheduleSafeSync,
   setSafeSyncArmedForTests,
   setSafeSyncDebounceMsForTests,
+  setSafeSyncRedactForTests,
   setSafeSyncRescanForTests,
+  setSafeSyncVaultPersistForTests,
+  setSafeSyncVaultRemoveForTests,
   shouldSafeSyncForWorkspaceEvent,
   toSafeMirrorPath,
 } from './safeSync';
@@ -76,6 +83,11 @@ describe('scheduleSafeSync (#21 coalescing)', () => {
     setSafeSyncRescanForTests(rescanMock);
     setSafeSyncArmedForTests(() => true);
     setSafeSyncDebounceMsForTests(15);
+    // These tests schedule nonexistent originals only: keep the flush off the
+    // real redact/vault module graph (heavy dynamic imports, real userData).
+    setSafeSyncRedactForTests(async () => ({ redacted_text: '', rehydration_map: {} }));
+    setSafeSyncVaultPersistForTests(async () => {});
+    setSafeSyncVaultRemoveForTests(() => {});
   });
 
   afterEach(() => {
@@ -83,6 +95,9 @@ describe('scheduleSafeSync (#21 coalescing)', () => {
     setSafeSyncRescanForTests(null);
     setSafeSyncArmedForTests(null);
     setSafeSyncDebounceMsForTests(null);
+    setSafeSyncRedactForTests(null);
+    setSafeSyncVaultPersistForTests(null);
+    setSafeSyncVaultRemoveForTests(null);
   });
 
   test('default debounce window is 2s', () => {
@@ -154,6 +169,119 @@ describe('scheduleSafeSync (#21 coalescing)', () => {
     rescanMock.mockResolvedValueOnce({ success: false, error: 'daemon not running' });
     scheduleSafeSync('ws', 'a.docx');
     await sleep(40);
+    expect(rescanMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('syncSafeMirrorFile (cycle middle: extract → redact → write → vault)', () => {
+  let workspace = '';
+  // Path predicate, not once-queues: readdir order is filesystem-dependent.
+  const redactMock = mock(async (absPath: string) => {
+    if (absPath.endsWith('x.bin')) throw new Error('unsupported format');
+    return { redacted_text: 'REDACTED BODY', rehydration_map: { TOKEN1: 'alice@example.com' } };
+  });
+  const vaultPersistMock = mock(async (_docId: string, _map: Record<string, string>) => {});
+  const vaultRemoveMock = mock((_docId: string) => {});
+  const rescanMock = mock(async (_opts: { paths: string[] }) => ({ success: true }));
+
+  beforeEach(() => {
+    workspace = mkdtempSync(join(tmpdir(), 'safe-sync-'));
+    clearAllSafeSync();
+    rescanMock.mockClear();
+    redactMock.mockClear();
+    vaultPersistMock.mockClear();
+    vaultRemoveMock.mockClear();
+    setSafeSyncRescanForTests(rescanMock);
+    setSafeSyncArmedForTests(() => true);
+    setSafeSyncDebounceMsForTests(15);
+    setSafeSyncRedactForTests(redactMock);
+    setSafeSyncVaultPersistForTests(vaultPersistMock);
+    setSafeSyncVaultRemoveForTests(vaultRemoveMock);
+  });
+
+  afterEach(() => {
+    clearAllSafeSync();
+    setSafeSyncRescanForTests(null);
+    setSafeSyncArmedForTests(null);
+    setSafeSyncDebounceMsForTests(null);
+    setSafeSyncRedactForTests(null);
+    setSafeSyncVaultPersistForTests(null);
+    setSafeSyncVaultRemoveForTests(null);
+    rmSync(workspace, { recursive: true, force: true });
+  });
+
+  test('add writes the redacted mirror under safe/ and persists the rehydration map', async () => {
+    writeFileSync(join(workspace, 'notes.txt'), 'hello');
+    scheduleSafeSync('ws', 'notes.txt', workspace);
+    await sleep(50);
+
+    expect(readFileSync(join(workspace, 'safe/notes.md'), 'utf8')).toBe('REDACTED BODY');
+    expect(redactMock).toHaveBeenCalledWith(join(workspace, 'notes.txt'));
+    expect(vaultPersistMock).toHaveBeenCalledTimes(1);
+    expect(String(vaultPersistMock.mock.calls[0][0]).startsWith('sf_')).toBe(true);
+    expect(rescanMock).toHaveBeenCalledTimes(1);
+    expect(rescanMock.mock.calls[0][0].paths).toEqual(['safe/notes.md']);
+  });
+
+  test('nested originals get recursive mirror parents', async () => {
+    mkdirSync(join(workspace, 'docs'));
+    writeFileSync(join(workspace, 'docs/report.docx'), 'x');
+    scheduleSafeSync('ws', 'docs/report.docx', workspace);
+    await sleep(50);
+
+    expect(readFileSync(join(workspace, 'safe/docs/report.md'), 'utf8')).toBe(
+      'REDACTED BODY',
+    );
+    expect(rescanMock.mock.calls[0][0].paths).toEqual(['safe/docs/report.md']);
+  });
+
+  test('missing original removes the mirror and vault blob, still rescans', async () => {
+    scheduleSafeSync('ws', 'gone.txt', workspace);
+    await sleep(50);
+
+    expect(redactMock).not.toHaveBeenCalled();
+    expect(vaultRemoveMock).toHaveBeenCalledTimes(1);
+    expect(rescanMock).toHaveBeenCalledTimes(1);
+    expect(rescanMock.mock.calls[0][0].paths).toEqual(['safe/gone.md']);
+  });
+
+  test('real unlink deletes an existing mirror file', async () => {
+    writeFileSync(join(workspace, 'doc.txt'), 'body');
+    scheduleSafeSync('ws', 'doc.txt', workspace);
+    await sleep(50);
+    expect(existsSync(join(workspace, 'safe/doc.md'))).toBe(true);
+
+    rmSync(join(workspace, 'doc.txt'));
+    scheduleSafeSync('ws', 'doc.txt', workspace);
+    await sleep(50);
+
+    expect(existsSync(join(workspace, 'safe/doc.md'))).toBe(false);
+    expect(vaultRemoveMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('redact failure skips that write but keeps the batch', async () => {
+    writeFileSync(join(workspace, 'x.bin'), 'zz');
+    writeFileSync(join(workspace, 'ok.txt'), 'fine');
+    scheduleSafeSync('ws', 'x.bin', workspace);
+    scheduleSafeSync('ws', 'ok.txt', workspace);
+    await sleep(60);
+
+    expect(existsSync(join(workspace, 'safe/x.md'))).toBe(false);
+    expect(readFileSync(join(workspace, 'safe/ok.md'), 'utf8')).toBe('REDACTED BODY');
+    expect(rescanMock).toHaveBeenCalledTimes(1);
+    expect([...rescanMock.mock.calls[0][0].paths].sort()).toEqual([
+      'safe/ok.md',
+      'safe/x.md',
+    ]);
+  });
+
+  test('vault persist failure does not block the mirror or the rescan', async () => {
+    vaultPersistMock.mockRejectedValueOnce(new Error('vault key missing'));
+    writeFileSync(join(workspace, 'a.txt'), 'x');
+    scheduleSafeSync('ws', 'a.txt', workspace);
+    await sleep(50);
+
+    expect(readFileSync(join(workspace, 'safe/a.md'), 'utf8')).toBe('REDACTED BODY');
     expect(rescanMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -23,7 +23,7 @@ interface WorkspaceWatchManager {
 type WorkspaceWatchManagerFactory = () => WorkspaceWatchManager;
 type ThumbnailServiceLike = { invalidate: (path: string) => void };
 type SafeSyncLike = {
-  schedule: (workspaceKey: string, relativePath: string) => void;
+  schedule: (workspaceKey: string, relativePath: string, workspacePath?: string) => void;
   clear: (workspaceKey: string) => void;
 };
 
@@ -131,7 +131,7 @@ function handleWorkspaceWatchEvent(
   mtime?: number,
 ): void {
   if (shouldSafeSyncForWorkspaceEvent(eventType, relativePath)) {
-    safeSyncService.schedule(entry.workspaceKey, relativePath);
+    safeSyncService.schedule(entry.workspaceKey, relativePath, entry.workspacePath);
   }
 
   for (const workspacePath of entry.workspacePaths) {

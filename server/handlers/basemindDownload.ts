@@ -232,5 +232,23 @@ export async function runBasemindDownload(
       results.push({ stage: update.stage, success: update.done, error: update.error });
     }
   }
-  return { stages: results, success: results.every((r) => r.success) };
+  const success = results.every((r) => r.success);
+  if (success) {
+    // Opt-in succeeded → arm safe/ and mirror the workspace once, so the
+    // banner's fileCount, the redaction gate and the RAG corpus reflect
+    // reality. Population failure must never fail the download itself.
+    try {
+      const { getCurrentWorkspace } = await import('../utils/workspace');
+      const workspacePath = getCurrentWorkspace();
+      if (workspacePath) {
+        const { runInitialPopulation } = await import('../utils/safeArm');
+        await runInitialPopulation(workspacePath);
+      }
+    } catch (err) {
+      console.warn(
+        `[basemindDownload] safe population failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  return { stages: results, success };
 }
