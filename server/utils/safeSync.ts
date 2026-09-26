@@ -30,6 +30,9 @@ export function shouldSafeSyncForWorkspaceEvent(
   for (const segment of segments) {
     if (IGNORED_SEGMENTS.has(segment.toLowerCase())) return false;
   }
+  // basemind.toml is the daemon's own config (armSafeWorkspace writes the
+  // root marker), not user content — never mirror or rescan it.
+  if (segments[segments.length - 1]?.toLowerCase() === 'basemind.toml') return false;
   return true;
 }
 

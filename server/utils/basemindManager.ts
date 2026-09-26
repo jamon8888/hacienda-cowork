@@ -1,8 +1,9 @@
 import { resolve } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { Socket } from 'node:net';
 import { createRequire } from 'node:module';
+
+import { resolveInterpreterHome } from '../../shared/interpreterHome';
 
 // Cargo emits `basemind.exe` on Windows, so every candidate path below has to
 // carry the platform suffix, not just the ones that go through PATH or npm.
@@ -104,27 +105,44 @@ function findBasemindBinary(): string {
   return '';
 }
 
+/**
+ * OIX hosts MCP servers with a sandboxed HOME (<OIX home>/home), so the
+ * daemon basemind's `serve` spawns lives under that home, while a manually
+ * started daemon uses the real one. Check both; a daemon counts as running
+ * only when its pid file exists and the process is alive.
+ */
+function basemindCommsDirs(): string[] {
+  return [
+    resolve(resolveInterpreterHome(), 'home', '.local', 'share', 'basemind', 'comms'),
+    resolve(homedir(), '.local', 'share', 'basemind', 'comms'),
+  ];
+}
+
 function basemindCommsDir(): string {
-  return resolve(homedir(), '.local', 'share', 'basemind', 'comms');
+  const dirs = basemindCommsDirs();
+  return dirs.find(dir =>
+    existsSync(resolve(dir, 'comms.sock')) && existsSync(resolve(dir, 'daemon.pid')),
+  ) ?? dirs[0];
 }
 
 export { basemindCommsDir };
 
 export function isDaemonRunning(): boolean {
-  const sock = resolve(basemindCommsDir(), 'comms.sock');
-  if (!existsSync(sock)) return false;
-  const pidFile = resolve(basemindCommsDir(), 'daemon.pid');
-  if (!existsSync(pidFile)) return false;
-  try {
-    const content = readFileSync(pidFile, 'utf8').trim();
-    const parsed = JSON.parse(content);
-    const pid = typeof parsed === 'object' && parsed !== null && 'pid' in parsed ? Number(parsed.pid) : Number(parsed);
-    if (!Number.isFinite(pid)) return false;
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
+  return basemindCommsDirs().some(baseDir => {
+    if (!existsSync(resolve(baseDir, 'comms.sock'))) return false;
+    const pidFile = resolve(baseDir, 'daemon.pid');
+    if (!existsSync(pidFile)) return false;
+    try {
+      const content = readFileSync(pidFile, 'utf8').trim();
+      const parsed = JSON.parse(content);
+      const pid = typeof parsed === 'object' && parsed !== null && 'pid' in parsed ? Number(parsed.pid) : Number(parsed);
+      if (!Number.isFinite(pid)) return false;
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  });
 }
 
 let _cachedBinary: string | null = null;
@@ -136,46 +154,40 @@ export function resolveBasemindBinary(): string {
   return _cachedBinary;
 }
 
-export function mcpRequest(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
-  const sockPath = resolve(basemindCommsDir(), 'comms.sock');
-  return new Promise((resolve, reject) => {
-    const sock = new Socket();
-    let data = '';
-    const timer = setTimeout(() => {
-      sock.destroy();
-      reject(new Error(`MCP request timed out: ${method}`));
-    }, 30_000);
-    sock.connect(sockPath, () => {
-      const req = JSON.stringify({ jsonrpc: '2.0', id: 1, method, params });
-      sock.write(req + '\n');
-    });
-    sock.on('data', (chunk) => {
-      data += chunk.toString();
-      let resp: { result?: unknown; error?: { code?: number; message?: string } };
-      try {
-        resp = JSON.parse(data);
-      } catch {
-        return; // Partial frame; wait for the rest.
-      }
-      clearTimeout(timer);
-      sock.destroy();
-      // A JSON-RPC rejection is a well-formed response with `error` and no
-      // `result`. Resolving it handed callers the error envelope, which they
-      // then reported as a successful scan.
-      if (resp.error) {
-        const { code, message } = resp.error;
-        const suffix = code === undefined ? '' : ` (${code})`;
-        reject(new Error(`MCP request failed: ${method}${suffix}: ${message ?? 'unknown error'}`));
-        return;
-      }
-      resolve(resp.result ?? resp);
-    });
-    sock.on('error', (err) => {
-      clearTimeout(timer);
-      sock.destroy();
-      reject(err);
-    });
-  });
+/**
+ * Call a basemind MCP tool.
+ *
+ * The comms UDS speaks length-delimited msgpack frames (basemind
+ * `frontend_uds.rs`), so the raw JSON-RPC-over-socket client this used to be
+ * never got an answer from the pinned daemon: every scan/search failed at
+ * frame decode and the connection dropped. Route through the MCP server
+ * instead — the same path `piiDetection` already uses successfully.
+ */
+export async function mcpRequest(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+  if (method !== 'tools/call') {
+    throw new Error(`Unsupported basemind MCP method: ${method}`);
+  }
+  const name = String(params.name ?? '');
+  if (!name) throw new Error('mcpRequest tools/call requires params.name');
+  const { getToolManager } = await import('../tools/toolManagerAccessor');
+  const { getAppMcpOwnerThreadId } = await import('../services/appMcpThread');
+  const result = await getToolManager().callTool(
+    'basemind',
+    name,
+    (params.arguments ?? {}) as Record<string, unknown>,
+    undefined,
+    undefined,
+    { threadId: await getAppMcpOwnerThreadId() },
+  );
+  // CallToolResult with isError is a tool-level rejection. Callers treat a
+  // resolved value as a successful scan/search (see runAdminRescan), so an
+  // error result must reject here, not resolve.
+  if (result && typeof result === 'object' && (result as { isError?: boolean }).isError) {
+    const blocks = (result as { content?: Array<{ type?: string; text?: string }> }).content;
+    const detail = blocks?.map(block => block.text).filter(Boolean).join('\n') || 'tool reported an error';
+    throw new Error(`MCP request failed: ${method}: ${detail}`);
+  }
+  return result;
 }
 
 /**
@@ -215,30 +227,73 @@ export async function basemindRescan(opts: { root?: string; paths?: string[]; js
 }
 
 /**
- * PII redaction runs at every send, and `resolveMcpToolApprovalMode` falls back
- * to `prompt` for any tool with no recorded mode. That would put an approval
- * dialog in front of each message and make the redaction path unusable.
+ * Normalize the persisted basemind MCP entry (fills gaps; an explicit choice
+ * already on file wins):
  *
- * The exemption is scoped to `redact_text` alone: basemind also exposes `vault`
- * and code-search tools, which keep the default. An explicit choice already on
- * file wins — this only fills the gap.
+ * - Approval modes: redaction, vault, rescan and semantic search run as
+ *   programmatic `callTool` calls with no user tab to attach an approval to,
+ *   and `resolveMcpToolApprovalMode` falls back to `prompt` with no recorded
+ *   mode — each background call would hang awaiting an approval the renderer
+ *   cannot route (it toasts "not attached to an agent thread"). The four tools
+ *   those flows use are auto-approved: basemind is a local, workspace-scoped
+ *   indexer — no network side effects, and the only destructive mode
+ *   (`admin cache_clear`) deletes a rebuildable index.
+ * - `--root <workspace>`: cwd discovery would land on the app's repo in dev or
+ *   a filesystem root when packaged — neither is the workspace the safe/
+ *   mirror lives in. Non-git workspaces also need the `basemind.toml` marker
+ *   (armSafeWorkspace writes it) or the root guard refuses the serve.
+ * - `BASEMIND_COMMS_DIR`: OIX sandboxes MCP spawns with a HOME override, which
+ *   would fork a second daemon that fights the user's daemon over the single
+ *   global per-root workspace-store lock (host_build_failed). Pinning the real
+ *   home makes the app and any CLI share one daemon.
+ * - `startupTimeoutSec`: first boot opens the workspace store and hosts the
+ *   read stack; the 30 s default times out before initialize on this class of
+ *   machine, and OIX then marks the whole server failed.
  */
-export async function ensureRedactTextAutoApproval(serverId: string): Promise<void> {
+const AUTO_APPROVED_TOOLS = ['redact_text', 'vault', 'admin', 'code'] as const;
+
+export async function ensureBasemindServerConfig(serverId: string): Promise<void> {
   try {
     const configStore = await import('../configStore');
+    const { getCurrentWorkspace } = await import('./workspace');
     const existing = await configStore.getMcpServer(serverId);
-    if (existing?.tools?.redact_text?.approvalMode) return;
-    await configStore.updateMcpServer(serverId, {
-      // updateMcpServer merges one level deep, so the rest of the tools map has
-      // to be carried forward or other tools' settings would be dropped.
-      tools: {
-        ...(existing?.tools ?? {}),
-        redact_text: { ...(existing?.tools?.redact_text ?? {}), approvalMode: 'auto' },
-      },
-    });
+    if (!existing) return;
+
+    const updates: Partial<import('../configStore').McpServerConfig> = {};
+
+    const tools = { ...(existing.tools ?? {}) };
+    let toolsChanged = false;
+    for (const tool of AUTO_APPROVED_TOOLS) {
+      if (tools[tool]?.approvalMode) continue;
+      tools[tool] = { ...(tools[tool] ?? {}), approvalMode: 'auto' };
+      toolsChanged = true;
+    }
+    if (toolsChanged) updates.tools = tools;
+
+    const workspacePath = getCurrentWorkspace();
+    const args = ['serve', '--no-watch', ...(workspacePath ? ['--root', workspacePath] : [])];
+    if (JSON.stringify(existing.args) !== JSON.stringify(args)) updates.args = args;
+    if (workspacePath) {
+      // Same root the serve is about to use: marker first, reload after.
+      (await import('./safeArm')).ensureBasemindRootMarker(workspacePath);
+    }
+
+    const commsDir = resolve(homedir(), '.local', 'share', 'basemind', 'comms');
+    if (existing.env?.BASEMIND_COMMS_DIR !== commsDir) {
+      updates.env = { ...(existing.env ?? {}), BASEMIND_COMMS_DIR: commsDir };
+    }
+
+    if (existing.startupTimeoutSec == null) updates.startupTimeoutSec = 60;
+
+    if (Object.keys(updates).length > 0) {
+      // toolManager.updateServer persists AND mcpServerReload()es, so args/env
+      // changes (workspace switch) hot-swap the running serve without a restart.
+      const { getToolManager } = await import('../tools/toolManagerAccessor');
+      await getToolManager().updateServer(serverId, updates);
+    }
   } catch {
     // A missing entry or an unwritable config must not fail registration; the
-    // mode stays settable from MCP settings.
+    // values stay settable from MCP settings.
   }
 }
 
@@ -258,11 +313,11 @@ export async function registerBasemindServer(): Promise<string> {
     });
   } catch (err) {
     if (!(err instanceof Error && err.message.includes('already exists'))) return '';
-    // An existing registration still needs the approval mode applied: a server
-    // added before this ran has no entry for `redact_text`.
+    // An existing registration still needs the normalized config applied: a
+    // server added before this ran has none of the ensure values on file.
     serverId = 'basemind';
   }
-  await ensureRedactTextAutoApproval(serverId);
+  await ensureBasemindServerConfig(serverId);
   return serverId;
 }
 
