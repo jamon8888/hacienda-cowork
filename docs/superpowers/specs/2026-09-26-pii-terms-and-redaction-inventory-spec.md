@@ -156,16 +156,21 @@ sidecar alongside the mirror write (`safeSync.ts:196-212`).
 Per-file, not one aggregate index — one changed file rewrites one small file.
 
 ```
-{ version: 1, relativePath, sourceMtime, origin: 'sync' | 'mirror-backfill',
-  findings: [{ category, start, end, line, masked, confidence }] }
+{ version: 1, relativePath, origin: 'sync' | 'mirror-backfill', updatedAt,
+  entries: [{ category, line, masked, confidence }] }
 ```
 
 - **No original PII in plaintext.** `masked` is the rehydration token (matched
   by comparing the detection's `text` against the rehydration map the same
   call produced; falls back to a category-derived placeholder). Originals
   resolve only through the vault, per file, behind Show Originals.
-- `start/end/line` are **original-relative**: line numbers computed at sync
-  time while the original content is in hand.
+- **Lines are mirror-relative** (amended during planning): xberg extracts
+  `.docx`/`.pdf` *before* redacting, so a detection's `start/end` are offsets
+  into an extracted original we never receive — original-relative lines are
+  not computable from what sync holds. Instead each detection's token is
+  located in the `redacted_text` we do have, and its line taken there. Exact
+  for text/markdown notes (the dominant case), approximate for binaries; the
+  sidecar stores no offsets at all rather than carrying false precision.
 - Sidecar write failure logs and degrades exactly like today's vault-persist
   failure (`safeSync.ts:205-211`) — the mirror still lands; the entry is
   absent until backfill.
@@ -188,10 +193,15 @@ entry and bumps a revision. Exposes over the `pii` IPC surface:
 ### Backfill
 
 Mirrors predating the feature have no sidecar. On first inventory request:
-find sidecar-less mirrors, re-redact their originals through the same `redactFn`
-(bounded, one-shot, never repeats). If an original is gone (mirror only),
-parse the mirror's own tokens with `findRedactedTokens` instead and mark the
-entry `origin: 'mirror-backfill'` so redacted-relative precision isn't implied.
+walk the workspace's **originals** (same add/change predicate safe-sync uses,
+plus the usual `node_modules`/`.git`/etc. directory skips), skip files that
+already have a sidecar, and re-redact each remaining one through the same
+`redactFn` — bounded by a file-count cap, one-shot (a `.backfilled` flag file
+ends the walk permanently), single-flight under concurrent requests. A file
+whose redact returns no content (unsupported format) gets an *empty* sidecar
+so it is never retried. Backfill emits an inventory revision as it progresses,
+so a first open shows findings arrive instead of blocking on the whole walk.
+It writes sidecars only — creating mirrors remains safe-sync's job.
 
 ### Panel (phase-2 slot of the Privacy section)
 
