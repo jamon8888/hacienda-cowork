@@ -5,12 +5,15 @@ import { getAppMcpOwnerThreadId, resetAppMcpOwnerThread } from './appMcpThread';
 let startCalls = 0;
 
 mock.module('../../src/lib/codex/service', () => ({
-  getCodexClient: () => ({
+  // The owner thread must provision on the MCP client's app-server — the one
+  // McpService executes callTool against — not the composer's shared client.
+  getMcpCodexClient: () => ({
     startMcpToolThread: async () => {
       startCalls += 1;
       return `mcp-owner-thread-${startCalls}`;
     },
   }),
+  subscribeCodexRuntimeShutdown: () => () => {},
 }));
 
 afterEach(() => {

@@ -1,7 +1,20 @@
-import { mkdirSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { IGNORED_SEGMENTS, syncSafeMirrorFile } from './safeSync';
+
+/**
+ * Root-guard marker: basemind refuses a non-git workspace root without
+ * basemind.toml (host_build_failed, serve dies before initialize). Never
+ * clobber a config the user already has. Shared by arm and the MCP-config
+ * ensure so a serve (re)start always finds it. Idempotent.
+ */
+export function ensureBasemindRootMarker(workspacePath: string): void {
+  const marker = join(workspacePath, 'basemind.toml');
+  if (!existsSync(marker)) {
+    writeFileSync(marker, '"$schema" = "v1"\n');
+  }
+}
 
 /**
  * Arm gate: `safe/` existing is what opens every downstream gate
@@ -9,6 +22,7 @@ import { IGNORED_SEGMENTS, syncSafeMirrorFile } from './safeSync';
  */
 export function armSafeWorkspace(workspacePath: string): void {
   mkdirSync(join(workspacePath, 'safe'), { recursive: true });
+  ensureBasemindRootMarker(workspacePath);
 }
 
 /** ponytail: fixed 2000-file population cap — raise or make adaptive if real
@@ -52,6 +66,7 @@ function listWorkspaceFiles(workspacePath: string, limit: number): string[] {
       if (files.length >= limit) break;
       const rel = relDir ? `${relDir}/${entry}` : entry;
       if (IGNORED_SEGMENTS.has(entry.toLowerCase())) continue;
+      if (entry.toLowerCase() === 'basemind.toml') continue;
       let isDir = false;
       try {
         isDir = statSync(join(workspacePath, rel)).isDirectory();

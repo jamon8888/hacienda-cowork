@@ -1,4 +1,4 @@
-import { getCodexClient } from '../../src/lib/codex/service';
+import { getMcpCodexClient, subscribeCodexRuntimeShutdown } from '../../src/lib/codex/service';
 
 /**
  * Owner thread for app-internal MCP calls.
@@ -27,9 +27,12 @@ export async function getAppMcpOwnerThreadId(): Promise<string> {
   if (inflight) return inflight;
 
   inflight = (async () => {
-    // `startMcpToolThread` lives on the app-server client, not on the service
-    // wrapper around it.
-    const client = getCodexClient();
+    // Must be `getMcpCodexClient()`, not `getCodexClient()`: both spawn their
+    // own app-server process, `McpService` executes `mcpServer/tool/call`
+    // against the MCP client, and an ephemeral thread created on the other
+    // app-server reads back as "thread not loaded" — every callTool dies in
+    // getToolThread's threadRead. See shutdown subscriber below for staleness.
+    const client = getMcpCodexClient();
     const threadId = await client.startMcpToolThread({});
     cachedThreadId = threadId;
     return threadId;
@@ -51,3 +54,7 @@ export function resetAppMcpOwnerThread(): void {
   cachedThreadId = null;
   inflight = null;
 }
+
+// A runtime restart replaces the MCP app-server; its ephemeral threads are
+// gone, so a cached id would fail threadRead on the next background call.
+subscribeCodexRuntimeShutdown(resetAppMcpOwnerThread);

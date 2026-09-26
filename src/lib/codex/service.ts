@@ -1080,6 +1080,7 @@ export class CodexService {
 let sharedClient: CodexAppServerClient | null = null;
 let sharedMcpClient: CodexAppServerClient | null = null;
 const persistentNotificationSubscribers = new Set<(notification: AppServerNotification) => void>();
+const runtimeShutdownSubscribers = new Set<() => void>();
 let sharedNotificationUnsubscribe: (() => void) | null = null;
 
 function attachPersistentNotificationSubscribers(client: CodexAppServerClient): void {
@@ -1151,6 +1152,17 @@ export function getCodexService(): CodexService {
 }
 
 /**
+ * Observe app-server runtime shutdowns. Modules that cache state derived from
+ * a runtime (e.g. ephemeral thread ids that only the owning process knows)
+ * subscribe here so the next lookup provisions fresh state instead of reading
+ * back "thread not loaded" from the replacement process.
+ */
+export function subscribeCodexRuntimeShutdown(handler: () => void): () => void {
+  runtimeShutdownSubscribers.add(handler);
+  return () => runtimeShutdownSubscribers.delete(handler);
+}
+
+/**
  * Shut down the shared Codex app-server process and reset singletons.
  */
 export function shutdownCodexRuntime(): void {
@@ -1165,6 +1177,13 @@ export function shutdownCodexRuntime(): void {
     sharedMcpClient = null;
   }
   service = null;
+  for (const handler of runtimeShutdownSubscribers) {
+    try {
+      handler();
+    } catch {
+      console.error('[interpreter-server] runtime shutdown subscriber failed');
+    }
+  }
 }
 
 /**
