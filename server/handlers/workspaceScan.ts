@@ -1,10 +1,13 @@
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join as pathJoin } from 'node:path';
 
 import { basemindScan, basemindRescan, resolveBasemindBinary, isDaemonRunning } from '../utils/basemindManager';
 import { isModelResourceReady } from '../utils/hubCache';
 import { getCurrentWorkspace } from '../utils/workspace';
 import { getCodeIndexingEnabled } from '../configStore';
+import { getScanState, setIndexingState } from '../utils/scanState';
+
+export { setIndexingState };
 
 export interface WorkspaceScanRequest {
   /** Absolute workspace root (informational — MCP rescan is daemon-rooted). */
@@ -28,6 +31,10 @@ export interface WorkspaceScanStatus {
   redactionActive: boolean;
   indexing: boolean;
   fileCount: number;
+  /** Anonymised redaction tokens ([PERSON_1], [EMAIL_0], …) found under safe/. */
+  entities: number;
+  /** Initial-population progress (done/total files); null when no run is active. */
+  progress: { done: number; total: number } | null;
   lastScanAt: string | null;
   xbergAvailable: boolean;
   basemindAvailable: boolean;
@@ -36,20 +43,6 @@ export interface WorkspaceScanStatus {
     embeddings: boolean;
     reranker: boolean;
   };
-}
-
-let activeScanCount = 0;
-let lastScanAt: string | null = null;
-
-export function setIndexingState(inProgress: boolean) {
-  if (inProgress) {
-    activeScanCount++;
-  } else {
-    activeScanCount = Math.max(0, activeScanCount - 1);
-  }
-  if (activeScanCount === 0) {
-    lastScanAt = new Date().toISOString();
-  }
 }
 
 /** Recursive count of regular files under the workspace safe/ mirror. */
@@ -81,6 +74,57 @@ function countWorkspaceSafeFiles(): number {
   return countSafeFiles(pathJoin(workspace, 'safe'), { remaining: 100_000 });
 }
 
+/** The mirror's redaction tokens: [PERSON_1], [EMAIL_0], [ORGANIZATION_12], … */
+const REDACTION_TOKEN_RE = /\[[A-Z][A-Z0-9_]*_\d+\]/g;
+
+/** ponytail: 10 s TTL on the token walk — lower it if the count feels stale
+ * on slow mirrors (a filesystem watcher invalidating the cache is the upgrade). */
+const ENTITY_CACHE_TTL_MS = 10_000;
+/** Mirrors are ≤1 MiB (basemind's redact_text cap); 2 MiB leaves headroom. */
+const ENTITY_MAX_FILE_BYTES = 2 << 20;
+
+let entityCache: { workspace: string; count: number; at: number } | null = null;
+
+function countTokensInDir(dir: string, budget: { files: number }): number {
+  if (budget.files <= 0 || !existsSync(dir)) return 0;
+  let total = 0;
+  let entries: import('node:fs').Dirent[];
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const entry of entries) {
+    if (budget.files <= 0) break;
+    const full = pathJoin(dir, entry.name);
+    if (entry.isDirectory()) {
+      total += countTokensInDir(full, budget);
+    } else if (entry.isFile()) {
+      budget.files -= 1;
+      try {
+        if (statSync(full).size > ENTITY_MAX_FILE_BYTES) continue;
+        const matches = readFileSync(full, 'utf8').match(REDACTION_TOKEN_RE);
+        if (matches) total += matches.length;
+      } catch {
+        // unreadable file — skip
+      }
+    }
+  }
+  return total;
+}
+
+function countWorkspaceEntities(workspace: string | null): number {
+  if (!workspace) return 0;
+  const now = Date.now();
+  const cached = entityCache;
+  if (cached && cached.workspace === workspace && now - cached.at < ENTITY_CACHE_TTL_MS) {
+    return cached.count;
+  }
+  const count = countTokensInDir(pathJoin(workspace, 'safe'), { files: 10_000 });
+  entityCache = { workspace, count, at: now };
+  return count;
+}
+
 // basemind has no .ready marker files; model presence is probed in the hub
 // cache (see server/utils/hubCache.ts) — the <name>.ready markers this module
 // used to look for were never written by anything.
@@ -96,11 +140,14 @@ export function getWorkspaceScanStatus(): WorkspaceScanStatus {
 
   const basemindAvailable = isDaemonRunning();
 
+  const scanState = getScanState();
   return {
     redactionActive: xbergAvailable,
-    indexing: activeScanCount > 0,
+    indexing: scanState.indexing,
     fileCount: countWorkspaceSafeFiles(),
-    lastScanAt,
+    entities: countWorkspaceEntities(getCurrentWorkspace()),
+    progress: scanState.progress,
+    lastScanAt: scanState.lastScanAt,
     xbergAvailable,
     basemindAvailable,
     resourcesReady: {

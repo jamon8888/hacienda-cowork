@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { CheckCircle2, Loader2, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
 import { getWorkspace } from '@/api';
 import { useLayoutActions } from '@/hooks/useLayout';
-import { basemind, workspaceScan } from '@/ipc';
+import { basemind, workspace } from '@/ipc';
+import {
+  getSafeStatusSnapshot,
+  refreshSafeStatus,
+  subscribeSafeStatus,
+} from '@/stores/safeStatusStore';
 import {
   SAFE_BANNER_CTA_BUTTON_ID,
   SAFE_BANNER_ID,
@@ -48,12 +53,16 @@ export function SafeBanner() {
   const { openSettings } = useLayoutActions();
   const [phase, setPhase] = useState<SafeBannerPhase>('hidden');
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
-  const [fileCount, setFileCount] = useState(0);
-  const phaseRef = useRef<SafeBannerPhase>('hidden');
-  phaseRef.current = phase;
+  const status = useSyncExternalStore(subscribeSafeStatus, getSafeStatusSnapshot, getSafeStatusSnapshot);
 
-  const applyStatus = useCallback((status: { fileCount: number }) => {
-    setFileCount(status.fileCount);
+  const applyPath = useCallback((path: string | null) => {
+    setWorkspacePath(path);
+    if (!path) {
+      setPhase('hidden');
+      return;
+    }
+    const stored = readStored(path);
+    setPhase(stored === 'skipped' ? 'hidden' : stored === 'safe' ? 'active' : 'proposed');
   }, []);
 
   useEffect(() => {
@@ -61,26 +70,8 @@ export function SafeBanner() {
 
     const load = async () => {
       try {
-        const { workspace } = await getWorkspace();
-        if (cancelled) return;
-        if (!workspace) {
-          setPhase('hidden');
-          setWorkspacePath(workspace);
-          return;
-        }
-        setWorkspacePath(workspace);
-        const stored = readStored(workspace);
-        if (stored === 'skipped') {
-          setPhase('hidden');
-          return;
-        }
-        setPhase(stored === 'safe' ? 'active' : 'proposed');
-        try {
-          const status = await workspaceScan.status();
-          if (!cancelled) applyStatus(status);
-        } catch {
-          // Status is advisory; stay on the stored phase until the user opts in.
-        }
+        const { workspace: path } = await getWorkspace();
+        if (!cancelled) applyPath(path);
       } catch {
         if (!cancelled) setPhase('hidden');
       }
@@ -89,9 +80,9 @@ export function SafeBanner() {
     const onRepropose = () => {
       void (async () => {
         try {
-          const { workspace } = await getWorkspace();
-          if (!workspace || readStored(workspace) === 'safe') return;
-          setWorkspacePath(workspace);
+          const { workspace: path } = await getWorkspace();
+          if (!path || readStored(path) === 'safe') return;
+          setWorkspacePath(path);
           setPhase('proposed');
         } catch {
           // Ignore re-propose failures; next mount will retry.
@@ -99,13 +90,18 @@ export function SafeBanner() {
       })();
     };
 
+    const unsubscribeWorkspaceChange = workspace.onChanged((event: { workspacePath: string | null }) => {
+      applyPath(event.workspacePath);
+    });
+
     void load();
     window.addEventListener(SAFE_BANNER_REPROPOSE_EVENT, onRepropose);
     return () => {
       cancelled = true;
       window.removeEventListener(SAFE_BANNER_REPROPOSE_EVENT, onRepropose);
+      unsubscribeWorkspaceChange();
     };
-  }, [applyStatus]);
+  }, [applyPath]);
 
   const runDownload = useCallback(async () => {
     if (!workspacePath) return;
@@ -116,14 +112,9 @@ export function SafeBanner() {
         setPhase('failed');
         return;
       }
-      try {
-        const status = await workspaceScan.status();
-        setFileCount(status.fileCount);
-      } catch {
-        setFileCount(0);
-      }
       writeStored(workspacePath, 'safe');
       setPhase('active');
+      await refreshSafeStatus();
     } catch {
       setPhase('failed');
     }
@@ -144,6 +135,15 @@ export function SafeBanner() {
 
   if (phase === 'hidden' || !workspacePath) return null;
 
+  // Story #19: "active" must be earned by files this workspace actually has.
+  let displayPhase = phase;
+  if (phase === 'active') {
+    if (!status) return null;
+    if (status.fileCount === 0) {
+      displayPhase = status.indexing || status.progress ? 'inProgress' : 'proposed';
+    }
+  }
+
   return (
     <div
       data-testid={SAFE_BANNER_ID}
@@ -160,16 +160,16 @@ export function SafeBanner() {
           className="flex size-7 shrink-0 items-center justify-center rounded-full"
           style={{ background: 'color-mix(in srgb, #059669 12%, transparent)' }}
         >
-          {phase === 'failed' ? (
+          {displayPhase === 'failed' ? (
             <ShieldAlert className="size-3.5 text-emerald-700 dark:text-emerald-300" aria-hidden />
-          ) : phase === 'active' ? (
+          ) : displayPhase === 'active' ? (
             <CheckCircle2 className="size-3.5 text-emerald-700 dark:text-emerald-300" aria-hidden />
           ) : (
             <ShieldCheck className="size-3.5 text-emerald-700 dark:text-emerald-300" aria-hidden />
           )}
         </div>
         <div className="min-w-0 flex-1">
-          {phase === 'proposed' && (
+          {displayPhase === 'proposed' && (
             <>
               <p className="text-ui-sm text-[var(--oa-text-strong)]">
                 {t('basemind.banner.title')}
@@ -182,22 +182,45 @@ export function SafeBanner() {
               </p>
             </>
           )}
-          {phase === 'inProgress' && (
-            <div data-testid={SAFE_BANNER_STATUS_ID} className="flex items-center gap-2" role="status" aria-live="polite">
-              <Loader2 className="size-3.5 animate-spin text-[var(--oa-text-faint)]" aria-hidden />
-              <span className="text-ui-sm text-[var(--oa-text-strong)]">
-                {t('basemind.banner.inProgress')}
-              </span>
+          {displayPhase === 'inProgress' && (
+            <div data-testid={SAFE_BANNER_STATUS_ID} role="status" aria-live="polite">
+              <div className="flex items-center gap-2">
+                <Loader2 className="size-3.5 animate-spin text-[var(--oa-text-faint)]" aria-hidden />
+                <span className="text-ui-sm text-[var(--oa-text-strong)]">
+                  {t('basemind.banner.inProgress')}
+                </span>
+              </div>
+              {status?.progress && (
+                <p className="mt-0.5 text-ui-xs text-[var(--oa-text-faint)]">
+                  {t('basemind.banner.progress', {
+                    done: status.progress.done,
+                    total: status.progress.total,
+                  })}
+                </p>
+              )}
             </div>
           )}
-          {phase === 'active' && (
+          {displayPhase === 'active' && status && (
             <div data-testid={SAFE_BANNER_STATUS_ID} role="status">
               <p className="text-ui-sm text-[var(--oa-text-strong)]">
-                {t('basemind.banner.activeCount', { count: fileCount })}
+                {t('basemind.banner.activeCount', { count: status.fileCount })}
               </p>
+              {status.entities > 0 && (
+                <p className="text-ui-xs text-[var(--oa-text-faint)]">
+                  {t('basemind.banner.entities', { count: status.entities })}
+                </p>
+              )}
+              {status.progress && (
+                <p className="text-ui-xs text-[var(--oa-text-faint)]">
+                  {t('basemind.banner.progress', {
+                    done: status.progress.done,
+                    total: status.progress.total,
+                  })}
+                </p>
+              )}
             </div>
           )}
-          {phase === 'failed' && (
+          {displayPhase === 'failed' && (
             <div data-testid={SAFE_BANNER_STATUS_ID} role="alert">
               <p className="text-ui-sm text-[var(--oa-text-strong)]">
                 {t('basemind.banner.failed')}
@@ -207,7 +230,7 @@ export function SafeBanner() {
         </div>
       </div>
 
-      {phase === 'proposed' && (
+      {displayPhase === 'proposed' && (
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
           <Button
             variant="ghost"
@@ -238,7 +261,7 @@ export function SafeBanner() {
         </div>
       )}
 
-      {phase === 'failed' && (
+      {displayPhase === 'failed' && (
         <div className="flex shrink-0 items-center gap-1.5">
           <Button
             size="sm"

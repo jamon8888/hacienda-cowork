@@ -152,17 +152,40 @@ describe('preseedNerModel', () => {
   });
 });
 
-describe('pinned weight manifests (EDGE/GTE decisions #231/#228)', () => {
-  it('edge engine files carry sha256/size and an onnx entry (hubCache readiness)', async () => {
-    const { EDGE_REPO, EDGE_REV, EDGE_FILES } = await loadModule();
-    expect(EDGE_REPO).toBe('knowledgator/gliner-pii-edge-v1.0');
-    expect(EDGE_REV).toBe('main');
-    expect(EDGE_FILES.length).toBeGreaterThan(0);
-    for (const f of EDGE_FILES) {
+describe('pinned weight manifests (fastino GLiNER2 candle / GTE decisions #231/#228)', () => {
+  it('fastino GLiNER2 files carry sha256/size and the exact layout the candle loader reads', async () => {
+    const { FASTINO_REPO, FASTINO_REV, FASTINO_FILES } = await loadModule();
+    expect(FASTINO_REPO).toBe('fastino/gliner2-privacy-filter-PII-multi');
+    // Pinned commit (was main on 2026-09-26); SHAs pin the bytes regardless.
+    expect(FASTINO_REV).toBe('36126f612f1f9e376dc2c25b297d827912effef4');
+    expect(FASTINO_FILES.map((f) => f.path)).toEqual([
+      'model.safetensors',
+      'tokenizer.json',
+      'config.json',
+      'tokenizer_config.json',
+      'encoder_config/config.json',
+    ]);
+    for (const f of FASTINO_FILES) {
       expect(f.sha256).toMatch(/^[0-9a-f]{64}$/);
       expect(f.size).toBeGreaterThan(0);
     }
-    expect(EDGE_FILES.some((f) => f.path.endsWith('.onnx'))).toBe(true);
+    const weights = FASTINO_FILES.find((f) => f.path === 'model.safetensors');
+    expect(weights?.size).toBe(1_228_421_964);
+  });
+
+  it('defaults preseedNerModel to the fastino manifest', async () => {
+    const { preseedNerModel } = await loadModule();
+    const baseDir = makeTmp();
+    const urls: string[] = [];
+    const fetchFn: FetchFn = async (url) => {
+      urls.push(url);
+      return { ok: false, status: 403, headers: headers({}), body: null };
+    };
+
+    await preseedNerModel({ baseDir, fetchFn });
+    expect(urls.length).toBeGreaterThan(0);
+    expect(urls[0]).toContain('fastino/gliner2-privacy-filter-PII-multi');
+    expect(urls[0]).toContain('36126f612f1f9e376dc2c25b297d827912effef4');
   });
 
   it('GTE reranker files carry sha256/size and the int8 onnx entry', async () => {
@@ -176,12 +199,12 @@ describe('pinned weight manifests (EDGE/GTE decisions #231/#228)', () => {
 });
 
 describe('pinned weight totals (#22)', () => {
-  it('EDGE + GTE pinned bytes match the locked ~542.6 MB total', async () => {
-    const { EDGE_FILES, GTE_FILES } = await loadModule();
-    const edge = EDGE_FILES.reduce((n, f) => n + f.size, 0);
+  it('fastino GLiNER2 + GTE pinned bytes match the locked ~1.6 GB total', async () => {
+    const { FASTINO_FILES, GTE_FILES } = await loadModule();
+    const fastino = FASTINO_FILES.reduce((n, f) => n + f.size, 0);
     const gte = GTE_FILES.reduce((n, f) => n + f.size, 0);
-    expect(edge).toBe(184_666_875);
+    expect(fastino).toBe(1_244_444_426);
     expect(gte).toBe(357_942_777);
-    expect(edge + gte).toBe(542_609_652);
+    expect(fastino + gte).toBe(1_602_387_203);
   });
 });

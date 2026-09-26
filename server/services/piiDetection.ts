@@ -13,6 +13,7 @@ import { homedir } from 'node:os';
 
 import { ToolManager } from '../tools/toolManager';
 import { getAppMcpOwnerThreadId } from './appMcpThread';
+import { resolveHubBaseDirs } from '../utils/hubCache';
 
 export interface PiiDetectionResult {
   category: string;
@@ -29,10 +30,16 @@ export interface RedactTextResult {
 }
 
 const MODEL_SEARCH_PATTERNS = [
+  'models--fastino--gliner2-privacy-filter-PII-multi',
   'models--xberg-io--gliner-pii-models',
   'models--knowledgator--gliner-pii-edge-v1.0',
   'models--xberg-io--gliner-models',
 ];
+
+/** True for entries that count as downloaded model weights (ONNX or candle safetensors). */
+function isWeightEntry(entry: string): boolean {
+  return entry.endsWith('.onnx') || entry === 'model.safetensors';
+}
 
 export function resolvePiiModelBaseDir(homeDir = homedir()): string {
   const override = process.env.INTERPRETER_USER_DATA_DIR?.trim();
@@ -45,17 +52,17 @@ export function isPiiModelReady(baseDir = resolvePiiModelBaseDir()): boolean {
     const dir = path.join(baseDir, pattern);
     if (!fs.existsSync(dir)) return false;
     try {
-      // The hub stores weights at <repo>/snapshots/<revision>/model.onnx, so a
-      // downloaded model has no .onnx directly under the repo directory and
+      // The hub stores weights at <repo>/snapshots/<revision>/..., so a
+      // downloaded model has no weights directly under the repo directory and
       // reported false. Check the repo root and one snapshot level down.
-      if (fs.readdirSync(dir).some((entry) => entry.endsWith('.onnx'))) return true;
+      if (fs.readdirSync(dir).some(isWeightEntry)) return true;
       const snapshots = path.join(dir, 'snapshots');
       if (!fs.existsSync(snapshots)) return false;
       return fs.readdirSync(snapshots).some((revision) => {
         const revisionDir = path.join(snapshots, revision);
         try {
           return fs.statSync(revisionDir).isDirectory()
-            && fs.readdirSync(revisionDir).some((entry) => entry.endsWith('.onnx'));
+            && fs.readdirSync(revisionDir).some(isWeightEntry);
         } catch {
           return false;
         }
@@ -64,6 +71,37 @@ export function isPiiModelReady(baseDir = resolvePiiModelBaseDir()): boolean {
       return false;
     }
   });
+}
+
+/**
+ * Snapshot directory holding a candle-ready GLiNER2 layout
+ * (`model.safetensors` etc.) for `redact_text`'s `ner_model_dir`, or null when
+ * nothing candle-ready is cached. Consults every hub candidate dir because the
+ * daemon resolves them in a different order than the app writes them.
+ */
+export function resolveNerModelDir(baseDirs: string[] = resolveHubBaseDirs()): string | null {
+  for (const baseDir of baseDirs) {
+    for (const pattern of MODEL_SEARCH_PATTERNS) {
+      const snapshots = path.join(baseDir, pattern, 'snapshots');
+      let revisions: string[];
+      try {
+        revisions = fs.readdirSync(snapshots);
+      } catch {
+        continue;
+      }
+      for (const revision of revisions) {
+        const dir = path.join(snapshots, revision);
+        try {
+          if (fs.statSync(dir).isDirectory() && fs.existsSync(path.join(dir, 'model.safetensors'))) {
+            return dir;
+          }
+        } catch {
+          // unreadable revision dir — keep looking
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -113,7 +151,7 @@ async function detectPii(
   const raw = await manager.callTool(
     'basemind',
     'redact_text',
-    { text, categories: options?.categories ?? [] },
+    { text, categories: options?.categories ?? [], ner_model_dir: resolveNerModelDir() ?? undefined },
     undefined,
     undefined,
     // Without a thread context `callTool` throws before reaching the tool, so
@@ -135,7 +173,7 @@ async function redactFile(filePath: string): Promise<RedactTextResult> {
   const raw = await manager.callTool(
     'basemind',
     'redact_text',
-    { file_path: filePath },
+    { file_path: filePath, ner_model_dir: resolveNerModelDir() ?? undefined },
     undefined,
     undefined,
     { threadId: await getAppMcpOwnerThreadId() },
@@ -147,5 +185,6 @@ export const piiDetectionService = {
   detectPii,
   redactFile,
   isPiiModelReady,
+  resolveNerModelDir,
   parseRedactTextResult,
 };

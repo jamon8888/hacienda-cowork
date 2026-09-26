@@ -79,3 +79,34 @@ describe('detectPii thread context', () => {
     expect(callToolCalls.at(-1)?.args.categories).toEqual(['email']);
   });
 });
+
+describe('ner_model_dir wiring (GLiNER2 spec #37)', () => {
+  test('detectPii and redactFile pass the candle-ready snapshot dir', async () => {
+    const { mkdtempSync, mkdirSync, rmSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const path = (await import('node:path')).default;
+
+    const base = mkdtempSync(path.join(tmpdir(), 'pii-args-'));
+    const snapshot = path.join(
+      base,
+      'models--fastino--gliner2-privacy-filter-PII-multi',
+      'snapshots',
+      '36126f612f1f9e376dc2c25b297d827912effef4',
+    );
+    mkdirSync(snapshot, { recursive: true });
+    writeFileSync(path.join(snapshot, 'model.safetensors'), 'weights');
+    const previous = process.env.HF_HUB_CACHE;
+    process.env.HF_HUB_CACHE = base;
+    try {
+      const { piiDetectionService } = await import('./piiDetection');
+      await piiDetectionService.detectPii('text');
+      expect(callToolCalls.at(-1)?.args.ner_model_dir).toBe(snapshot);
+      await piiDetectionService.redactFile('/tmp/some-file.txt');
+      expect(callToolCalls.at(-1)?.args.ner_model_dir).toBe(snapshot);
+    } finally {
+      if (previous === undefined) delete process.env.HF_HUB_CACHE;
+      else process.env.HF_HUB_CACHE = previous;
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+});

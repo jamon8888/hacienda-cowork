@@ -3,6 +3,8 @@ import { existsSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
+import { setIndexingState } from './scanState';
+
 /**
  * ponytail: 2s trailing debounce — up to ~2s search lag after a single save;
  * knob is this constant if that ceiling ever matters.
@@ -226,9 +228,14 @@ async function flush(workspaceKey: string): Promise<void> {
   if (relatives.length === 0) return;
 
   const paths: string[] = [];
-  for (const relativePath of relatives) {
-    const { mirrorRel } = await syncSafeMirrorFile(state.workspacePath, relativePath);
-    paths.push(mirrorRel);
+  setIndexingState(true);
+  try {
+    for (const relativePath of relatives) {
+      const { mirrorRel } = await syncSafeMirrorFile(state.workspacePath, relativePath);
+      paths.push(mirrorRel);
+    }
+  } finally {
+    setIndexingState(false);
   }
 
   // Incremental failures are silent (#21): log and let the next event retry.

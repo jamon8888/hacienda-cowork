@@ -28,7 +28,6 @@ import { AppUpdateDialog } from "./components/AppUpdateDialog";
 import { ComputerUseSetupModalHost } from "./components/ComputerUseSetupModalHost";
 import { WindowsNativeToolsSetupNotice } from "./components/WindowsNativeToolsSetupNotice";
 import { BrowserSplitOfferNotice } from "./components/BrowserSplitOfferNotice";
-import { SafeBanner } from "./components/layout/SafeBanner";
 import { LowerLeftNoticeViewport } from "./components/LowerLeftNoticeViewport";
 import { WorkspaceConfirmationModalHost } from "./components/WorkspaceConfirmationModalHost";
 import { MarketingDemoShield } from "./components/MarketingDemoShield";
@@ -888,9 +887,6 @@ function AppContent() {
 
           {/* Center: Editor - takes remaining space, marginRight set imperatively to avoid right sidebar */}
           <div ref={centerRef} className="relative h-full min-w-0 flex-1 flex flex-col">
-            {!isOnboarding && !marketingDemoMode && !readOnlyWorkstation && shouldRenderMainSurfaces ? (
-              <SafeBanner />
-            ) : null}
             <div className="relative min-h-0 flex-1">
             {shouldRenderMainSurfaces ? (
               <>

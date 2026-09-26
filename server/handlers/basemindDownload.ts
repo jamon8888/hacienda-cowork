@@ -159,12 +159,13 @@ export async function* basemindDownload(onlyStage?: BasemindDownloadStage): Asyn
       // onboarding needs (scan never initializes NER; `code --rerank` only
       // knows compiled-in presets, not the GTE Custom model) — pre-seed the
       // weights directly so onboarding actually delivers "models downloaded"
-      // (see basemindPreseed.ts). nerModel = gliner-pii-edge (engine #231),
-      // reranker = GTE-multilingual int8 (decision #228).
-      const { preseedNerModel, EDGE_REPO, EDGE_REV, EDGE_FILES, GTE_REPO, GTE_REV, GTE_FILES } =
+      // (see basemindPreseed.ts). nerModel = fastino GLiNER2 run through
+      // candle (GLiNER2-redaction spec #37), reranker = GTE-multilingual
+      // int8 (decision #228).
+      const { preseedNerModel, FASTINO_REPO, FASTINO_REV, FASTINO_FILES, GTE_REPO, GTE_REV, GTE_FILES } =
         await import('./basemindPreseed');
       const opts = stage === 'nerModel'
-        ? { repo: EDGE_REPO, rev: EDGE_REV, files: EDGE_FILES }
+        ? { repo: FASTINO_REPO, rev: FASTINO_REV, files: FASTINO_FILES }
         : { repo: GTE_REPO, rev: GTE_REV, files: GTE_FILES };
       try {
         result = await preseedNerModel(opts);
