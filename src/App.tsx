@@ -886,7 +886,8 @@ function AppContent() {
           )}
 
           {/* Center: Editor - takes remaining space, marginRight set imperatively to avoid right sidebar */}
-          <div ref={centerRef} className="relative h-full min-w-0 flex-1">
+          <div ref={centerRef} className="relative h-full min-w-0 flex-1 flex flex-col">
+            <div className="relative min-h-0 flex-1">
             {shouldRenderMainSurfaces ? (
               <>
                 <EditorLayout onTopRightPaddingRef={handleTabBarRightPaddingRef} />
@@ -897,6 +898,7 @@ function AppContent() {
                 <MentionPreviewOverlay />
               </>
             ) : null}
+            </div>
           </div>
 
           {/* Right resize handle - absolutely positioned at left edge of right sidebar */}

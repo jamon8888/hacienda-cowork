@@ -629,6 +629,59 @@ interface VaultIpc {
   searchNotes(request: { query: string; limit?: number }): Promise<{ results: VaultSearchResult[] }>;
 }
 
+/** #19: Show Originals rehydration, selection NER, gesture custom-term pin. */
+interface PiiIpc {
+  getRehydrationMap(request: { threadKey: string }): Promise<Record<string, string>>;
+  detectSelection(request: {
+    text: string;
+    categories?: string[];
+  }): Promise<{ detections: Array<{ category: string; start: number; end: number; text: string; confidence: number }> }>;
+  addCustomTerm(request: {
+    label: string;
+    value: string;
+    caseSensitive?: boolean;
+  }): Promise<{ success: boolean; configPath: string }>;
+  rememberRehydration(request: {
+    threadKey: string;
+    map: Record<string, string>;
+  }): Promise<{ success: boolean }>;
+}
+
+export interface WorkspaceScanStatus {
+  redactionActive: boolean;
+  indexing: boolean;
+  fileCount: number;
+  /** #37: anonymised redaction tokens written under safe/. */
+  entities: number;
+  /** #37: initial-population progress; null when no run is active. */
+  progress: { done: number; total: number } | null;
+  lastScanAt: string | null;
+  xbergAvailable: boolean;
+  basemindAvailable: boolean;
+  resourcesReady: {
+    nerModel: boolean;
+    embeddings: boolean;
+    reranker: boolean;
+  };
+}
+
+interface WorkspaceScanIpc {
+  status(): Promise<WorkspaceScanStatus>;
+  /** #13/#18: raw-code semantic indexing opt-in; off by default. */
+  getCodeIndexingEnabled(): Promise<{ enabled: boolean }>;
+  setCodeIndexingEnabled(value: boolean): Promise<{ enabled: boolean }>;
+}
+
+interface BasemindDownloadResult {
+  stages: Array<{ stage: string; success: boolean; error?: string }>;
+  success: boolean;
+}
+
+/** Renderer surface for #20: only download is called from the UI. */
+interface BasemindIpc {
+  download(stage?: 'embeddings' | 'reranker' | 'nerModel'): Promise<BasemindDownloadResult>;
+}
+
 interface ProjectRunnerIpc {
   start(projectPath: string): Promise<{ success: boolean; state: ProjectRunnerState; error?: string }>;
   stop(projectPath: string): Promise<{ success: boolean; state: ProjectRunnerState; error?: string }>;
@@ -703,6 +756,30 @@ export const workspace = isRemoteWorkstationMode()
   ? remoteWorkstationWorkspaceIpc
   : isMarketingDemoMode() ? marketingDemoWorkspaceIpc : client.workspace;
 export const vault: VaultIpc = isMarketingDemoMode() ? marketingDemoVaultIpc : client.vault;
+export const pii: PiiIpc = isMarketingDemoMode()
+  ? {
+    getRehydrationMap: async () => ({}),
+    detectSelection: async () => ({ detections: [] }),
+    addCustomTerm: async () => {
+      throw new Error('Not available in demo mode');
+    },
+    rememberRehydration: async () => {
+      throw new Error('Not available in demo mode');
+    },
+  }
+  : (client.pii as PiiIpc);
+export const workspaceScan: WorkspaceScanIpc = isMarketingDemoMode()
+  ? {
+    status: async () => { throw new Error('Not available in demo mode'); },
+    getCodeIndexingEnabled: async () => { throw new Error('Not available in demo mode'); },
+    setCodeIndexingEnabled: async () => { throw new Error('Not available in demo mode'); },
+  }
+  : (client.workspaceScan as WorkspaceScanIpc);
+export const basemind: BasemindIpc = isMarketingDemoMode()
+  ? {
+    download: async () => { throw new Error('Not available in demo mode'); },
+  }
+  : (client.basemind as BasemindIpc);
 export const setup = client.setup;
 export const computerUseSetup: ComputerUseSetupIpc = {
   onRequested: (callback) => client.computerUseSetup.onRequested(callback),

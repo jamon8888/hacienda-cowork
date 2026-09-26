@@ -3,9 +3,32 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { FileTreeNode } from './types';
 import { ExplorerNode } from './ExplorerNode';
+import { EXPLORER_SAFE_BADGE_ID } from '../../../shared/element-ids';
 
-const ipcMocks = vi.hoisted(() => ({
-  showContextMenu: vi.fn(async () => undefined as string | undefined),
+const ipcMocks = vi.hoisted(() => {
+  const workspaceHandlers: Array<(event: { workspacePath: string | null }) => void> = [];
+  return {
+    workspaceHandlers,
+    workspace: {
+      onChanged: vi.fn((callback: (event: { workspacePath: string | null }) => void) => {
+        workspaceHandlers.push(callback);
+        return () => {};
+      }),
+    },
+    workspaceScan: {
+      status: vi.fn(async () => ({
+        redactionActive: true,
+        indexing: false,
+        fileCount: 0,
+        entities: 0,
+        progress: null as { done: number; total: number } | null,
+        lastScanAt: null,
+        xbergAvailable: true,
+        basemindAvailable: true,
+        resourcesReady: { nerModel: true, embeddings: true, reranker: true },
+      })),
+    },
+    showContextMenu: vi.fn(async () => undefined as string | undefined),
   showItemInFolder: vi.fn(async () => undefined),
   showItemsInFolder: vi.fn(async () => undefined),
   isUnpackagedElectron: vi.fn(() => false),
@@ -58,7 +81,8 @@ const ipcMocks = vi.hoisted(() => ({
       return () => ipcMocks.projectRunnerListeners.delete(callback);
     }),
   },
-}));
+  };
+});
 
 const apiMocks = vi.hoisted(() => ({
   callTool: vi.fn(async () => ({ isError: false })),
@@ -84,6 +108,8 @@ vi.mock('@/ipc', () => ({
   pathDirname: ipcMocks.pathDirname,
   files: ipcMocks.files,
   projectRunner: ipcMocks.projectRunner,
+  workspace: ipcMocks.workspace,
+  workspaceScan: ipcMocks.workspaceScan,
 }));
 
 vi.mock('@/api', () => ({
@@ -266,6 +292,7 @@ beforeEach(() => {
   ipcMocks.projectRunner.start.mockClear();
   ipcMocks.projectRunner.stop.mockClear();
   ipcMocks.projectRunner.getStatus.mockClear();
+  ipcMocks.workspaceHandlers.length = 0;
   ipcMocks.projectRunner.onChanged.mockClear();
   ipcMocks.files.create.mockClear();
   ipcMocks.files.createFolder.mockClear();
@@ -560,5 +587,80 @@ describe('ExplorerNode', () => {
       expect(ipcMocks.projectRunner.stop).toHaveBeenCalledWith('/workspace/graph-app');
     });
     expect(await screen.findByRole('button', { name: 'Run graph-app' })).toBeInTheDocument();
+  });
+});
+
+describe('safe/ badge (#37)', () => {
+  function statusFixture(overrides?: Partial<{
+    fileCount: number;
+    entities: number;
+    indexing: boolean;
+    progress: { done: number; total: number } | null;
+  }>) {
+    return {
+      redactionActive: true,
+      indexing: false,
+      fileCount: 0,
+      entities: 0,
+      progress: null,
+      lastScanAt: null,
+      xbergAvailable: true,
+      basemindAvailable: true,
+      resourcesReady: { nerModel: true, embeddings: true, reranker: true },
+      ...overrides,
+    };
+  }
+
+  test('shows a spinner while population runs and a shield once files exist', async () => {
+    ipcMocks.workspaceScan.status
+      .mockResolvedValueOnce(
+        statusFixture({ indexing: true, fileCount: 0, progress: { done: 1, total: 4 } }),
+      )
+      .mockResolvedValue(statusFixture({ fileCount: 4, entities: 4 }));
+
+    const tree = createMockTree();
+    const node = createMockNode(tree, { name: 'safe', relativePath: 'safe', type: 'directory' });
+    renderExplorerNode(node);
+
+    const badge = await screen.findByTestId(EXPLORER_SAFE_BADGE_ID);
+    expect(badge).toHaveAttribute('data-state', 'processing');
+    await waitFor(
+      () => {
+        expect(badge).toHaveAttribute('data-state', 'processed');
+      },
+      { timeout: 3500 },
+    );
+  });
+
+  test('shows a shield when the mirror already has files', async () => {
+    ipcMocks.workspaceScan.status.mockResolvedValue(statusFixture({ fileCount: 4, entities: 2 }));
+
+    const tree = createMockTree();
+    const node = createMockNode(tree, { name: 'safe', relativePath: 'safe', type: 'directory' });
+    renderExplorerNode(node);
+
+    const badge = await screen.findByTestId(EXPLORER_SAFE_BADGE_ID);
+    expect(badge).toHaveAttribute('data-state', 'processed');
+  });
+
+  test('shows no badge on other folders', () => {
+    const tree = createMockTree();
+    const node = createMockNode(tree, { name: 'docs', relativePath: 'docs', type: 'directory' });
+    renderExplorerNode(node);
+
+    expect(screen.queryByTestId(EXPLORER_SAFE_BADGE_ID)).not.toBeInTheDocument();
+  });
+
+  test('shows no badge while the mirror is unprocessed', async () => {
+    ipcMocks.workspaceScan.status.mockResolvedValue(statusFixture({ fileCount: 0 }));
+
+    const tree = createMockTree();
+    const node = createMockNode(tree, { name: 'safe', relativePath: 'safe', type: 'directory' });
+    renderExplorerNode(node);
+
+    await waitFor(() => {
+      expect(ipcMocks.workspaceScan.status).toHaveBeenCalled();
+    });
+    expect(screen.queryByTestId(EXPLORER_SAFE_BADGE_ID)).not.toBeInTheDocument();
   });
 });

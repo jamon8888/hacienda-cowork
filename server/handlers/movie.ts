@@ -271,10 +271,6 @@ export { movieReactComponents } from ${JSON.stringify(componentsImportPath)};
 `;
 }
 
-function getMovieClipDurationInFrames(clip: MovieAudioClip | MovieVideoClip): number {
-  return Math.max(1, clip.sourceEndFrame - clip.sourceStartFrame);
-}
-
 function findMovieAsset(timeline: MovieTimelineDefinition, assetId: string): MovieAsset {
   const asset = timeline.assets.find((candidate) => candidate.id === assetId);
   if (!asset) {

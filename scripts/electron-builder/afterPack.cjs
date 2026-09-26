@@ -222,6 +222,7 @@ function getMacExtraResourceBinariesForSigning(resourcesRoot) {
     addIfExists(path.join(resourcesRoot, binary));
   }
   addIfExists(path.join(resourcesRoot, 'pdfcpu', 'pdfcpu'));
+  addIfExists(path.join(resourcesRoot, 'basemind', 'basemind'));
   addIfExists(path.join(resourcesRoot, 'cua-driver', 'cua-driver'));
 
   const overlayHelpersDir = path.join(resourcesRoot, 'interpreter-overlay');

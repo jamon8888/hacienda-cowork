@@ -171,6 +171,89 @@ const handlers: Record<string, Record<string, HandlerFn>> = {
     },
   },
 
+  // ========== PII (#19: Show Originals, selection NER, custom terms) ==========
+  pii: {
+    getRehydrationMap: async ([request]: [{ threadKey: string }]) => {
+      const { getRehydrationMap } = await import('../handlers/pii');
+      return getRehydrationMap(request);
+    },
+    detectSelection: async ([request]: [{ text: string; categories?: string[] }]) => {
+      const { detectSelection } = await import('../handlers/pii');
+      return detectSelection(request);
+    },
+    addCustomTerm: async ([request]: [{ label: string; value: string; caseSensitive?: boolean }]) => {
+      const { addCustomTerm } = await import('../handlers/pii');
+      return addCustomTerm(request);
+    },
+    rememberRehydration: async ([request]: [{ threadKey: string; map: Record<string, string> }]) => {
+      const { rememberRehydration } = await import('../handlers/pii');
+      return rememberRehydration(request);
+    },
+  },
+
+  // ========== Workspace Scan (basemind) ==========
+  workspaceScan: {
+    status: async () => {
+      const { getWorkspaceScanStatus } = await import('../handlers/workspaceScan');
+      return getWorkspaceScanStatus();
+    },
+    getCodeIndexingEnabled: async () => {
+      const { getCodeIndexingEnabled } = await import('../configStore');
+      return { enabled: await getCodeIndexingEnabled() };
+    },
+    setCodeIndexingEnabled: async ([value]: [boolean]) => {
+      const { setCodeIndexingEnabled } = await import('../configStore');
+      await setCodeIndexingEnabled(value);
+      return { enabled: value };
+    },
+  },
+
+  // ========== Search (basemind code/document search) ==========
+  search: {
+    searchCode: async ([params]: [import('../handlers/search').SearchCodeParams]) => {
+      const { basemindSearchCode } = await import('../handlers/search');
+      return basemindSearchCode(params);
+    },
+    getRerankerEnabled: async () => {
+      const { getRerankerState } = await import('../handlers/rerankerPreference');
+      return getRerankerState();
+    },
+    getRerankerDefault: async () => {
+      const { getRerankerDefault } = await import('../handlers/rerankerPreference');
+      return { enabled: await getRerankerDefault() };
+    },
+    setRerankerEnabled: async ([value]: [boolean | null]) => {
+      const { setRerankerEnabled } = await import('../handlers/rerankerPreference');
+      return setRerankerEnabled(value);
+    },
+  },
+
+  // ========== Basemind MCP Server Lifecycle ==========
+  basemind: {
+    register: async () => {
+      const { registerBasemindServer } = await import('../utils/basemindManager');
+      const serverId = await registerBasemindServer();
+      return { serverId };
+    },
+    unregister: async () => {
+      const { unregisterBasemindServer } = await import('../utils/basemindManager');
+      await unregisterBasemindServer();
+      return { success: true };
+    },
+    status: async () => {
+      const { getBasemindServerStatus } = await import('../utils/basemindManager');
+      return getBasemindServerStatus();
+    },
+    cpuFeatures: async () => {
+      const { cpuFeaturesWithBuild } = await import('../handlers/cpuFeatures');
+      return cpuFeaturesWithBuild();
+    },
+    download: async ([stage]: [import('../handlers/basemindDownload').BasemindDownloadStage?] = []) => {
+      const { runBasemindDownload } = await import('../handlers/basemindDownload');
+      return runBasemindDownload(stage);
+    },
+  },
+
   // ========== Settings ==========
   settings: {
     get: async () => {
