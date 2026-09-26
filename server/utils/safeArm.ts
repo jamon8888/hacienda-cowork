@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'nod
 import { join } from 'node:path';
 
 import { IGNORED_SEGMENTS, syncSafeMirrorFile } from './safeSync';
+import { setIndexingState, setPopulationProgress } from './scanState';
 
 /**
  * Root-guard marker: basemind refuses a non-git workspace root without
@@ -95,15 +96,23 @@ export async function runInitialPopulation(
   let countWritten = 0;
   let skipped = 0;
 
-  for (const relativePath of files) {
-    const { mirrorRel, written } = await syncSafeMirrorFile(workspacePath, relativePath);
-    mirrorPaths.push(mirrorRel);
-    if (written) countWritten += 1;
-    else skipped += 1;
-  }
+  setIndexingState(true);
+  setPopulationProgress({ done: 0, total: files.length });
+  try {
+    for (const relativePath of files) {
+      const { mirrorRel, written } = await syncSafeMirrorFile(workspacePath, relativePath);
+      mirrorPaths.push(mirrorRel);
+      if (written) countWritten += 1;
+      else skipped += 1;
+      setPopulationProgress({ done: countWritten + skipped, total: files.length });
+    }
 
-  if (mirrorPaths.length > 0) {
-    await rescanFn({ paths: mirrorPaths });
+    if (mirrorPaths.length > 0) {
+      await rescanFn({ paths: mirrorPaths });
+    }
+  } finally {
+    setPopulationProgress(null);
+    setIndexingState(false);
   }
   return { written: countWritten, skipped };
 }

@@ -35,8 +35,8 @@ export const GLINER_REPO = 'xberg-io/gliner-models';
 export const GLINER_REV = 'afb0faaa3c8e7d0de7796bd37e625026ff635fe0';
 /**
  * gliner_small-v2.5 artifacts (legacy onboarding model, ~673 MB).
- * Kept for reference; the NER engine decision (#231) is gliner-pii-edge,
- * see EDGE_* below. SHAs mirror xberg's checked-in gliner-models.sha256
+ * Kept for reference; the NER engine now runs GLiNER2 through candle,
+ * see FASTINO_* below. SHAs mirror xberg's checked-in gliner-models.sha256
  * manifest.
  */
 export const GLINER_FILES: PreseedFile[] = [
@@ -52,26 +52,37 @@ export const GLINER_FILES: PreseedFile[] = [
   },
 ];
 
-/** Knowledgator GLiNER-PII edge repo (NER engine decision #231). */
-export const EDGE_REPO = 'knowledgator/gliner-pii-edge-v1.0';
-/** Floating `main` (Knowledgator ships no pinned rev; SHAs pin the bytes). */
-export const EDGE_REV = 'main';
-/** Edge artifacts (~181 MB ONNX). SHAs verified 2026-09-18 (LFS oids match). */
-export const EDGE_FILES: PreseedFile[] = [
+/** Fastino GLiNER2 privacy-filter repo (PyTorch layout candle's Gliner2Candle::from_local reads). */
+export const FASTINO_REPO = 'fastino/gliner2-privacy-filter-PII-multi';
+/** Pinned commit (was main on 2026-09-26); SHAs pin the bytes regardless. */
+export const FASTINO_REV = '36126f612f1f9e376dc2c25b297d827912effef4';
+/** GLiNER2 artifacts (~1.24 GB). SHAs are HF LFS oids (sha256) for the LFS
+ * files, computed downloads for the small configs; verified 2026-09-26. */
+export const FASTINO_FILES: PreseedFile[] = [
   {
-    path: 'onnx/model.onnx',
-    sha256: '4ca588722e6d79447ad4c9c230eeba3d9d472c672a9598184a34e9f77fc35836',
-    size: 181_078_966,
+    path: 'model.safetensors',
+    sha256: '0280f6f39f6012da50b6640bad438d9b7e763a1b0102094115d1b710c4dd79b6',
+    size: 1_228_421_964,
   },
   {
     path: 'tokenizer.json',
-    sha256: '84b3a9b18f04a0ccd03b72d9f871b7e0bec40fd7021ef50bc30a7c3693c11205',
-    size: 3_583_593,
+    sha256: 'f6df10ec83bea993035b2dd7c39345a3d4fcf23421c2adb6cb4ffc1e6d1bc4b5',
+    size: 16_020_604,
   },
   {
-    path: 'gliner_config.json',
-    sha256: '77e6b57335c4bfd461e9041682196dd6c373a0b09bbd9269ef9e95b807915340',
-    size: 4_316,
+    path: 'config.json',
+    sha256: '164f17362bcf9d114067d3465e7374bfdd79ce6b605acb745de5a49dabb9595c',
+    size: 252,
+  },
+  {
+    path: 'tokenizer_config.json',
+    sha256: '233beed1f1095cccfc7907cde31a8d90a0c6aa4fdfaf6493f8e55fd162e81ae6',
+    size: 711,
+  },
+  {
+    path: 'encoder_config/config.json',
+    sha256: 'f27dd63cc43a248d2566f0b6ad7a115db353676ce0561dcbca45bac766464c1a',
+    size: 895,
   },
 ];
 
@@ -208,10 +219,10 @@ export interface PreseedOptions {
  */
 export async function preseedNerModel(opts: PreseedOptions = {}): Promise<{ ok: boolean; error?: string }> {
   const baseDir = opts.baseDir ?? resolveHubBaseDirs()[0];
-  const repo = opts.repo ?? GLINER_REPO;
-  const rev = opts.rev ?? GLINER_REV;
-  // Default to EDGE (engine #231); legacy GLINER_FILES is reference-only and must never be the default.
-  const files = opts.files ?? EDGE_FILES;
+  const repo = opts.repo ?? FASTINO_REPO;
+  const rev = opts.rev ?? FASTINO_REV;
+  // Default to fastino GLiNER2 (candle backend); legacy GLINER_FILES is reference-only and must never be the default.
+  const files = opts.files ?? FASTINO_FILES;
   const fetchFn = opts.fetchFn ?? nodeFetch;
   const timeoutMs = opts.fileTimeoutMs ?? DEFAULT_FILE_TIMEOUT_MS;
   const maxAttempts = opts.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;

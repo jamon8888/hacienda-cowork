@@ -6,6 +6,8 @@ export type ModelResource = 'nerModel' | 'embeddings' | 'reranker';
 
 export const MODEL_RESOURCE_REPOS: Record<ModelResource, string[]> = {
   nerModel: [
+    // Fastino GLiNER2 run through candle (GLiNER2-redaction spec #37).
+    'models--fastino--gliner2-privacy-filter-PII-multi',
     'models--xberg-io--gliner-pii-models',
     'models--knowledgator--gliner-pii-edge-v1.0',
     'models--xberg-io--gliner-models',
@@ -44,13 +46,14 @@ export function resolveHubBaseDirs(): string[] {
 const MAX_ARTIFACT_SEARCH_DEPTH = 4;
 
 /**
- * Recursively look for a `.onnx` file under `dir`, up to `depth` levels down.
- * A real download landed at
- * snapshots/<rev>/<preset-name>/model.onnx — one level deeper than a plain
- * <repo>/snapshots/<rev>/model.onnx guess, so this can't stop at a fixed
- * depth. hf-hub links blobs from the snapshot dir, so symlinks count.
+ * Recursively look for a model-weights file (`*.onnx` or the candle
+ * `model.safetensors`) under `dir`, up to `depth` levels down. A real
+ * download landed at snapshots/<rev>/<preset-name>/model.onnx — one level
+ * deeper than a plain <repo>/snapshots/<rev>/model.onnx guess, so this can't
+ * stop at a fixed depth. hf-hub links blobs from the snapshot dir, so symlinks
+ * count.
  */
-function hasOnnxFile(dir: string, depth: number): boolean {
+function hasWeightsFile(dir: string, depth: number): boolean {
   let entries;
   try {
     entries = readdirSync(dir, { withFileTypes: true });
@@ -58,22 +61,22 @@ function hasOnnxFile(dir: string, depth: number): boolean {
     return false;
   }
   for (const entry of entries) {
-    if (entry.name.endsWith('.onnx')) return true;
+    if (entry.name.endsWith('.onnx') || entry.name === 'model.safetensors') return true;
   }
   if (depth <= 0) return false;
   for (const entry of entries) {
     if (entry.isDirectory() || entry.isSymbolicLink()) {
-      if (hasOnnxFile(path.join(dir, entry.name), depth - 1)) return true;
+      if (hasWeightsFile(path.join(dir, entry.name), depth - 1)) return true;
     }
   }
   return false;
 }
 
-/** True when the repo directory (root or nested under snapshots/<rev>/...) has a cached .onnx artifact. */
+/** True when the repo directory (root or nested under snapshots/<rev>/...) has cached model weights. */
 export function hubRepoHasArtifact(baseDir: string, repoDir: string): boolean {
   const dir = path.join(baseDir, repoDir);
   if (!existsSync(dir)) return false;
-  return hasOnnxFile(dir, MAX_ARTIFACT_SEARCH_DEPTH);
+  return hasWeightsFile(dir, MAX_ARTIFACT_SEARCH_DEPTH);
 }
 
 /** True when the resource's model weights are cached in any hub candidate dir. */

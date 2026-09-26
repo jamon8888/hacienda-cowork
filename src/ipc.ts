@@ -651,6 +651,10 @@ export interface WorkspaceScanStatus {
   redactionActive: boolean;
   indexing: boolean;
   fileCount: number;
+  /** #37: anonymised redaction tokens written under safe/. */
+  entities: number;
+  /** #37: initial-population progress; null when no run is active. */
+  progress: { done: number; total: number } | null;
   lastScanAt: string | null;
   xbergAvailable: boolean;
   basemindAvailable: boolean;

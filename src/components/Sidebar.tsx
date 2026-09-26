@@ -6,6 +6,7 @@ import { Explorer } from './Explorer';
 import { InboxSidebar } from './InboxSidebar';
 import { HelpPanel } from './HelpPanel';
 import { SkillsPanel } from './SkillsPanel';
+import { SafeBanner } from './layout/SafeBanner';
 import { useLayout } from '../hooks/useLayout';
 import { useHelp } from '../contexts/HelpContext';
 import { EXPLORER_BUTTON_ID, EXPLORER_SIDEBAR_ID } from '../../shared/element-ids';
@@ -87,8 +88,14 @@ export function Sidebar({ onFileOpen }: SidebarProps) {
       </div>
       {/* Sidebar content */}
       <div className="flex-1 min-h-0 px-2.5">
-        <div id="explorer-sidebar" className="h-full" style={{ display: activeTab === 'explorer' ? 'block' : 'none' }} data-testid={EXPLORER_SIDEBAR_ID}>
-          <div className="h-full min-h-0">
+        <div
+          id="explorer-sidebar"
+          className="h-full flex flex-col"
+          style={{ display: activeTab === 'explorer' ? 'flex' : 'none' }}
+          data-testid={EXPLORER_SIDEBAR_ID}
+        >
+          {!marketingDemoMode && !readOnlyWorkstation ? <SafeBanner /> : null}
+          <div className="h-full min-h-0 flex-1">
             <Explorer onFileOpen={onFileOpen} />
           </div>
         </div>
