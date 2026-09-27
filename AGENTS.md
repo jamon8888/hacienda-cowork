@@ -15,11 +15,9 @@ The product website is a separate repository. Do not add website source,
 website build output, or website release configuration here. This repository
 owns the official client configuration, packaging profiles, and client release
 workflows as well as all application behavior and tests. A private operations
-repository (`jamon8888/hacienda-cowork`) may trigger these workflows or hold
-deployment credentials, organization-specific policy, and internal binary
-artifacts, but it must never become a second application or owner of canonical
-client release logic. Push branches to the operations repository, never to the
-canonical origin.
+repository may trigger these workflows or hold deployment credentials,
+organization-specific policy, and internal binary artifacts, but it must never
+become a second application or owner of canonical client release logic.
 
 ## Setup and run
 
