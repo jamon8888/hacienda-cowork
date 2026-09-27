@@ -13,6 +13,9 @@ import {
   getRuntimeRehydrationMap,
   maybeRedactOutboundText,
   maybeRedactToolResult,
+  mergeRuntimeRehydrationMap,
+  redactOutboundTurnInput,
+  rekeyRuntimeRehydrationMap,
   setActiveTurnWorkspace,
 } from './runtimeRedaction';
 
@@ -393,5 +396,48 @@ describe('active turn workspace registry', () => {
     setActiveTurnWorkspace('thread-steer-2', '/ws/b');
     clearRuntimeRehydrationMaps();
     expect(getActiveTurnWorkspace('thread-steer-2')).toBeUndefined();
+  });
+});
+
+describe('redactOutboundTurnInput', () => {
+  test('redacts message and system prompt in a safe workspace', async () => {
+    clearRuntimeRehydrationMaps();
+    const result = await redactOutboundTurnInput(
+      { message: `task for ${PROBE_EMAIL}`, system: `owner ${PROBE_EMAIL}` },
+      { workspacePath: workspace(true), threadKey: 'pending-task-1' },
+      stubDeps,
+    );
+    expect(result.message).not.toContain(PROBE_EMAIL);
+    expect(result.system).not.toContain(PROBE_EMAIL);
+    expect(Object.values(getRuntimeRehydrationMap('pending-task-1'))).toContain(PROBE_EMAIL);
+  });
+
+  test('passes through outside a safe workspace', async () => {
+    const result = await redactOutboundTurnInput(
+      { message: `task for ${PROBE_EMAIL}` },
+      { workspacePath: workspace(false), threadKey: 'pending-task-2' },
+      stubDeps,
+    );
+    expect(result).toEqual({ message: `task for ${PROBE_EMAIL}`, system: undefined });
+  });
+});
+
+describe('rekeyRuntimeRehydrationMap', () => {
+  test('moves a provisional map onto the real thread id', () => {
+    clearRuntimeRehydrationMaps();
+    mergeRuntimeRehydrationMap('pending-x', { '[EMAIL_0]': PROBE_EMAIL });
+
+    const moved = rekeyRuntimeRehydrationMap('pending-x', 'thread-x');
+
+    expect(moved).toEqual({ '[EMAIL_0]': PROBE_EMAIL });
+    expect(getRuntimeRehydrationMap('thread-x')).toEqual({ '[EMAIL_0]': PROBE_EMAIL });
+    expect(getRuntimeRehydrationMap('pending-x')).toEqual({});
+  });
+
+  test('is a no-op when the key is already the thread id', () => {
+    clearRuntimeRehydrationMaps();
+    mergeRuntimeRehydrationMap('thread-y', { '[EMAIL_0]': PROBE_EMAIL });
+    expect(rekeyRuntimeRehydrationMap('thread-y', 'thread-y')).toEqual({});
+    expect(getRuntimeRehydrationMap('thread-y')).toEqual({ '[EMAIL_0]': PROBE_EMAIL });
   });
 });

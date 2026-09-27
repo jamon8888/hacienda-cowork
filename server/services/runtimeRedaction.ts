@@ -269,3 +269,36 @@ export async function maybeRedactOutboundText(
   );
   return { text: result.text, redacted: result.redacted || result.deferred };
 }
+
+/**
+ * Message + system prompt of one outbound turn, redacted under the same
+ * workspace safe/ gate as the chat send path (#19). Used by entry points that
+ * start turns outside /chat/stream (headless tasks, subagents).
+ */
+export async function redactOutboundTurnInput(
+  input: { message: string; system?: string },
+  options: OutboundTextOptions,
+  deps: RuntimeRedactionDeps = {},
+): Promise<{ message: string; system?: string }> {
+  const message = (await maybeRedactOutboundText(input.message, options, deps)).text;
+  const system = input.system
+    ? (await maybeRedactOutboundText(input.system, options, deps)).text
+    : input.system;
+  return { message, system };
+}
+
+/**
+ * Move a provisional key's map onto the real thread id once the runtime
+ * reports it; returns the moved map (empty when there was nothing to move).
+ */
+export function rekeyRuntimeRehydrationMap(
+  fromKey: string,
+  toKey: string,
+): Record<string, string> {
+  if (fromKey === toKey) return {};
+  const provisional = getRuntimeRehydrationMap(fromKey);
+  if (Object.keys(provisional).length === 0) return {};
+  mergeRuntimeRehydrationMap(toKey, provisional);
+  deleteRuntimeRehydrationMap(fromKey);
+  return provisional;
+}

@@ -151,6 +151,11 @@ async function assertNoAttachmentsInSafeWorkspace(hasAttachmentPayload: boolean)
   );
 }
 
+/** Workspace of a thread's running turn, else the current one; null = unknown (fails closed). */
+function resolveThreadWorkspace(threadId: string): string | null {
+  return getActiveTurnWorkspace(threadId) ?? getCurrentWorkspace() ?? null;
+}
+
 function isAgentTaskMode(value: unknown): value is AgentTaskMode {
   return value === 'headed' || value === 'headless';
 }
@@ -820,8 +825,24 @@ router.put('/threads/:threadId/goal', async (req: Request, res: Response) => {
   }
 
   try {
+    // #19: the objective is sent to the provider with the thread's turns, so
+    // it redacts under the thread's workspace safe/ gate like a steer.
+    let outboundObjective = objective;
+    if (objective !== undefined) {
+      const redaction = await maybeRedactOutboundText(objective, {
+        workspacePath: resolveThreadWorkspace(req.params.threadId),
+        threadKey: req.params.threadId,
+      });
+      outboundObjective = redaction.text;
+      if (redaction.redacted) {
+        void persistThreadRehydrationMap(
+          req.params.threadId,
+          getRuntimeRehydrationMap(req.params.threadId),
+        );
+      }
+    }
     const goal = await getCodexService().setThreadGoal(req.params.threadId, {
-      ...(objective !== undefined ? { objective } : {}),
+      ...(outboundObjective !== undefined ? { objective: outboundObjective } : {}),
       ...(status !== undefined ? { status } : {}),
       ...('tokenBudget' in (req.body ?? {}) ? { tokenBudget } : {}),
     });
@@ -1186,7 +1207,7 @@ router.post('/chat/steer', async (req: Request, res: Response) => {
     const threadId = body.threadId as string;
     // #19: a steer joins a running turn, so it redacts under that turn's
     // workspace safe/ gate; no known workspace fails closed.
-    const steerWorkspace = getActiveTurnWorkspace(threadId) ?? getCurrentWorkspace() ?? null;
+    const steerWorkspace = resolveThreadWorkspace(threadId);
     let steerMessage = body.message;
     if (steerWorkspace == null || existsSync(path.join(steerWorkspace, 'safe'))) {
       await assertNoAttachmentsInSafeWorkspace((body.attachments?.length ?? 0) > 0);
