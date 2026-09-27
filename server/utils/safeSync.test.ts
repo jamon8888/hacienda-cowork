@@ -62,11 +62,15 @@ describe('shouldSafeSyncForWorkspaceEvent (#21 ignore predicate)', () => {
 });
 
 describe('toSafeMirrorPath (#21 rescan corpus = safe/ mirror)', () => {
-  test('maps originel paths to safe/ mirror with .md extension', () => {
-    expect(toSafeMirrorPath('docs/report.docx')).toBe('safe/docs/report.md');
-    expect(toSafeMirrorPath('notes.txt')).toBe('safe/notes.md');
-    expect(toSafeMirrorPath('archive.tar.gz')).toBe('safe/archive.tar.md');
-    expect(toSafeMirrorPath('docs\\report.docx')).toBe('safe/docs/report.md');
+  test('maps originel paths to safe/ mirror, keeping the extension before .md', () => {
+    expect(toSafeMirrorPath('docs/report.docx')).toBe('safe/docs/report.docx.md');
+    expect(toSafeMirrorPath('notes.txt')).toBe('safe/notes.txt.md');
+    expect(toSafeMirrorPath('archive.tar.gz')).toBe('safe/archive.tar.gz.md');
+    expect(toSafeMirrorPath('docs\\report.docx')).toBe('safe/docs/report.docx.md');
+  });
+
+  test('originals differing only by extension get distinct mirrors', () => {
+    expect(toSafeMirrorPath('report.pdf')).not.toBe(toSafeMirrorPath('report.docx'));
   });
 
   test('extensionless paths get .md appended under safe/', () => {
@@ -122,7 +126,7 @@ describe('scheduleSafeSync (#21 coalescing)', () => {
 
     expect(rescanMock).toHaveBeenCalledTimes(1);
     const paths = rescanMock.mock.calls[0][0].paths;
-    expect([...paths].sort()).toEqual(['safe/a.md', 'safe/b.md', 'safe/c.md']);
+    expect([...paths].sort()).toEqual(['safe/a.docx.md', 'safe/b.docx.md', 'safe/c.pdf.md']);
   });
 
   test('trailing-edge: a later event extends the window before one flush', async () => {
@@ -134,8 +138,8 @@ describe('scheduleSafeSync (#21 coalescing)', () => {
     await sleep(40);
     expect(rescanMock).toHaveBeenCalledTimes(1);
     expect(rescanMock.mock.calls[0][0].paths.sort()).toEqual([
-      'safe/first.md',
-      'safe/second.md',
+      'safe/first.docx.md',
+      'safe/second.docx.md',
     ]);
   });
 
@@ -162,7 +166,7 @@ describe('scheduleSafeSync (#21 coalescing)', () => {
     scheduleSafeSync('ws', 'b.docx');
     await sleep(40);
     expect(rescanMock).toHaveBeenCalledTimes(2);
-    expect(rescanMock.mock.calls[1][0].paths).toEqual(['safe/b.md']);
+    expect(rescanMock.mock.calls[1][0].paths).toEqual(['safe/b.docx.md']);
   });
 
   test('false success envelope does not throw out of the flush', async () => {
@@ -215,12 +219,12 @@ describe('syncSafeMirrorFile (cycle middle: extract → redact → write → vau
     scheduleSafeSync('ws', 'notes.txt', workspace);
     await sleep(50);
 
-    expect(readFileSync(join(workspace, 'safe/notes.md'), 'utf8')).toBe('REDACTED BODY');
+    expect(readFileSync(join(workspace, 'safe/notes.txt.md'), 'utf8')).toBe('REDACTED BODY');
     expect(redactMock).toHaveBeenCalledWith(join(workspace, 'notes.txt'));
     expect(vaultPersistMock).toHaveBeenCalledTimes(1);
     expect(String(vaultPersistMock.mock.calls[0][0]).startsWith('sf_')).toBe(true);
     expect(rescanMock).toHaveBeenCalledTimes(1);
-    expect(rescanMock.mock.calls[0][0].paths).toEqual(['safe/notes.md']);
+    expect(rescanMock.mock.calls[0][0].paths).toEqual(['safe/notes.txt.md']);
   });
 
   test('nested originals get recursive mirror parents', async () => {
@@ -229,10 +233,10 @@ describe('syncSafeMirrorFile (cycle middle: extract → redact → write → vau
     scheduleSafeSync('ws', 'docs/report.docx', workspace);
     await sleep(50);
 
-    expect(readFileSync(join(workspace, 'safe/docs/report.md'), 'utf8')).toBe(
+    expect(readFileSync(join(workspace, 'safe/docs/report.docx.md'), 'utf8')).toBe(
       'REDACTED BODY',
     );
-    expect(rescanMock.mock.calls[0][0].paths).toEqual(['safe/docs/report.md']);
+    expect(rescanMock.mock.calls[0][0].paths).toEqual(['safe/docs/report.docx.md']);
   });
 
   test('missing original removes the mirror and vault blob, still rescans', async () => {
@@ -242,20 +246,20 @@ describe('syncSafeMirrorFile (cycle middle: extract → redact → write → vau
     expect(redactMock).not.toHaveBeenCalled();
     expect(vaultRemoveMock).toHaveBeenCalledTimes(1);
     expect(rescanMock).toHaveBeenCalledTimes(1);
-    expect(rescanMock.mock.calls[0][0].paths).toEqual(['safe/gone.md']);
+    expect(rescanMock.mock.calls[0][0].paths).toEqual(['safe/gone.txt.md']);
   });
 
   test('real unlink deletes an existing mirror file', async () => {
     writeFileSync(join(workspace, 'doc.txt'), 'body');
     scheduleSafeSync('ws', 'doc.txt', workspace);
     await sleep(50);
-    expect(existsSync(join(workspace, 'safe/doc.md'))).toBe(true);
+    expect(existsSync(join(workspace, 'safe/doc.txt.md'))).toBe(true);
 
     rmSync(join(workspace, 'doc.txt'));
     scheduleSafeSync('ws', 'doc.txt', workspace);
     await sleep(50);
 
-    expect(existsSync(join(workspace, 'safe/doc.md'))).toBe(false);
+    expect(existsSync(join(workspace, 'safe/doc.txt.md'))).toBe(false);
     expect(vaultRemoveMock).toHaveBeenCalledTimes(1);
   });
 
@@ -266,12 +270,12 @@ describe('syncSafeMirrorFile (cycle middle: extract → redact → write → vau
     scheduleSafeSync('ws', 'ok.txt', workspace);
     await sleep(60);
 
-    expect(existsSync(join(workspace, 'safe/x.md'))).toBe(false);
-    expect(readFileSync(join(workspace, 'safe/ok.md'), 'utf8')).toBe('REDACTED BODY');
+    expect(existsSync(join(workspace, 'safe/x.bin.md'))).toBe(false);
+    expect(readFileSync(join(workspace, 'safe/ok.txt.md'), 'utf8')).toBe('REDACTED BODY');
     expect(rescanMock).toHaveBeenCalledTimes(1);
     expect([...rescanMock.mock.calls[0][0].paths].sort()).toEqual([
-      'safe/ok.md',
-      'safe/x.md',
+      'safe/ok.txt.md',
+      'safe/x.bin.md',
     ]);
   });
 
@@ -281,7 +285,7 @@ describe('syncSafeMirrorFile (cycle middle: extract → redact → write → vau
     scheduleSafeSync('ws', 'a.txt', workspace);
     await sleep(50);
 
-    expect(readFileSync(join(workspace, 'safe/a.md'), 'utf8')).toBe('REDACTED BODY');
+    expect(readFileSync(join(workspace, 'safe/a.txt.md'), 'utf8')).toBe('REDACTED BODY');
     expect(rescanMock).toHaveBeenCalledTimes(1);
   });
 });

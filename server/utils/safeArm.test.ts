@@ -63,11 +63,11 @@ describe('safeArm (arm + initial population)', () => {
 
     expect(result.written).toBe(2);
     expect(result.skipped).toBe(0);
-    expect(existsSync(join(workspace, 'safe/notes.md'))).toBe(true);
-    expect(existsSync(join(workspace, 'safe/docs/report.md'))).toBe(true);
+    expect(existsSync(join(workspace, 'safe/notes.txt.md'))).toBe(true);
+    expect(existsSync(join(workspace, 'safe/docs/report.docx.md'))).toBe(true);
     expect(rescanMock).toHaveBeenCalledTimes(1);
     const paths = rescanMock.mock.calls[0][0].paths;
-    expect([...paths].sort()).toEqual(['safe/docs/report.md', 'safe/notes.md']);
+    expect([...paths].sort()).toEqual(['safe/docs/report.docx.md', 'safe/notes.txt.md']);
   });
 
   test('population skips what the file watcher ignores (.git, node_modules)', async () => {
@@ -81,7 +81,7 @@ describe('safeArm (arm + initial population)', () => {
     const result = await runInitialPopulation(workspace);
 
     expect(result).toEqual({ written: 1, skipped: 0 });
-    expect(rescanMock.mock.calls[0][0].paths).toEqual(['safe/notes.md']);
+    expect(rescanMock.mock.calls[0][0].paths).toEqual(['safe/notes.txt.md']);
   });
 
   test('per-file redact failure counts as skipped without aborting', async () => {
@@ -92,8 +92,8 @@ describe('safeArm (arm + initial population)', () => {
 
     expect(result.skipped).toBe(1);
     expect(result.written).toBe(1);
-    expect(existsSync(join(workspace, 'safe/good.md'))).toBe(true);
-    expect(existsSync(join(workspace, 'safe/bad.md'))).toBe(false);
+    expect(existsSync(join(workspace, 'safe/good.txt.md'))).toBe(true);
+    expect(existsSync(join(workspace, 'safe/bad.bin.md'))).toBe(false);
     expect(rescanMock).toHaveBeenCalledTimes(1);
   });
 

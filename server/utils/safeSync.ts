@@ -40,13 +40,13 @@ export function shouldSafeSyncForWorkspaceEvent(
 
 /**
  * Spec §5 cycle: rescan targets the safe/ mirror file, never the originel.
- * Extension forced to .md — exact mirror layout is provisional until the
- * extract pipeline lands; a wrong path is a silent no-op rescan (#21).
+ * The mirror keeps the original name and appends `.md` (report.pdf →
+ * safe/report.pdf.md), so two originals that differ only by extension can
+ * never overwrite each other's mirror.
  */
 export function toSafeMirrorPath(relativePath: string): string {
   const posix = relativePath.replace(/\\/g, '/');
-  const withoutExt = posix.replace(/\.[^./]+$/, '');
-  return `safe/${withoutExt}.md`;
+  return `safe/${posix}.md`;
 }
 
 type RescanFn = (opts: { paths: string[] }) => Promise<unknown>;
