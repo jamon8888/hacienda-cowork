@@ -18,6 +18,10 @@ import { resolveVaultBlobPath } from './vault';
 // tests exercise the merge-and-persist contract, not basemind.
 const encryptingVault = {
   async callTool(_serverId: string, _toolName: string, args: Record<string, any>): Promise<unknown> {
+    if (args.mode === 'decrypt') {
+      const map = JSON.parse(Buffer.from(args.encrypted_blob, 'base64').toString('utf8'));
+      return { structuredContent: { result: { map } } };
+    }
     return {
       structuredContent: {
         result: { encrypted_blob: Buffer.from(JSON.stringify(args.map), 'utf8').toString('base64') },
@@ -120,6 +124,33 @@ describe('persistThreadRehydrationMap', () => {
     );
 
     expect(result.persisted === false && result.reason).toBe('write-failed');
+  });
+
+  test('never overwrites an existing blob it cannot read', async () => {
+    const dir = useTempUserData();
+    await persistThreadRehydrationMap(
+      'thread-keep',
+      { '[EMAIL_0]': 'kept@example.com' },
+      { passphrase: 'p', toolManager: encryptingVault },
+    );
+    const blobPath = resolveVaultBlobPath(threadVaultDocId('thread-keep'), dir);
+    const before = fs.readFileSync(blobPath, 'utf8');
+    const failingDecrypt = {
+      async callTool(_serverId: string, _toolName: string, args: Record<string, any>): Promise<unknown> {
+        if (args.mode === 'decrypt') throw new Error('vault tool unavailable');
+        return encryptingVault.callTool(_serverId, _toolName, args);
+      },
+    };
+
+    const result = await persistThreadRehydrationMap(
+      'thread-keep',
+      { '[PHONE_0]': '+33123456789' },
+      { passphrase: 'p', toolManager: failingDecrypt },
+    );
+
+    expect(result.persisted).toBe(false);
+    expect(fs.readFileSync(blobPath, 'utf8')).toBe(before);
+    expect(getRuntimeRehydrationMap('thread-keep')['[PHONE_0]']).toBe('+33123456789');
   });
 
   test('a send with no thread id yet keeps its map in memory instead of failing', async () => {

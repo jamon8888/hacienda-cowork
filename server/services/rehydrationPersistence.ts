@@ -14,7 +14,9 @@
  */
 
 import { mergeRuntimeRehydrationMap } from './runtimeRedaction';
-import { persistEncryptedBlob, vaultManager, type VaultEncryptOptions } from './vault';
+import fs from 'node:fs';
+
+import { persistEncryptedBlob, resolveVaultBlobPath, vaultManager, type VaultEncryptOptions } from './vault';
 import { VAULT_DEGRADED_MESSAGE } from './vaultKey';
 // One definition, shared with the renderer that reads these blobs back (#164).
 import { threadVaultDocId } from '../../src/lib/pii/vaultScope';
@@ -68,15 +70,24 @@ export async function persistThreadRehydrationMap(
     // Load any existing vault blob and merge it with the in-memory map first,
     // so a post-restart send preserves previously persisted tokens.
     let merged = { ...map };
-    try {
-      const vaultMap = await vaultManager.decrypt(
-        threadVaultDocId(threadKey),
-        options.passphrase,
-        options.toolManager,
-      );
-      merged = { ...vaultMap, ...merged };
-    } catch {
-      // No existing blob or decryption failed — proceed with just the in-memory map.
+    if (fs.existsSync(resolveVaultBlobPath(threadVaultDocId(threadKey)))) {
+      try {
+        const vaultMap = await vaultManager.decrypt(
+          threadVaultDocId(threadKey),
+          options.passphrase,
+          options.toolManager,
+        );
+        merged = { ...vaultMap, ...merged };
+      } catch (error) {
+        // A blob that exists but cannot be read (transient MCP or key error)
+        // must not be overwritten by the in-memory map alone: that would
+        // silently drop every token it holds. Keep this send's map in memory.
+        mergeRuntimeRehydrationMap(threadKey, merged);
+        const reason = error instanceof Error ? error.message : String(error);
+        const message = `[vault] Existing rehydration map for thread ${threadKey} could not be read, so it was left untouched: ${reason}`;
+        console.warn(message);
+        return { persisted: false, reason: 'write-failed', message };
+      }
     }
 
     // Merge first, persist second. Even when the write fails the union is in the
