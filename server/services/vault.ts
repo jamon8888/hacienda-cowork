@@ -17,8 +17,8 @@ import { getOrCreateVaultPassphrase } from './vaultKey';
 import { getAppMcpOwnerThreadId } from './appMcpThread';
 import { runOrphanBlobGcOnce } from './vaultGc';
 import { broadcastEvent } from '../handlers/broadcast';
-import { listAllThreadIds } from '../handlers/agentThreads';
-import { getCodexService, THREAD_LIST_DEFAULTS } from '../../src/lib/codex/service';
+import { listAllThreadIdsForDeletion } from '../handlers/agentThreads';
+import { getCodexService } from '../../src/lib/codex/service';
 import { getCurrentWorkspace } from '../utils/workspace';
 import { workspaceVaultSegment } from '../../src/lib/pii/vaultScope';
 export { runOrphanBlobGcOnce, resetGcFlagForTests } from './vaultGc';
@@ -30,7 +30,9 @@ async function triggerOrphanGcIfFirstAccess(): Promise<void> {
   gcTriggered = true;
   try {
     const service = getCodexService();
-    const threadIds = await listAllThreadIds(service, THREAD_LIST_DEFAULTS);
+    // Archived threads can be restored, so their originals must survive GC:
+    // only threads gone from both listings are orphans.
+    const threadIds = await listAllThreadIdsForDeletion(service);
     const { cleaned } = runOrphanBlobGcOnce({ activeThreadIds: threadIds });
     if (cleaned > 0) {
       broadcastEvent('vault:orphan-blobs-cleaned', { count: cleaned });
@@ -185,7 +187,9 @@ async function decrypt(
   explicitPassphrase?: string,
   toolManager?: VaultToolCaller,
 ): Promise<Record<string, string>> {
-  await triggerOrphanGcIfFirstAccess();
+  // Fire-and-forget, as in persistEncryptedBlob: a reveal must not wait on a
+  // full thread listing (which may have to start the app-server runtime).
+  void triggerOrphanGcIfFirstAccess();
   const passphrase = explicitPassphrase || getOrCreateVaultPassphrase();
   if (!passphrase) throw new Error('[vault] No vault key available to decrypt a rehydration map');
   const blobPath = resolveVaultBlobPath(docId);

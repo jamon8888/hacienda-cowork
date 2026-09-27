@@ -34,6 +34,18 @@ describe('runOrphanBlobGcOnce', () => {
     expect(existsSync(join(vaultsDir, 'thread-active.enc'))).toBe(true);
   });
 
+  test('never deletes safe/ mirror blobs, which are not keyed by thread', () => {
+    const vaultsDir = join(dir, 'vaults', 'segment');
+    mkdirSync(vaultsDir, { recursive: true });
+    const mirrorBlob = join(vaultsDir, `sf_${'a'.repeat(64)}.enc`);
+    writeFileSync(mirrorBlob, 'mirror');
+
+    const result = runOrphanBlobGcOnce({ activeThreadIds: [], userDataDir: dir });
+
+    expect(result.cleaned).toBe(0);
+    expect(existsSync(mirrorBlob)).toBe(true);
+  });
+
   test('returns cleaned: 0 when no orphans exist', () => {
     const vaultsDir = join(dir, 'vaults');
     mkdirSync(vaultsDir, { recursive: true });
