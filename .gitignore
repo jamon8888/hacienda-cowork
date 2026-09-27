@@ -78,6 +78,7 @@ server/services/sandbox/vendor/
 # Downloaded runtime binaries
 resources/codex/
 resources/oix/
+resources/basemind/
 resources/qwen-asr/
 resources/pdfcpu/
 resources/nodejs/
