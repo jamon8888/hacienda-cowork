@@ -91,6 +91,7 @@ Intégrer basemind à Workstation de façon simple, transparente et découplée 
 ## 5. Composant `safe-sync` (isolé, MCP-only)
 
 - **Cycle** : event originel → debounce 2 s → `extract` → `redact` (TokenReplace + `custom_terms` dérivés de `safe/`) → écrit `safe/*.md` → `vault encrypt` → `admin rescan(paths=[fichier])`.
+- **Nommage du miroir** : nom complet de l'original + `.md` (`rapport.pdf` → `safe/rapport.pdf.md`), pour que deux originaux ne différant que par l'extension ne s'écrasent jamais. Le remplissage initial applique les mêmes exclusions que le watcher (`.git`, `node_modules`, dotfiles…).
 - **Périmètre v1** : types documents xberg ; fichiers code = recherche exacte existante uniquement, lane sémantique OFF par défaut (opt-in #18).
 - **Garde anti-boucle** : ignore `safe/`, `.redacted/`, `.basemind/` + dirs ; prédicat pur fichiers `add`/`change`/`unlink` ; pas de filtre extension (#21).
 - **Coalescence** : 2 s par workspace ; fire-and-forget `catch` — un échec ne casse jamais le watch ; `unref` ; clear à la libération.
@@ -112,6 +113,13 @@ Intégrer basemind à Workstation de façon simple, transparente et découplée 
 - **Retour/affichage** : decrypt vault local au rendu → **clair par défaut**, toggle « Show Originals » ; historique provider en tokens (#7).
 - **Éditeur `safe/`** : `MarkdownViewer` + `PiiLabelExtension` (view : tokens colorés ; compose : regex instant + NER au submit) ; geste catégorie ou terme custom (#11) ; save → md redacted + règle, sans rescan.
 - **Scope** : rules/vault workspace-scoped ; permissions par agent inchangées (#23).
+- **Couverture de l'aller** (workspace armé) : message + prompt système du chat, messages envoyés en cours de tâche (steer), tâches headless (`/tasks`, CLI, sous-agents `run_agent`), objectifs de conversation, résultats des outils passant par `ToolManager`. Les pièces jointes (images) ne sont jamais analysées : **tout envoi avec pièce jointe est refusé** dans un workspace armé.
+- **Limites connues (v1)** — la promesse est « le texte envoyé par l'app est pseudonymisé », pas « le provider ne voit jamais d'original » :
+  - les outils natifs du runtime (shell, lecture de fichiers Codex) ne passent pas par `ToolManager` : un agent qui lit un original hors `safe/` l'envoie en clair ;
+  - la voix n'est pas pseudonymisée ;
+  - les termes personnalisés (`custom_terms`) sont stockés en clair dans `basemind.toml` à la racine du workspace (basemind les lit là) — ne pas versionner ni synchroniser ce fichier ;
+  - un objectif de conversation pseudonymisé s'affiche sous forme de jetons ;
+  - les miroirs créés avec l'ancien nommage (`safe/rapport.md`) ne sont pas supprimés automatiquement.
 
 ## 8. Bannière onboarding « Rendre Safe » (#20)
 
