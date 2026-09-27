@@ -10,13 +10,11 @@ import {
 } from '../services/runtimeRedaction';
 import { persistThreadRehydrationMap } from '../services/rehydrationPersistence';
 import { shouldBlockAttachmentSend } from '../../src/lib/pii/redaction';
-import { piiDetectionService } from '../services/piiDetection';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { getCustomInstructions, getLanguage } from '../configStore';
-import { isDaemonRunning } from '../utils/basemindManager';
 import { resources, supportedLanguages } from '../../shared/locales';
 import { getServerJWT } from '../lib/jwtStore';
 import { AgentModelConfig } from '../../shared/types/model';
@@ -137,16 +135,11 @@ import {
 const router = Router();
 
 /**
- * Attachments must never ride on the regex-only fallback (#19): in an armed
- * workspace, sending one while NER cannot run fails the send.
+ * Attachments are images, which redaction cannot scan: in a Safe workspace
+ * any attachment fails the send rather than reach the provider (#19).
  */
-async function assertAttachmentRedactionAvailable(hasAttachmentPayload: boolean): Promise<void> {
-  if (!shouldBlockAttachmentSend({
-    hasAttachmentPayload,
-    // Blocked only when detection truly cannot run: daemon down OR model
-    // files missing. A ready model behind a dead daemon still fails closed.
-    nerFailed: !(isDaemonRunning() && piiDetectionService.isPiiModelReady()),
-  })) return;
+async function assertNoAttachmentsInSafeWorkspace(hasAttachmentPayload: boolean): Promise<void> {
+  if (!shouldBlockAttachmentSend({ armed: true, hasAttachmentPayload })) return;
   // ChatView surfaces send errors as raw err.message, so the user-facing
   // sentence is localized here rather than translated in the renderer.
   const language = await getLanguage();
@@ -154,7 +147,7 @@ async function assertAttachmentRedactionAvailable(hasAttachmentPayload: boolean)
     ? (language as keyof typeof resources)
     : 'en';
   throw new Error(
-    resources[locale].translation['basemind.attachmentRedactionUnavailable'],
+    resources[locale].translation['basemind.attachmentBlockedInSafe'],
   );
 }
 
@@ -1018,7 +1011,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
     let outboundSystem = request.system;
     const outboundArmed = existsSync(path.join(workspacePath, 'safe'));
     if (outboundArmed) {
-      await assertAttachmentRedactionAvailable(attachments.length > 0);
+      await assertNoAttachmentsInSafeWorkspace(attachments.length > 0);
       if (outboundMessage) {
         outboundMessage = (await maybeRedactOutboundText(outboundMessage, {
           workspacePath,
@@ -1196,7 +1189,7 @@ router.post('/chat/steer', async (req: Request, res: Response) => {
     const steerWorkspace = getActiveTurnWorkspace(threadId) ?? getCurrentWorkspace() ?? null;
     let steerMessage = body.message;
     if (steerWorkspace == null || existsSync(path.join(steerWorkspace, 'safe'))) {
-      await assertAttachmentRedactionAvailable((body.attachments?.length ?? 0) > 0);
+      await assertNoAttachmentsInSafeWorkspace((body.attachments?.length ?? 0) > 0);
       if (steerMessage) {
         steerMessage = (await maybeRedactOutboundText(steerMessage, {
           workspacePath: steerWorkspace,

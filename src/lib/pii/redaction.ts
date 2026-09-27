@@ -1,11 +1,11 @@
 /**
- * Fail-closed send policy: attachment payloads must never ride on the
- * regex-only fallback. Text-only turns keep the existing fallback so a
- * redaction outage degrades instead of blocking chat.
+ * Send policy for a Safe (armed) workspace: attachments are images, which
+ * redaction cannot scan, so any attachment payload blocks the send. Text-only
+ * turns go through outbound redaction instead.
  */
 export function shouldBlockAttachmentSend(options: {
+  armed: boolean;
   hasAttachmentPayload: boolean;
-  nerFailed: boolean;
 }): boolean {
-  return options.hasAttachmentPayload && options.nerFailed;
+  return options.armed && options.hasAttachmentPayload;
 }

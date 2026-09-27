@@ -1808,7 +1808,7 @@
   "basemind.shield.errorTooltip": "La pseudonymisation des données personnelles est indisponible. Vos documents peuvent être envoyés à {{provider}} sans pseudonymisation.",
   "basemind.privacyHint": "Données personnelles pseudonymisées",
   "basemind.filesWillBeRedacted": "Les fichiers seront pseudonymisés avant envoi à {{provider}} via basemind",
-  "basemind.attachmentRedactionUnavailable": "Pseudonymisation des pièces jointes indisponible. Vos fichiers n'ont pas été envoyés.",
+  "basemind.attachmentBlockedInSafe": "Les images ne peuvent pas être pseudonymisées : elles ne sont jamais envoyées depuis un dossier Safe. Votre message n'a pas été envoyé.",
   "basemind.indexing.progress_one": "Indexation de {{count}} fichier…",
   "basemind.indexing.progress_other": "Indexation de {{count}} fichiers…",
   "basemind.indexing.ready": "Prêt",
