@@ -70,6 +70,20 @@ describe('safeArm (arm + initial population)', () => {
     expect([...paths].sort()).toEqual(['safe/docs/report.md', 'safe/notes.md']);
   });
 
+  test('population skips what the file watcher ignores (.git, node_modules)', async () => {
+    writeFileSync(join(workspace, 'notes.txt'), 'hi');
+    mkdirSync(join(workspace, '.git/objects'), { recursive: true });
+    writeFileSync(join(workspace, '.git/objects/ab'), 'blob');
+    mkdirSync(join(workspace, 'node_modules/pkg'), { recursive: true });
+    writeFileSync(join(workspace, 'node_modules/pkg/index.js'), 'x');
+    writeFileSync(join(workspace, '.DS_Store'), 'x');
+
+    const result = await runInitialPopulation(workspace);
+
+    expect(result).toEqual({ written: 1, skipped: 0 });
+    expect(rescanMock.mock.calls[0][0].paths).toEqual(['safe/notes.md']);
+  });
+
   test('per-file redact failure counts as skipped without aborting', async () => {
     writeFileSync(join(workspace, 'bad.bin'), 'zz');
     writeFileSync(join(workspace, 'good.txt'), 'ok');

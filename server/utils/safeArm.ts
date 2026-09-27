@@ -35,6 +35,22 @@ export interface PopulationResult {
   skipped: number;
 }
 
+/**
+ * Same exclusions as the workspace file watcher (server/fileWatcher.ts), so
+ * initial population and incremental sync mirror the same files: dot entries
+ * (.git, .venv, …) plus dependency, build and cache directories. Without this
+ * the population cap fills with .git objects and node_modules on code folders.
+ */
+const POPULATION_SKIPPED_NAMES = new Set([
+  'node_modules',
+  'bower_components',
+  'dist',
+  '__pycache__',
+  'venv',
+  'appdata',
+  'thumbs.db',
+]);
+
 type RescanFn = (opts: { paths: string[] }) => Promise<unknown>;
 
 async function defaultRescan(opts: { paths: string[] }): Promise<unknown> {
@@ -66,8 +82,9 @@ function listWorkspaceFiles(workspacePath: string, limit: number): string[] {
     for (const entry of entries) {
       if (files.length >= limit) break;
       const rel = relDir ? `${relDir}/${entry}` : entry;
-      if (IGNORED_SEGMENTS.has(entry.toLowerCase())) continue;
-      if (entry.toLowerCase() === 'basemind.toml') continue;
+      const name = entry.toLowerCase();
+      if (IGNORED_SEGMENTS.has(name) || POPULATION_SKIPPED_NAMES.has(name)) continue;
+      if (name.startsWith('.') || name === 'basemind.toml') continue;
       let isDir = false;
       try {
         isDir = statSync(join(workspacePath, rel)).isDirectory();
