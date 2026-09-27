@@ -85,6 +85,23 @@ export function mergeRuntimeRehydrationMap(
 export function clearRuntimeRehydrationMaps(): void {
   runtimeRehydrationMaps.clear();
   deletedThreadKeys.clear();
+  activeTurnWorkspaces.clear();
+}
+
+// Workspace of each thread with a turn in flight, recorded by /chat/stream so
+// a mid-turn steer redacts under the same safe/ gate as the turn it joins.
+const activeTurnWorkspaces = new Map<string, string>();
+
+export function setActiveTurnWorkspace(threadId: string, workspacePath: string): void {
+  activeTurnWorkspaces.set(threadId, workspacePath);
+}
+
+export function getActiveTurnWorkspace(threadId: string): string | undefined {
+  return activeTurnWorkspaces.get(threadId);
+}
+
+export function clearActiveTurnWorkspace(threadId: string): void {
+  activeTurnWorkspaces.delete(threadId);
 }
 
 function storeRuntimeRehydrationMap(threadKey: string, map: Record<string, string>): void {

@@ -4,6 +4,9 @@ import {
   mergeRuntimeRehydrationMap,
   getRuntimeRehydrationMap,
   deleteRuntimeRehydrationMap,
+  setActiveTurnWorkspace,
+  getActiveTurnWorkspace,
+  clearActiveTurnWorkspace,
 } from '../services/runtimeRedaction';
 import { persistThreadRehydrationMap } from '../services/rehydrationPersistence';
 import { shouldBlockAttachmentSend } from '../../src/lib/pii/redaction';
@@ -132,6 +135,28 @@ import {
 } from '../utils/threadHistoryPagination';
 
 const router = Router();
+
+/**
+ * Attachments must never ride on the regex-only fallback (#19): in an armed
+ * workspace, sending one while NER cannot run fails the send.
+ */
+async function assertAttachmentRedactionAvailable(hasAttachmentPayload: boolean): Promise<void> {
+  if (!shouldBlockAttachmentSend({
+    hasAttachmentPayload,
+    // Blocked only when detection truly cannot run: daemon down OR model
+    // files missing. A ready model behind a dead daemon still fails closed.
+    nerFailed: !(isDaemonRunning() && piiDetectionService.isPiiModelReady()),
+  })) return;
+  // ChatView surfaces send errors as raw err.message, so the user-facing
+  // sentence is localized here rather than translated in the renderer.
+  const language = await getLanguage();
+  const locale = language && (supportedLanguages as readonly string[]).includes(language)
+    ? (language as keyof typeof resources)
+    : 'en';
+  throw new Error(
+    resources[locale].translation['basemind.attachmentRedactionUnavailable'],
+  );
+}
 
 function isAgentTaskMode(value: unknown): value is AgentTaskMode {
   return value === 'headed' || value === 'headless';
@@ -993,22 +1018,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
     let outboundSystem = request.system;
     const outboundArmed = existsSync(path.join(workspacePath, 'safe'));
     if (outboundArmed) {
-      if (shouldBlockAttachmentSend({
-        hasAttachmentPayload: attachments.length > 0,
-        // Blocked only when detection truly cannot run: daemon down OR model
-        // files missing. A ready model behind a dead daemon still fails closed.
-        nerFailed: !(isDaemonRunning() && piiDetectionService.isPiiModelReady()),
-      })) {
-        // ChatView surfaces send errors as raw err.message, so the user-facing
-        // sentence is localized here rather than translated in the renderer.
-        const language = await getLanguage();
-        const locale = language && (supportedLanguages as readonly string[]).includes(language)
-          ? (language as keyof typeof resources)
-          : 'en';
-        throw new Error(
-          resources[locale].translation['basemind.attachmentRedactionUnavailable'],
-        );
-      }
+      await assertAttachmentRedactionAvailable(attachments.length > 0);
       if (outboundMessage) {
         outboundMessage = (await maybeRedactOutboundText(outboundMessage, {
           workspacePath,
@@ -1030,6 +1040,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
         );
       }
     }
+    if (targetThreadId) setActiveTurnWorkspace(targetThreadId, workspacePath);
     const runtimeResult = await runCodexAgentTurn({
       service,
       profile: resolvedRequest.profile,
@@ -1062,6 +1073,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
       onEvent: (event) => {
         if (event.kind === 'thread') {
           activeThreadId = event.threadId;
+          setActiveTurnWorkspace(event.threadId, workspacePath);
           // Re-key the provisional outbound map onto the real thread id, then
           // persist so a reveal survives restart for first-message tokens.
           if (outboundArmed && outboundThreadKey !== event.threadId) {
@@ -1143,6 +1155,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
     emit('error', createAgentStreamErrorPayload(formattedMessage, errorTrace));
   } finally {
     unregisterRunningAgent(runningAgentId);
+    if (activeThreadId) clearActiveTurnWorkspace(activeThreadId);
     setCurrentTurnMessageId(null);
     if (!streamClosed) {
       res.end();
@@ -1177,9 +1190,24 @@ router.post('/chat/steer', async (req: Request, res: Response) => {
   body = req.body;
 
   try {
-    const turnId = await getCodexService().steer(body.threadId as string, {
+    const threadId = body.threadId as string;
+    // #19: a steer joins a running turn, so it redacts under that turn's
+    // workspace safe/ gate; no known workspace fails closed.
+    const steerWorkspace = getActiveTurnWorkspace(threadId) ?? getCurrentWorkspace() ?? null;
+    let steerMessage = body.message;
+    if (steerWorkspace == null || existsSync(path.join(steerWorkspace, 'safe'))) {
+      await assertAttachmentRedactionAvailable((body.attachments?.length ?? 0) > 0);
+      if (steerMessage) {
+        steerMessage = (await maybeRedactOutboundText(steerMessage, {
+          workspacePath: steerWorkspace,
+          threadKey: threadId,
+        })).text;
+        void persistThreadRehydrationMap(threadId, getRuntimeRehydrationMap(threadId));
+      }
+    }
+    const turnId = await getCodexService().steer(threadId, {
       turnId: body.turnId,
-      message: body.message,
+      message: steerMessage,
       attachments: body.attachments,
       skills: body.skills,
     });

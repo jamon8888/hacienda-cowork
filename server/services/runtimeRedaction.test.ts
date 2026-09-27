@@ -6,11 +6,14 @@ import { afterEach, describe, expect, test } from 'bun:test';
 
 import {
   applyFileReadRedaction,
+  clearActiveTurnWorkspace,
   clearRuntimeRehydrationMaps,
   deleteRuntimeRehydrationMap,
+  getActiveTurnWorkspace,
   getRuntimeRehydrationMap,
   maybeRedactOutboundText,
   maybeRedactToolResult,
+  setActiveTurnWorkspace,
 } from './runtimeRedaction';
 
 const PROBE_EMAIL = 'john@example.com';
@@ -373,5 +376,22 @@ describe('maybeRedactOutboundText', () => {
     );
     expect(redacted).toBe(false);
     expect(text).toBe('just a normal message');
+  });
+});
+
+describe('active turn workspace registry', () => {
+  test('resolves the workspace of a running turn for mid-turn steers', () => {
+    clearRuntimeRehydrationMaps();
+    setActiveTurnWorkspace('thread-steer-1', '/ws/a');
+    expect(getActiveTurnWorkspace('thread-steer-1')).toBe('/ws/a');
+
+    clearActiveTurnWorkspace('thread-steer-1');
+    expect(getActiveTurnWorkspace('thread-steer-1')).toBeUndefined();
+  });
+
+  test('is emptied with the rehydration maps', () => {
+    setActiveTurnWorkspace('thread-steer-2', '/ws/b');
+    clearRuntimeRehydrationMaps();
+    expect(getActiveTurnWorkspace('thread-steer-2')).toBeUndefined();
   });
 });
