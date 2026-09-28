@@ -639,8 +639,7 @@ interface PiiIpc {
   addCustomTerm(request: {
     label: string;
     value: string;
-    caseSensitive?: boolean;
-  }): Promise<{ success: boolean; configPath: string }>;
+  }): Promise<{ success: boolean }>;
   rememberRehydration(request: {
     threadKey: string;
     map: Record<string, string>;

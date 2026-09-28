@@ -23,6 +23,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { buildRedactedText, mergeDetections } from '../../src/lib/pii/labels';
+import { detectCustomTerms, type CustomTerm } from '../../src/lib/pii/custom-terms';
 import { detectRegex } from '../../src/lib/pii/regex-detector';
 import type { PiiDetection } from '../../src/lib/pii/regex-detector';
 
@@ -32,6 +33,7 @@ export const RUNTIME_REDACTION_DEFERRED_MARKER =
 export interface RuntimeRedactionDeps {
   isNerReady?: () => boolean;
   detectNer?: (text: string) => Promise<PiiDetection[]>;
+  listCustomTerms?: () => Promise<CustomTerm[]>;
 }
 
 async function defaultDetectNer(text: string): Promise<PiiDetection[]> {
@@ -39,6 +41,12 @@ async function defaultDetectNer(text: string): Promise<PiiDetection[]> {
   // for the callTool hook. Deferring to call time breaks the cycle.
   const { piiDetectionService } = await import('./piiDetection');
   return piiDetectionService.detectPii(text);
+}
+
+async function defaultListCustomTerms(): Promise<CustomTerm[]> {
+  // Lazy for the same cycle: customTerms reaches ToolManager through the vault.
+  const { listCustomTerms } = await import('./customTerms');
+  return listCustomTerms();
 }
 
 async function defaultIsNerReady(): Promise<boolean> {
@@ -49,10 +57,12 @@ async function defaultIsNerReady(): Promise<boolean> {
 function resolveDeps(deps: RuntimeRedactionDeps = {}): {
   isNerReady: () => boolean | Promise<boolean>;
   detectNer: (text: string) => Promise<PiiDetection[]>;
+  listCustomTerms: () => Promise<CustomTerm[]>;
 } {
   return {
     isNerReady: deps.isNerReady ?? defaultIsNerReady,
     detectNer: deps.detectNer ?? defaultDetectNer,
+    listCustomTerms: deps.listCustomTerms ?? defaultListCustomTerms,
   };
 }
 
@@ -145,7 +155,15 @@ export async function redactFileReadOutputText(
     return { text: RUNTIME_REDACTION_DEFERRED_MARKER, redacted: false, deferred: true };
   }
   const resolved = resolveDeps(deps);
-  const regexDetections = detectRegex(text);
+  // Pinned custom terms (#11) match locally, so they redact even when NER is
+  // down; NER also receives them through redact_text when it is up.
+  let customTerms: CustomTerm[] = [];
+  try {
+    customTerms = await resolved.listCustomTerms();
+  } catch {
+    customTerms = [];
+  }
+  const regexDetections = mergeDetections(detectCustomTerms(text, customTerms), detectRegex(text));
   // NER runs unconditionally when ready: regex covers patterns (email, phone,
   // …) but NER-only categories (names, addresses) would otherwise pass raw.
   let detections: PiiDetection[] = regexDetections;

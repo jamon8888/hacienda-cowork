@@ -12,11 +12,20 @@ import {
 import { persistThreadRehydrationMap } from '../services/rehydrationPersistence';
 import { resolveVaultBlobPath } from '../services/vault';
 import { setCurrentWorkspace } from '../utils/workspace';
+import {
+  CUSTOM_TERMS_DOC_ID,
+  listCustomTerms,
+  resetCustomTermsCacheForTests,
+} from '../services/customTerms';
 
 // Vault MCP is a round trip; the double stands in so these tests exercise the
 // handler contract, not basemind.
 const encryptingVault = {
   async callTool(_serverId: string, _toolName: string, args: Record<string, any>): Promise<unknown> {
+    if (args.mode === 'decrypt') {
+      const map = JSON.parse(Buffer.from(args.encrypted_blob, 'base64').toString('utf8'));
+      return { structuredContent: { result: { map } } };
+    }
     return {
       structuredContent: {
         result: {
@@ -46,6 +55,7 @@ function useTempWorkspace(): string {
 
 afterEach(() => {
   clearRuntimeRehydrationMaps();
+  resetCustomTermsCacheForTests();
   delete process.env.INTERPRETER_USER_DATA_DIR;
   setCurrentWorkspace(null);
   for (const dir of dirs.splice(0)) {
@@ -118,66 +128,50 @@ describe('pii.rememberRehydration', () => {
 });
 
 describe('pii.addCustomTerm', () => {
-  test('writes a custom term into the workspace basemind.toml', async () => {
+  const vaultDeps = { toolManager: encryptingVault, passphrase: 'p' };
+
+  test('stores the term encrypted in the vault, never in the workspace', async () => {
+    const userData = useTempUserData();
     const workspace = useTempWorkspace();
 
-    const result = await addCustomTerm({ label: 'Custom', value: 'Project Hacienda' });
+    const result = await addCustomTerm({ label: 'Client', value: 'Project Hacienda' }, vaultDeps);
 
-    expect(result.success).toBe(true);
-    const configPath = path.join(workspace, 'basemind.toml');
-    expect(fs.existsSync(configPath)).toBe(true);
-    const written = fs.readFileSync(configPath, 'utf8');
-    expect(written).toContain('Project Hacienda');
-    expect(written).toContain('[documents.redaction');
-  });
-
-  test('appends to an existing custom_terms array without duplicating', async () => {
-    const workspace = useTempWorkspace();
-    fs.writeFileSync(
-      path.join(workspace, 'basemind.toml'),
-      [
-        '"$schema" = "v1"',
-        '',
-        '[documents.redaction]',
-        'enabled = true',
-        'custom_terms = [',
-        '  { label = "Custom", value = "Already Here", case_sensitive = false },',
-        ']',
-        '',
-      ].join('\n'),
-      'utf8',
-    );
-
-    await addCustomTerm({ label: 'Custom', value: 'Already Here' });
-    await addCustomTerm({ label: 'Custom', value: 'New Term' });
-
-    const written = fs.readFileSync(path.join(workspace, 'basemind.toml'), 'utf8');
-    expect(written.match(/Already Here/g)).toHaveLength(1);
-    expect(written.match(/New Term/g)).toHaveLength(1);
-  });
-
-  test('falls back to the legacy .basemind config when root has none', async () => {
-    const workspace = useTempWorkspace();
-    const legacyDir = path.join(workspace, '.basemind');
-    fs.mkdirSync(legacyDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(legacyDir, 'basemind.toml'),
-      '"$schema" = "v1"\n',
-      'utf8',
-    );
-
-    const result = await addCustomTerm({ label: 'Custom', value: 'Legacy Path Term' });
-
-    expect(result.success).toBe(true);
-    expect(result.configPath).toBe(path.join(legacyDir, 'basemind.toml'));
-    expect(fs.readFileSync(path.join(legacyDir, 'basemind.toml'), 'utf8')).toContain(
-      'Legacy Path Term',
-    );
+    expect(result).toEqual({ success: true });
     expect(fs.existsSync(path.join(workspace, 'basemind.toml'))).toBe(false);
+    const blobPath = resolveVaultBlobPath(CUSTOM_TERMS_DOC_ID, userData);
+    expect(fs.existsSync(blobPath)).toBe(true);
+    resetCustomTermsCacheForTests();
+    expect(await listCustomTerms(vaultDeps)).toEqual([{ label: 'Client', value: 'Project Hacienda' }]);
+  });
+
+  test('keeps earlier terms and does not duplicate a pinned value', async () => {
+    useTempUserData();
+    useTempWorkspace();
+
+    await addCustomTerm({ label: 'Client', value: 'Already Here' }, vaultDeps);
+    await addCustomTerm({ label: 'Client', value: 'Already Here' }, vaultDeps);
+    await addCustomTerm({ label: 'Name', value: 'New Term' }, vaultDeps);
+
+    resetCustomTermsCacheForTests();
+    expect(await listCustomTerms(vaultDeps)).toEqual([
+      { label: 'Client', value: 'Already Here' },
+      { label: 'Name', value: 'New Term' },
+    ]);
+  });
+
+  test('terms are scoped to the workspace they were pinned in', async () => {
+    useTempUserData();
+    useTempWorkspace();
+    await addCustomTerm({ label: 'Client', value: 'Only Here' }, vaultDeps);
+
+    useTempWorkspace();
+    resetCustomTermsCacheForTests();
+    expect(await listCustomTerms(vaultDeps)).toEqual([]);
   });
 
   test('throws when no workspace is open', async () => {
+    useTempUserData();
     setCurrentWorkspace(null);
-    await expect(addCustomTerm({ label: 'Custom', value: 'x' })).rejects.toThrow(/workspace/i);
+    await expect(addCustomTerm({ label: 'Custom', value: 'x' }, vaultDeps)).rejects.toThrow(/workspace/i);
   });
 });

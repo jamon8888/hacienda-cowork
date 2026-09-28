@@ -40,6 +40,7 @@ const stubDeps = {
   // NER down by default: regex-only fallback must still redact.
   isNerReady: () => false,
   detectNer: async (_text: string): Promise<never[]> => [],
+  listCustomTerms: async () => [],
 };
 
 describe('applyFileReadRedaction', () => {
@@ -73,6 +74,7 @@ describe('applyFileReadRedaction', () => {
       { threadKey: 'thread-3' },
       {
         isNerReady: () => true,
+        listCustomTerms: async () => [],
         detectNer: async () => [
           { category: 'person_full_name', start: 0, end: 8, text: 'Jane Doe', confidence: 0.9 },
         ],
@@ -91,6 +93,7 @@ describe('applyFileReadRedaction', () => {
       { threadKey: 'thread-ner-only' },
       {
         isNerReady: () => true,
+        listCustomTerms: async () => [],
         detectNer: async () => [
           { category: 'person_full_name', start: 12, end: 20, text: 'Jane Doe', confidence: 0.9 },
         ],
@@ -187,7 +190,7 @@ describe('applyFileReadRedaction', () => {
     const pending = applyFileReadRedaction(
       { content: [{ type: 'text', text: `mail ${PROBE_EMAIL}` }], isError: false },
       { threadKey: 'thread-race' },
-      { isNerReady: () => true, detectNer: () => nerGate },
+      { isNerReady: () => true, detectNer: () => nerGate, listCustomTerms: async () => [] },
     );
     deleteRuntimeRehydrationMap('thread-race');
     resolveNer([]);
@@ -439,5 +442,30 @@ describe('rekeyRuntimeRehydrationMap', () => {
     mergeRuntimeRehydrationMap('thread-y', { '[EMAIL_0]': PROBE_EMAIL });
     expect(rekeyRuntimeRehydrationMap('thread-y', 'thread-y')).toEqual({});
     expect(getRuntimeRehydrationMap('thread-y')).toEqual({ '[EMAIL_0]': PROBE_EMAIL });
+  });
+});
+
+describe('pinned custom terms', () => {
+  test('redact outbound text even when NER is down', async () => {
+    clearRuntimeRehydrationMaps();
+    const { text, redacted } = await maybeRedactOutboundText(
+      'Contrat avec ACME Holding signé',
+      { workspacePath: workspace(true), threadKey: 'thread-custom-1' },
+      { ...stubDeps, listCustomTerms: async () => [{ label: 'Client', value: 'acme holding' }] },
+    );
+    expect(redacted).toBe(true);
+    expect(text).toBe('Contrat avec [CUSTOM_0] signé');
+    expect(getRuntimeRehydrationMap('thread-custom-1')['[CUSTOM_0]']).toBe('ACME Holding');
+  });
+
+  test('a term pinned from a palette category redacts under that category', async () => {
+    clearRuntimeRehydrationMaps();
+    const { text } = await maybeRedactOutboundText(
+      'Écrire à Jean Dupond',
+      { workspacePath: workspace(true), threadKey: 'thread-custom-2' },
+      { ...stubDeps, listCustomTerms: async () => [{ label: 'Name', value: 'Jean Dupond' }] },
+    );
+    expect(text).not.toContain('Jean Dupond');
+    expect(text).not.toContain('CUSTOM');
   });
 });

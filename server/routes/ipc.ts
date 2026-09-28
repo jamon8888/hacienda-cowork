@@ -181,7 +181,7 @@ const handlers: Record<string, Record<string, HandlerFn>> = {
       const { detectSelection } = await import('../handlers/pii');
       return detectSelection(request);
     },
-    addCustomTerm: async ([request]: [{ label: string; value: string; caseSensitive?: boolean }]) => {
+    addCustomTerm: async ([request]: [{ label: string; value: string }]) => {
       const { addCustomTerm } = await import('../handlers/pii');
       return addCustomTerm(request);
     },

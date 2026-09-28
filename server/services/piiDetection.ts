@@ -13,6 +13,7 @@ import { homedir } from 'node:os';
 
 import { ToolManager } from '../tools/toolManager';
 import { getAppMcpOwnerThreadId } from './appMcpThread';
+import { listCustomTerms, toRedactTextCustomTerms } from './customTerms';
 import { resolveHubBaseDirs } from '../utils/hubCache';
 
 export interface PiiDetectionResult {
@@ -151,7 +152,12 @@ async function detectPii(
   const raw = await manager.callTool(
     'basemind',
     'redact_text',
-    { text, categories: options?.categories ?? [], ner_model_dir: resolveNerModelDir() ?? undefined },
+    {
+      text,
+      categories: options?.categories ?? [],
+      custom_terms: toRedactTextCustomTerms(await listCustomTerms()),
+      ner_model_dir: resolveNerModelDir() ?? undefined,
+    },
     undefined,
     undefined,
     // Without a thread context `callTool` throws before reaching the tool, so
@@ -173,7 +179,11 @@ async function redactFile(filePath: string): Promise<RedactTextResult> {
   const raw = await manager.callTool(
     'basemind',
     'redact_text',
-    { file_path: filePath, ner_model_dir: resolveNerModelDir() ?? undefined },
+    {
+      file_path: filePath,
+      custom_terms: toRedactTextCustomTerms(await listCustomTerms()),
+      ner_model_dir: resolveNerModelDir() ?? undefined,
+    },
     undefined,
     undefined,
     { threadId: await getAppMcpOwnerThreadId() },

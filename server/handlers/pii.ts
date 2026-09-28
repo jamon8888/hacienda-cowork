@@ -3,10 +3,6 @@
  * manual-gesture custom-term write. No reveal audit log in v1 (#19).
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
-import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
-
 import { piiDetectionService, type PiiDetectionResult } from '../services/piiDetection';
 import {
   getRuntimeRehydrationMap,
@@ -15,7 +11,7 @@ import {
 import { persistThreadRehydrationMap } from '../services/rehydrationPersistence';
 import { vaultManager, type VaultToolCaller } from '../services/vault';
 import { threadVaultDocId } from '../services/rehydrationPersistence';
-import { getCurrentWorkspace } from '../utils/workspace';
+import { addCustomTerm as addStoredCustomTerm } from '../services/customTerms';
 
 export interface PiiGetRehydrationMapDeps {
   toolManager?: VaultToolCaller;
@@ -83,68 +79,23 @@ export async function rememberRehydration(request: {
   return { success: true };
 }
 
-function resolveCustomTermsConfigPath(workspace: string): string {
-  const rootConfig = path.join(workspace, 'basemind.toml');
-  if (fs.existsSync(rootConfig)) return rootConfig;
-  const legacyConfig = path.join(workspace, '.basemind', 'basemind.toml');
-  if (fs.existsSync(legacyConfig)) return legacyConfig;
-  return rootConfig;
-}
-
-interface CustomTermEntry {
-  label: string;
-  value: string;
-  case_sensitive?: boolean;
-}
-
 /**
- * Pin a gesture literal into workspace `documents.redaction.custom_terms`.
- * Parse-modify-write via smol-toml: basemind.toml is schema-shaped config, so
- * comments are not preserved — acceptable ceiling for a rarely-written file;
- * switch to a targeted text splice if operators start hand-commenting it.
+ * Pin a gesture literal for the current workspace. It is stored encrypted in
+ * the workspace vault and applied to every later redaction (see
+ * services/customTerms.ts) — never written into the workspace itself.
  */
-export async function addCustomTerm(request: {
-  label: string;
-  value: string;
-  caseSensitive?: boolean;
-}): Promise<{ success: boolean; configPath: string }> {
-  const workspace = getCurrentWorkspace();
-  if (!workspace) {
-    throw new Error('No workspace set. Open a folder first.');
-  }
-  const label = (request?.label ?? '').trim();
+export async function addCustomTerm(
+  request: { label: string; value: string },
+  deps: PiiGetRehydrationMapDeps = {},
+): Promise<{ success: boolean }> {
   const value = (request?.value ?? '').trim();
   if (!value) {
     throw new Error('[pii] Custom term value is required');
   }
-  const safeLabel = label || 'Custom';
-
-  const configPath = resolveCustomTermsConfigPath(workspace);
-  let config: Record<string, unknown> = {};
-  if (fs.existsSync(configPath)) {
-    config = parseToml(fs.readFileSync(configPath, 'utf8')) as Record<string, unknown>;
-  }
-
-  const documents = (config.documents ?? {}) as Record<string, unknown>;
-  const redaction = (documents.redaction ?? {}) as Record<string, unknown>;
-  const existing = Array.isArray(redaction.custom_terms)
-    ? (redaction.custom_terms as CustomTermEntry[])
-    : [];
-
-  const alreadyPinned = existing.some((term) => term?.value === value);
-  if (!alreadyPinned) {
-    redaction.custom_terms = [
-      ...existing,
-      { label: safeLabel, value, case_sensitive: request?.caseSensitive === true },
-    ];
-  }
-  // A written rule is an intent to redact; leave the master switch to safe/
-  // activation (#19 workspace gate) but turn it on when pinning so the term fires.
-  redaction.enabled = true;
-  documents.redaction = redaction;
-  config.documents = documents;
-
-  fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  fs.writeFileSync(configPath, stringifyToml(config), 'utf8');
-  return { success: true, configPath };
+  const label = (request?.label ?? '').trim() || 'Custom';
+  await addStoredCustomTerm(
+    { label, value },
+    { passphrase: deps.passphrase, toolManager: deps.toolManager },
+  );
+  return { success: true };
 }
