@@ -110,16 +110,30 @@ describe('pii.getRehydrationMap', () => {
 });
 
 describe('pii.rememberRehydration', () => {
-  test('merges into the session store so a later get sees the gesture', async () => {
+  test('persists to the vault and merges into the session store', async () => {
     useTempUserData();
 
-    const result = await rememberRehydration({
-      threadKey: 'noteabc123',
-      map: { '[NAME_0]': 'Ada Lovelace' },
-    });
+    const result = await rememberRehydration(
+      { threadKey: 'noteabc123', map: { '[NAME_0]': 'Ada Lovelace' } },
+      { toolManager: encryptingVault, passphrase: 'p' },
+    );
 
     expect(result.success).toBe(true);
     expect(getRuntimeRehydrationMap('noteabc123')).toEqual({ '[NAME_0]': 'Ada Lovelace' });
+  });
+
+  test('reports failure when the vault cannot store the original', async () => {
+    useTempUserData();
+
+    // No passphrase and no OS credential store in tests: the vault write fails.
+    const result = await rememberRehydration({
+      threadKey: 'noteabc456',
+      map: { '[NAME_0]': 'Ada Lovelace' },
+    });
+
+    expect(result.success).toBe(false);
+    // The session copy still lets this run reveal the value.
+    expect(getRuntimeRehydrationMap('noteabc456')).toEqual({ '[NAME_0]': 'Ada Lovelace' });
   });
 
   test('throws when threadKey is missing', async () => {
@@ -167,6 +181,20 @@ describe('pii.addCustomTerm', () => {
     useTempWorkspace();
     resetCustomTermsCacheForTests();
     expect(await listCustomTerms(vaultDeps)).toEqual([]);
+  });
+
+  test('listCustomTerms throws when the stored terms cannot be read', async () => {
+    useTempUserData();
+    useTempWorkspace();
+    await addCustomTerm({ label: 'Client', value: 'Secret Corp' }, vaultDeps);
+    resetCustomTermsCacheForTests();
+    const unreadable = {
+      async callTool(): Promise<unknown> {
+        throw new Error('vault tool unavailable');
+      },
+    };
+
+    await expect(listCustomTerms({ toolManager: unreadable, passphrase: 'p' })).rejects.toThrow(/vault tool/);
   });
 
   test('throws when no workspace is open', async () => {

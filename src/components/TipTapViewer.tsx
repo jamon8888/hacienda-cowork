@@ -800,7 +800,11 @@ export const TipTapViewer = forwardRef<TipTapViewerRef, TipTapViewerProps>(
     // Store the original before the token replaces it: if the store fails, the
     // cleartext stays in the document instead of a token nothing can reveal.
     try {
-      await pii.rememberRehydration({ threadKey: noteRehydrationKey(filePath), map: gestureMap });
+      const stored = await pii.rememberRehydration({ threadKey: noteRehydrationKey(filePath), map: gestureMap });
+      if (!stored.success) {
+        console.error('[TipTapViewer] PII gesture aborted: the original could not be stored in the vault');
+        return;
+      }
     } catch (error) {
       console.error('[TipTapViewer] PII gesture failed:', error);
       return;

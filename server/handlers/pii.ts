@@ -61,22 +61,31 @@ export async function detectSelection(request: {
  * first so a vault failure still reveals this turn; vault is best-effort
  * (same ceiling as the send seam).
  */
-export async function rememberRehydration(request: {
-  threadKey: string;
-  map: Record<string, string>;
-}): Promise<{ success: boolean }> {
+export async function rememberRehydration(
+  request: {
+    threadKey: string;
+    map: Record<string, string>;
+  },
+  deps: PiiGetRehydrationMapDeps = {},
+): Promise<{ success: boolean }> {
   const threadKey = request?.threadKey;
   const map = request?.map ?? {};
   if (!threadKey) {
     throw new Error('[pii] threadKey is required');
   }
   mergeRuntimeRehydrationMap(threadKey, map);
+  // The gesture writes its token into the saved note, so an original that is
+  // only in memory would be lost on restart: report the failure so the
+  // caller keeps the cleartext instead of inserting the token.
   try {
-    await persistThreadRehydrationMap(threadKey, map);
+    const result = await persistThreadRehydrationMap(threadKey, map, {
+      passphrase: deps.passphrase,
+      toolManager: deps.toolManager,
+    });
+    return { success: result.persisted };
   } catch {
-    // Session-only reveal — sessionOnlyRehydration copy covers the gap.
+    return { success: false };
   }
-  return { success: true };
 }
 
 /**
