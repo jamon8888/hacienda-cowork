@@ -263,7 +263,11 @@ export function persistEncryptedBlob(docId: string, blob: string, userDataDir = 
   triggerOrphanGcIfFirstAccess();
   const blobPath = resolveVaultBlobPath(docId, userDataDir);
   fs.mkdirSync(path.dirname(blobPath), { recursive: true });
-  fs.writeFileSync(blobPath, blob, 'utf8');
+  // Temp file + rename: a crash mid-write leaves the previous blob intact
+  // instead of a truncated one that can no longer be decrypted.
+  const tmpPath = `${blobPath}.${process.pid}.tmp`;
+  fs.writeFileSync(tmpPath, blob, { encoding: 'utf8', mode: 0o600 });
+  fs.renameSync(tmpPath, blobPath);
   return blobPath;
 }
 

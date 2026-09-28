@@ -84,7 +84,16 @@ export function getOrCreateVaultPassphrase(overrides?: {
   const exclusive = stored === null;
   try {
     // ponytail: 0600 narrows file access; secrecy itself comes from OS encryption, not the mode bit.
-    fs.writeFileSync(keyPath, encrypted, { mode: 0o600, flag: exclusive ? 'wx' : 'w' });
+    // Publish from a complete temp file so a crash never leaves a partial key:
+    // link() keeps the exclusive (EEXIST) semantics, rename() replaces an empty file.
+    const tmpPath = `${keyPath}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tmpPath, encrypted, { mode: 0o600, flag: 'wx' });
+    try {
+      if (exclusive) fs.linkSync(tmpPath, keyPath);
+      else fs.renameSync(tmpPath, keyPath);
+    } finally {
+      fs.rmSync(tmpPath, { force: true });
+    }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
     const raced = readVaultKeyFile(keyPath);
