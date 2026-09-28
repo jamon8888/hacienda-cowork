@@ -22,7 +22,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 const BASEMIND_DIR = path.join(ROOT, 'resources', 'basemind');
 const BASEMIND_REPO = 'jamon8888/basemind';
-const PINNED_VERSION = 'v0.32.0';
+const PINNED_VERSION = 'v0.32.1';
 
 // The checksum file carries the bare version, not the tag: v0.29.0 ships
 // basemind_0.29.0_checksums.txt.
