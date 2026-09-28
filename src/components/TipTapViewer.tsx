@@ -18,6 +18,7 @@ import { openExternal, pii, showContextMenu, vault, workspace, type ContextMenuI
 import { PiiLabel, type PiiLabelStorage } from '../extensions/PiiLabel';
 import {
   buildRedactedText,
+  customTermCategory,
   findRedactedTokens,
   normalizePiiCategory,
   PII_COLORS,
@@ -796,9 +797,17 @@ export const TipTapViewer = forwardRef<TipTapViewerRef, TipTapViewerProps>(
       [{ category, start: 0, end: options.selectedText.length, text: options.selectedText, confidence: 1 }],
       reserved,
     );
-    viewer.chain().focus().insertContentAt({ from: options.from, to: options.to }, redactedText).run();
+    // Store the original before the token replaces it: if the store fails, the
+    // cleartext stays in the document instead of a token nothing can reveal.
     try {
       await pii.rememberRehydration({ threadKey: noteRehydrationKey(filePath), map: gestureMap });
+    } catch (error) {
+      console.error('[TipTapViewer] PII gesture failed:', error);
+      return;
+    }
+    if (viewer.state.doc.textBetween(options.from, options.to) !== options.selectedText) return;
+    viewer.chain().focus().insertContentAt({ from: options.from, to: options.to }, redactedText).run();
+    try {
       onRehydrationChange?.(gestureMap);
       // Both gesture kinds persist a custom_terms rule (spec decision 6):
       // explicit labels use the user's wording; category picks fall back to
@@ -895,12 +904,7 @@ export const TipTapViewer = forwardRef<TipTapViewerRef, TipTapViewerProps>(
           const customLabel = window.prompt(t('basemind.pii.customTermPrompt'), gestureText);
           if (customLabel === null) return;
           const label = customLabel.trim() || gestureText;
-          // Token labels must match TOKEN_RE: [A-Za-z][A-Za-z0-9_]*
-          const tokenCategory = label
-            .toUpperCase()
-            .replace(/[^A-Z0-9]+/g, '_')
-            .replace(/^_+|_+$/g, '') || 'CUSTOM';
-          await applyPiiGesture(/^[A-Z]/.test(tokenCategory) ? tokenCategory : `CUSTOM_${tokenCategory}`, {
+          await applyPiiGesture(customTermCategory(label), {
             customLabel: label,
             from: gestureFrom,
             to: gestureTo,

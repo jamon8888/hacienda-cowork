@@ -454,8 +454,8 @@ describe('pinned custom terms', () => {
       { ...stubDeps, listCustomTerms: async () => [{ label: 'Client', value: 'acme holding' }] },
     );
     expect(redacted).toBe(true);
-    expect(text).toBe('Contrat avec [CUSTOM_0] signé');
-    expect(getRuntimeRehydrationMap('thread-custom-1')['[CUSTOM_0]']).toBe('ACME Holding');
+    expect(text).toBe('Contrat avec [CLIENT_0] signé');
+    expect(getRuntimeRehydrationMap('thread-custom-1')['[CLIENT_0]']).toBe('ACME Holding');
   });
 
   test('a term pinned from a palette category redacts under that category', async () => {

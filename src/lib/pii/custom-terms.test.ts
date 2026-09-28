@@ -24,7 +24,9 @@ describe('customTermCategory', () => {
     expect(customTermCategory('email')).toBe('email');
   });
 
-  test('falls back to custom for free-text labels', () => {
-    expect(customTermCategory('Client VIP')).toBe('custom');
+  test('makes free-text labels token-safe', () => {
+    expect(customTermCategory('Client VIP')).toBe('client_vip');
+    expect(customTermCategory('42 Corp')).toBe('custom_42_corp');
+    expect(customTermCategory('  ')).toBe('custom');
   });
 });

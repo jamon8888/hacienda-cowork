@@ -11,3 +11,5 @@ export {
 } from './labels';
 export type { RedactedToken } from './labels';
 export { noteRehydrationKey, threadVaultDocId } from './vaultScope';
+export { customTermCategory, detectCustomTerms } from './custom-terms';
+export type { CustomTerm } from './custom-terms';
