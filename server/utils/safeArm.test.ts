@@ -104,6 +104,8 @@ describe('safeArm (arm + initial population)', () => {
     expect(rescanMock).not.toHaveBeenCalled();
   });
 
+  // Real I/O on POPULATION_FILE_LIMIT + 1 files: the 5 s default is too tight
+  // on a loaded machine or slow disk.
   test('population stops at POPULATION_FILE_LIMIT', async () => {
     for (let i = 0; i <= POPULATION_FILE_LIMIT; i += 1) {
       writeFileSync(join(workspace, `f${i}.txt`), 'x');
@@ -114,7 +116,7 @@ describe('safeArm (arm + initial population)', () => {
     expect(result.written + result.skipped).toBe(POPULATION_FILE_LIMIT);
     expect(rescanMock).toHaveBeenCalledTimes(1);
     expect(rescanMock.mock.calls[0][0].paths.length).toBe(POPULATION_FILE_LIMIT);
-  });
+  }, 30_000);
 });
 
 describe('mirrorDocId', () => {
