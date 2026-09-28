@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, test } from 'bun:test';
 
-import { isPiiModelReady, parseRedactTextResult, resolveNerModelDir } from './piiDetection';
+import { isPiiModelReady, parseRedactTextResult, resolveNerModelDir, sweepResidualPii } from './piiDetection';
 
 describe('parseRedactTextResult', () => {
   test('maps basemind redact_text output onto the renderer contract', () => {
@@ -69,5 +69,45 @@ describe('fastino GLiNER2 readiness (candle loader layout)', () => {
     } finally {
       rmSync(baseDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('sweepResidualPii', () => {
+  const basemindOutput = {
+    redacted_text: 'Entre [PERSON_1], joignable au +33 6 12 34 56 78 et à [EMAIL_1].',
+    rehydration_map: { '[PERSON_1]': 'Jean Dupond', '[EMAIL_1]': 'jean@example.com' },
+    detections: [],
+  };
+
+  test('tokenizes a phone number basemind left in the text', () => {
+    const swept = sweepResidualPii(basemindOutput);
+    expect(swept.redacted_text).not.toContain('+33 6 12 34 56 78');
+    const phoneToken = Object.keys(swept.rehydration_map).find(
+      (token) => swept.rehydration_map[token] === '+33 6 12 34 56 78',
+    );
+    expect(phoneToken).toBeDefined();
+    expect(swept.redacted_text).toContain(phoneToken!);
+  });
+
+  test("keeps basemind's tokens and map entries intact", () => {
+    const swept = sweepResidualPii(basemindOutput);
+    expect(swept.redacted_text).toContain('[PERSON_1]');
+    expect(swept.redacted_text).toContain('[EMAIL_1]');
+    expect(swept.rehydration_map['[PERSON_1]']).toBe('Jean Dupond');
+    expect(swept.rehydration_map['[EMAIL_1]']).toBe('jean@example.com');
+  });
+
+  test('catches a pinned term basemind missed', () => {
+    const swept = sweepResidualPii(
+      { redacted_text: 'Offre pour Acme Holding', rehydration_map: {}, detections: [] },
+      [{ label: 'Client', value: 'Acme Holding' }],
+    );
+    expect(swept.redacted_text).toBe('Offre pour [CLIENT_0]');
+    expect(swept.rehydration_map['[CLIENT_0]']).toBe('Acme Holding');
+  });
+
+  test('returns the result unchanged when nothing is left', () => {
+    const clean = { redacted_text: 'Rien à signaler [PERSON_1]', rehydration_map: { '[PERSON_1]': 'x' }, detections: [] };
+    expect(sweepResidualPii(clean)).toBe(clean);
   });
 });

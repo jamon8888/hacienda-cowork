@@ -14,6 +14,9 @@ import { homedir } from 'node:os';
 import { ToolManager } from '../tools/toolManager';
 import { getAppMcpOwnerThreadId } from './appMcpThread';
 import { listCustomTerms, toRedactTextCustomTerms } from './customTerms';
+import { buildRedactedText, mergeDetections } from '../../src/lib/pii/labels';
+import { detectCustomTerms, type CustomTerm } from '../../src/lib/pii/custom-terms';
+import { detectRegex } from '../../src/lib/pii/regex-detector';
 import { resolveHubBaseDirs } from '../utils/hubCache';
 
 export interface PiiDetectionResult {
@@ -175,20 +178,51 @@ async function detectPii(
  * when the tool answered with an error payload instead of throwing.
  */
 async function redactFile(filePath: string): Promise<RedactTextResult> {
+  const customTerms = await listCustomTerms();
   const manager = new ToolManager();
   const raw = await manager.callTool(
     'basemind',
     'redact_text',
     {
       file_path: filePath,
-      custom_terms: toRedactTextCustomTerms(await listCustomTerms()),
+      custom_terms: toRedactTextCustomTerms(customTerms),
       ner_model_dir: resolveNerModelDir() ?? undefined,
     },
     undefined,
     undefined,
     { threadId: await getAppMcpOwnerThreadId() },
   );
-  return parseRedactTextResult(raw);
+  return sweepResidualPii(parseRedactTextResult(raw), customTerms);
+}
+
+/**
+ * Second pass over basemind's output with the app's own detectors (regex +
+ * pinned terms), so a format basemind's patterns miss — e.g. a French phone
+ * number written `+33 6 12 34 56 78` — never survives into a safe/ mirror.
+ * Tokens basemind already issued are reserved, so new tokens never collide
+ * with the map it returned. `detections` keeps basemind's original-text
+ * offsets; the swept spans exist only in the redacted text.
+ */
+export function sweepResidualPii(
+  result: RedactTextResult,
+  customTerms: readonly CustomTerm[] = [],
+): RedactTextResult {
+  if (!result.redacted_text) return result;
+  const residual = mergeDetections(
+    detectCustomTerms(result.redacted_text, customTerms),
+    detectRegex(result.redacted_text),
+  );
+  if (residual.length === 0) return result;
+  const { redactedText, rehydrationMap } = buildRedactedText(
+    result.redacted_text,
+    residual,
+    new Set(Object.keys(result.rehydration_map)),
+  );
+  return {
+    ...result,
+    redacted_text: redactedText,
+    rehydration_map: { ...result.rehydration_map, ...rehydrationMap },
+  };
 }
 
 export const piiDetectionService = {
