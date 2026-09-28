@@ -176,12 +176,13 @@ export async function workspaceScan(req: WorkspaceScanRequest): Promise<Workspac
   const paths = resolveScanPaths(req.paths, await getCodeIndexingEnabled());
 
   setIndexingState(true);
-  const result = await basemindScan({
-    root: workspacePath,
-    paths,
-    json,
-  });
-  setIndexingState(false);
+  let result: Awaited<ReturnType<typeof basemindScan>>;
+  try {
+    result = await basemindScan({ root: workspacePath, paths, json });
+  } finally {
+    // A rejected scan must not leave the status stuck on `indexing: true`.
+    setIndexingState(false);
+  }
 
   return {
     success: result.success,
@@ -200,12 +201,13 @@ export async function workspaceRescan(req: WorkspaceScanRequest): Promise<Worksp
   const paths = resolveScanPaths(req.paths, await getCodeIndexingEnabled());
 
   setIndexingState(true);
-  const result = await basemindRescan({
-    root: workspacePath,
-    paths,
-    json,
-  });
-  setIndexingState(false);
+  let result: Awaited<ReturnType<typeof basemindRescan>>;
+  try {
+    result = await basemindRescan({ root: workspacePath, paths, json });
+  } finally {
+    // A rejected scan must not leave the status stuck on `indexing: true`.
+    setIndexingState(false);
+  }
 
   return {
     success: result.success,
