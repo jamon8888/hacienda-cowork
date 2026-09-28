@@ -191,7 +191,7 @@ export async function mcpRequest(method: string, params: Record<string, unknown>
 }
 
 /**
- * Pin 10cc546: incremental/full re-index is the `admin` tool in `rescan` mode.
+ * Pinned basemind: incremental/full re-index is the `admin` tool in `rescan` mode.
  * The fork's `{ name: 'code', arguments: { subcommand: 'files', root, paths } }`
  * shape has no fields on this pin's CodeParams and would be rejected.
  * Paths are repo-relative to the daemon workspace root (no per-call root).

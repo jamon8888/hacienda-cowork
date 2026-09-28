@@ -40,7 +40,7 @@ Intégrer basemind à Workstation de façon simple, transparente et découplée 
 | 11 | Ajout PII manuel | Sélection Tiptap → catégorie (`NerConfig.categories`) **ou terme custom libre** → token coloré + règle ; **pas de champ regex en v1** (#19) |
 | 12 | Onboarding | **Bannière workspace-open uniquement** (pas d'étape onboarding) ; opt-in explicite, coût annoncé (#20) |
 | 13 | Indexation code | **Présente mais OFF par défaut**, opt-in explicite seulement ; lanes sémantiques code inactives tant que non activées (#18) |
-| 14 | Pin basemind | **`496c073`** (v0.31.0-6), l'arbre à partir duquel le binaire embarqué est construit et testé — remplace `10cc546` (défauts 8 Go + embeddings multilingues) ; pas le pin fork `d077002` ; adapter le port (#23) |
+| 14 | Pin basemind | **`v0.32.0-rc.1`** (`dd8b858`) pour le sous-module comme pour le binaire téléchargé : premier tag qui embarque `redact_text {file_path}` et GLiNER2 (basemind #24/#26), plus les défauts 8 Go ; remplace `10cc546`/`v0.31.0` ; passer à la stable `v0.32.0` avant fusion |
 | 15 | Search + reranker | Porter **`search.ts` + `rerankerPreference.ts` ensemble** (état final) (#23) |
 | 16 | workspaceScan | **Réintégré au port** (#20 amende #23) : handler + IPC statut pour le compteur « N fichiers » |
 | 17 | Compteur bannière | **En v1** : « Safe ✓ · N fichiers cherchables » ; clé locale dès J1 (#20) |
@@ -138,7 +138,7 @@ Intégrer basemind à Workstation de façon simple, transparente et découplée 
 
 ## 10. Hors périmètre (non-goals)
 
-- Embeddings/reranker **cloud** ; édition originel depuis `safe/` ; toute migration/lecture `.redacted/` ; modification des handlers fichiers existants ; triage content custom côté Workstation ; pre-filter extension sur le watcher ; audit reveal ; vault/rules per-agent ; champ regex dans le geste PII ; étape onboarding basemind ; progress events live (v1) ; cherry-pick de l'historique fork ; tout bump de pin basemind au-delà de `496c073` ; website source dans ce repo.
+- Embeddings/reranker **cloud** ; édition originel depuis `safe/` ; toute migration/lecture `.redacted/` ; modification des handlers fichiers existants ; triage content custom côté Workstation ; pre-filter extension sur le watcher ; audit reveal ; vault/rules per-agent ; champ regex dans le geste PII ; étape onboarding basemind ; progress events live (v1) ; cherry-pick de l'historique fork ; tout bump de pin basemind au-delà de `v0.32.0` ; website source dans ce repo.
 
 ## 11. Critères d'acceptation
 

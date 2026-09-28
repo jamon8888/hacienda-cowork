@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { adminRescanToolCall } from './basemindManager';
 
-describe('adminRescanToolCall (pin 10cc546 contract)', () => {
+describe('adminRescanToolCall (pinned admin rescan contract)', () => {
   test('incremental rescan sends admin mode=rescan with paths', () => {
     expect(adminRescanToolCall({ paths: ['safe/foo.md'] })).toEqual({
       name: 'admin',
