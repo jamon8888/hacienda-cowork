@@ -4,6 +4,7 @@ import { agentTabManager } from './agentTabManager';
 import { broadcastEvent } from './handlers/broadcast';
 import { runCodexSubagent } from './tools/builtin-tools/agents/codexSubagentRunnerBridge';
 import {
+  deleteRuntimeRehydrationMap,
   getRuntimeRehydrationMap,
   redactOutboundTurnInput,
   rekeyRuntimeRehydrationMap,
@@ -290,46 +291,53 @@ async function startHeadlessAgentTask(
     { workspacePath: options.workspace ?? null, threadKey },
   );
   if (options.threadId) void persistRehydrationForThread(options.threadId);
-  const result = await runCodexSubagent({
-    message: outbound.message,
-    system: outbound.system,
-    skills: options.skills,
-    modelConfig,
-    timeoutMs: options.timeoutMs,
-    idleTimeoutMs: options.idleTimeoutMs,
-    workspace: options.workspace,
-    allowedToolNames: options.allowedToolNames,
-    parentOwner: options.parentOwner,
-    threadId: options.threadId,
-    onEvent: (event) => {
-      if (event.kind === 'thread') {
-        const moved = rekeyRuntimeRehydrationMap(threadKey, event.threadId);
-        if (Object.keys(moved).length > 0) void persistRehydrationForThread(event.threadId);
-        options.onProgress?.({
-          kind: 'thread',
-          threadId: event.threadId,
-        });
-        return;
-      }
+  let result: Awaited<ReturnType<typeof runCodexSubagent>>;
+  try {
+    result = await runCodexSubagent({
+      message: outbound.message,
+      system: outbound.system,
+      skills: options.skills,
+      modelConfig,
+      timeoutMs: options.timeoutMs,
+      idleTimeoutMs: options.idleTimeoutMs,
+      workspace: options.workspace,
+      allowedToolNames: options.allowedToolNames,
+      parentOwner: options.parentOwner,
+      threadId: options.threadId,
+      onEvent: (event) => {
+        if (event.kind === 'thread') {
+          const moved = rekeyRuntimeRehydrationMap(threadKey, event.threadId);
+          if (Object.keys(moved).length > 0) void persistRehydrationForThread(event.threadId);
+          options.onProgress?.({
+            kind: 'thread',
+            threadId: event.threadId,
+          });
+          return;
+        }
 
-      if (event.kind === 'turn') {
-        options.onProgress?.({
-          kind: 'turn',
-          threadId: event.threadId,
-          turnId: event.turnId,
-          status: event.status,
-        });
-        return;
-      }
+        if (event.kind === 'turn') {
+          options.onProgress?.({
+            kind: 'turn',
+            threadId: event.threadId,
+            turnId: event.turnId,
+            status: event.status,
+          });
+          return;
+        }
 
-      for (const uiEvent of mapNotificationToUiEvents(event.notification)) {
-        options.onProgress?.({
-          kind: 'ui',
-          event: uiEvent,
-        });
-      }
-    },
-  });
+        for (const uiEvent of mapNotificationToUiEvents(event.notification)) {
+          options.onProgress?.({
+            kind: 'ui',
+            event: uiEvent,
+          });
+        }
+      },
+    });
+  } finally {
+    // A task that fails before its thread event would otherwise keep the
+    // provisional map (original PII values) in memory for the process lifetime.
+    if (threadKey !== options.threadId) deleteRuntimeRehydrationMap(threadKey);
+  }
 
   return {
     mode: 'headless',
