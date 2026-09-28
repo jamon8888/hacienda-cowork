@@ -37,9 +37,9 @@ test('parseArgs falls back to pinned version', () => {
   assert.ok(result.version.startsWith('v'), 'default version is a tag');
 });
 
-test('pinned version matches the basemind submodule tag (v0.32.0-rc.1)', () => {
+test('pinned version matches the basemind submodule tag (v0.32.0)', () => {
   const result = parseArgs([]);
-  assert.equal(result.version, 'v0.32.0-rc.1');
+  assert.equal(result.version, 'v0.32.0');
 });
 
 test('getPlatformsToDownload returns all keys when no filter', () => {
