@@ -2,6 +2,11 @@
 # AGENTS.md is picked up automatically as review guidelines; the entries below
 # add per-area focus and wire reviews to the full CI signal.
 reviews:
+  # Keep large PRs under CodeRabbit's 100-file review limit: translations and
+  # design/plan documents are reviewed by humans, not the bot.
+  path_filters:
+    - "!shared/locales/**"
+    - "!docs/superpowers/**"
   path_instructions:
     - path: "electron/**"
       instructions: "Preload/IPC changes must preserve the per-agent permission boundary: every tool path enforces the effective agent scope, not a global workspace setting."
