@@ -169,10 +169,10 @@ async function downloadFile(
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetchFn(url, { headers, signal: controller.signal });
-      // A 200 to a ranged request means the server ignored Range: this body
-      // already starts at byte zero, so overwrite the partial file with it
-      // instead of abandoning the response for a second download.
-      const writeFrom = from > 0 && res.status === 200 ? 0 : from;
+      // Only a 206 continues the partial file. Any other success to a ranged
+      // request means the server ignored Range: the body starts at byte zero,
+      // so overwrite the partial file instead of appending a full copy.
+      const writeFrom = from > 0 && res.status === 206 ? from : 0;
       if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
       if (!res.body) throw new Error(`empty body for ${url}`);
       await new Promise<void>((resolve, reject) => {
@@ -274,6 +274,12 @@ export async function preseedNerModel(opts: PreseedOptions = {}): Promise<{ ok: 
           }
           if (!complete) {
             rmSync(incompletePath, { force: true });
+            // A resumed file can mix stale partial bytes with a fresh response:
+            // retry once from zero. A full download that mismatches is terminal.
+            if (startByte > 0) {
+              lastError = `sha256 mismatch for ${file.path} after resuming at byte ${startByte}`;
+              continue;
+            }
             return { ok: false, error: `sha256 mismatch for ${file.path} (xberg would reject these weights)` };
           }
           renameSync(incompletePath, blobPath);

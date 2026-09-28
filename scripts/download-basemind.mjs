@@ -210,7 +210,9 @@ function extractArchive(assetPath, platformDir, assetName) {
 
   if (assetName.endsWith('.zip')) {
     if (process.platform === 'win32') {
-      execFileSync('powershell', ['-Command', `Expand-Archive -Path '${assetPath}' -DestinationPath '${platformDir}' -Force`], { stdio: 'pipe' });
+      // Single-quoted PowerShell literals: a `'` in a path is doubled, never code.
+      const quote = (value) => `'${value.replace(/'/g, "''")}'`;
+      execFileSync('powershell', ['-NoProfile', '-Command', `Expand-Archive -LiteralPath ${quote(assetPath)} -DestinationPath ${quote(platformDir)} -Force`], { stdio: 'pipe' });
     } else {
       execFileSync('unzip', ['-o', assetPath, '-d', platformDir], { stdio: 'pipe' });
     }

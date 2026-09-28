@@ -124,6 +124,58 @@ describe('preseedNerModel', () => {
     expect(readFileSync(snap).toString()).toBe(Buffer.from(full).toString());
   });
 
+  it('overwrites the partial file when a ranged request gets a full non-206 body', async () => {
+    const { preseedNerModel } = await loadModule();
+    const baseDir = makeTmp();
+    const { files, contents } = fixtureFiles();
+    const repoDir = path.join(baseDir, 'models--xberg-io--gliner-models');
+    mkdirSync(path.join(repoDir, 'blobs'), { recursive: true });
+    const first = files[0];
+    const full = contents.get(first.path)!;
+    writeFileSync(path.join(repoDir, 'blobs', `${first.sha256}.incomplete`), full.subarray(0, 6));
+
+    // Server ignores Range and answers 203 with the whole file.
+    const fetchFn: FetchFn = async (url) => {
+      const file = files.find((f) => url.endsWith(f.path))!;
+      const data = contents.get(file.path)!;
+      return { ok: true, status: 203, headers: headers({ 'content-length': String(data.length) }), body: chunks(data) };
+    };
+
+    const result = await preseedNerModel({ baseDir, fetchFn, repo: REPO, rev: REV, files });
+    expect(result).toEqual({ ok: true });
+    expect(statSync(path.join(repoDir, 'blobs', first.sha256)).size).toBe(full.length);
+  });
+
+  it('retries from byte zero when a resumed download fails the sha256 check', async () => {
+    const { preseedNerModel } = await loadModule();
+    const baseDir = makeTmp();
+    const { files, contents } = fixtureFiles();
+    const repoDir = path.join(baseDir, 'models--xberg-io--gliner-models');
+    mkdirSync(path.join(repoDir, 'blobs'), { recursive: true });
+    const first = files[0];
+    const full = contents.get(first.path)!;
+    // Stale partial bytes that do not belong to this file.
+    writeFileSync(path.join(repoDir, 'blobs', `${first.sha256}.incomplete`), new TextEncoder().encode('STALE!'));
+
+    const ranges: (string | undefined)[] = [];
+    const fetchFn: FetchFn = async (url, init) => {
+      const file = files.find((f) => url.endsWith(f.path))!;
+      const data = contents.get(file.path)!;
+      const range = init?.headers?.['Range'];
+      if (file === first) ranges.push(range);
+      if (range) {
+        const from = Number(range.replace(/^bytes=(\d+)-$/, '$1'));
+        return { ok: true, status: 206, headers: headers({}), body: chunks(data.subarray(from)) };
+      }
+      return { ok: true, status: 200, headers: headers({}), body: chunks(data) };
+    };
+
+    const result = await preseedNerModel({ baseDir, fetchFn, repo: REPO, rev: REV, files });
+    expect(result).toEqual({ ok: true });
+    expect(ranges).toEqual(['bytes=6-', undefined]);
+    expect(readFileSync(path.join(repoDir, 'blobs', first.sha256)).toString()).toBe(Buffer.from(full).toString());
+  });
+
   it('rejects tampered bytes with a sha256 mismatch and removes the blob', async () => {
     const { preseedNerModel } = await loadModule();
     const baseDir = makeTmp();
