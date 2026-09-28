@@ -14,7 +14,7 @@ import { homedir } from 'node:os';
 import { ToolManager } from '../tools/toolManager';
 import { getAppMcpOwnerThreadId } from './appMcpThread';
 import { listCustomTerms, toRedactTextCustomTerms } from './customTerms';
-import { buildRedactedText, mergeDetections } from '../../src/lib/pii/labels';
+import { buildRedactedText, findRedactedTokens, mergeDetections } from '../../src/lib/pii/labels';
 import { detectCustomTerms, type CustomTerm } from '../../src/lib/pii/custom-terms';
 import { detectRegex } from '../../src/lib/pii/regex-detector';
 import { resolveHubBaseDirs } from '../utils/hubCache';
@@ -158,7 +158,9 @@ async function detectPii(
     {
       text,
       categories: options?.categories ?? [],
-      custom_terms: toRedactTextCustomTerms(await listCustomTerms()),
+      // Text detection degrades rather than blocking chat (same policy as the
+      // regex fallback); file redaction below fails closed instead.
+      custom_terms: toRedactTextCustomTerms(await listCustomTerms().catch(() => [])),
       ner_model_dir: resolveNerModelDir() ?? undefined,
     },
     undefined,
@@ -208,10 +210,13 @@ export function sweepResidualPii(
   customTerms: readonly CustomTerm[] = [],
 ): RedactTextResult {
   if (!result.redacted_text) return result;
+  // Never match inside a token basemind already issued ("PERSON" in
+  // [PERSON_1]): rewriting it would orphan its rehydration-map entry.
+  const tokens = findRedactedTokens(result.redacted_text);
   const residual = mergeDetections(
     detectCustomTerms(result.redacted_text, customTerms),
     detectRegex(result.redacted_text),
-  );
+  ).filter((d) => !tokens.some((t) => d.start < t.end && t.start < d.end));
   if (residual.length === 0) return result;
   const { redactedText, rehydrationMap } = buildRedactedText(
     result.redacted_text,

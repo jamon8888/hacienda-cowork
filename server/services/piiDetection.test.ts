@@ -106,6 +106,15 @@ describe('sweepResidualPii', () => {
     expect(swept.rehydration_map['[CLIENT_0]']).toBe('Acme Holding');
   });
 
+  test('never rewrites a token basemind already issued', () => {
+    const swept = sweepResidualPii(
+      { redacted_text: 'Signé par [PERSON_1] pour PERSON Inc', rehydration_map: { '[PERSON_1]': 'Jean' }, detections: [] },
+      [{ label: 'Client', value: 'PERSON' }],
+    );
+    expect(swept.redacted_text).toBe('Signé par [PERSON_1] pour [CLIENT_0] Inc');
+    expect(swept.rehydration_map['[PERSON_1]']).toBe('Jean');
+  });
+
   test('returns the result unchanged when nothing is left', () => {
     const clean = { redacted_text: 'Rien à signaler [PERSON_1]', rehydration_map: { '[PERSON_1]': 'x' }, detections: [] };
     expect(sweepResidualPii(clean)).toBe(clean);

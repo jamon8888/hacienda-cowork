@@ -34,7 +34,9 @@ async function readStoredTerms(options: VaultEncryptOptions): Promise<CustomTerm
 
 /**
  * Terms pinned for the current workspace; empty without a workspace. A vault
- * that cannot be read yields no terms for this call and is retried next time.
+ * that exists but cannot be read throws (and is retried next call): writing a
+ * safe/ mirror without the pinned terms would leave them in cleartext, so the
+ * caller decides whether to fail closed or degrade.
  */
 export async function listCustomTerms(options: VaultEncryptOptions = {}): Promise<CustomTerm[]> {
   const workspace = getCurrentWorkspace();
@@ -48,7 +50,7 @@ export async function listCustomTerms(options: VaultEncryptOptions = {}): Promis
     console.warn(
       `[custom-terms] could not read pinned terms: ${error instanceof Error ? error.message : String(error)}`,
     );
-    return [];
+    throw error;
   }
 }
 
