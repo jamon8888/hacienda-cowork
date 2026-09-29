@@ -1,8 +1,21 @@
 import { Router, Request, Response, raw } from 'express';
+import {
+  maybeRedactOutboundText,
+  mergeRuntimeRehydrationMap,
+  getRuntimeRehydrationMap,
+  deleteRuntimeRehydrationMap,
+  setActiveTurnWorkspace,
+  getActiveTurnWorkspace,
+  clearActiveTurnWorkspace,
+} from '../services/runtimeRedaction';
+import { persistThreadRehydrationMap } from '../services/rehydrationPersistence';
+import { shouldBlockAttachmentSend } from '../../src/lib/pii/redaction';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
-import { getCustomInstructions } from '../configStore';
+import { existsSync } from 'node:fs';
+import { getCustomInstructions, getLanguage } from '../configStore';
+import { resources, supportedLanguages } from '../../shared/locales';
 import { getServerJWT } from '../lib/jwtStore';
 import { AgentModelConfig } from '../../shared/types/model';
 import { messageQueueStore } from '../utils/messageQueueStore';
@@ -120,6 +133,28 @@ import {
 } from '../utils/threadHistoryPagination';
 
 const router = Router();
+
+/**
+ * Attachments are images, which redaction cannot scan: in a Safe workspace
+ * any attachment fails the send rather than reach the provider (#19).
+ */
+async function assertNoAttachmentsInSafeWorkspace(hasAttachmentPayload: boolean): Promise<void> {
+  if (!shouldBlockAttachmentSend({ armed: true, hasAttachmentPayload })) return;
+  // ChatView surfaces send errors as raw err.message, so the user-facing
+  // sentence is localized here rather than translated in the renderer.
+  const language = await getLanguage();
+  const locale = language && (supportedLanguages as readonly string[]).includes(language)
+    ? (language as keyof typeof resources)
+    : 'en';
+  throw new Error(
+    resources[locale].translation['basemind.attachmentBlockedInSafe'],
+  );
+}
+
+/** Workspace of a thread's running turn, else the current one; null = unknown (fails closed). */
+function resolveThreadWorkspace(threadId: string): string | null {
+  return getActiveTurnWorkspace(threadId) ?? getCurrentWorkspace() ?? null;
+}
 
 function isAgentTaskMode(value: unknown): value is AgentTaskMode {
   return value === 'headed' || value === 'headless';
@@ -790,8 +825,24 @@ router.put('/threads/:threadId/goal', async (req: Request, res: Response) => {
   }
 
   try {
+    // #19: the objective is sent to the provider with the thread's turns, so
+    // it redacts under the thread's workspace safe/ gate like a steer.
+    let outboundObjective = objective;
+    if (objective !== undefined) {
+      const redaction = await maybeRedactOutboundText(objective, {
+        workspacePath: resolveThreadWorkspace(req.params.threadId),
+        threadKey: req.params.threadId,
+      });
+      outboundObjective = redaction.text;
+      if (redaction.redacted) {
+        void persistThreadRehydrationMap(
+          req.params.threadId,
+          getRuntimeRehydrationMap(req.params.threadId),
+        );
+      }
+    }
     const goal = await getCodexService().setThreadGoal(req.params.threadId, {
-      ...(objective !== undefined ? { objective } : {}),
+      ...(outboundObjective !== undefined ? { objective: outboundObjective } : {}),
       ...(status !== undefined ? { status } : {}),
       ...('tokenBudget' in (req.body ?? {}) ? { tokenBudget } : {}),
     });
@@ -972,14 +1023,46 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
     console.log(
       `[AGENT] runtime_resolved selection=${request.selection} profileId=${request.selection === 'stored-profile' ? request.profileId : 'none'} agentId=${request.agentId ?? 'none'} threadId=${targetThreadId ?? 'new'} model=${resolvedRequest.requestedModel ?? resolvedRequest.profile.model ?? 'unknown'} provider=${resolvedRequest.profile.modelProvider} workspacePath=${JSON.stringify(workspacePath)}`,
     );
+    // NOTE(linked-file-redaction): outbound free text is tokenized before the
+    // provider sees it (#19). Gated on workspace safe/; an unknown path fails
+    // closed inside maybeRedactOutboundText. New threads have no id yet, so a
+    // provisional key holds the map until the thread event re-keys it.
+    const outboundThreadKey = targetThreadId ?? `pending-${runningAgentId}`;
+    let outboundMessage = rawMessage;
+    let outboundSystem = request.system;
+    const outboundArmed = existsSync(path.join(workspacePath, 'safe'));
+    if (outboundArmed) {
+      await assertNoAttachmentsInSafeWorkspace(attachments.length > 0);
+      if (outboundMessage) {
+        outboundMessage = (await maybeRedactOutboundText(outboundMessage, {
+          workspacePath,
+          threadKey: outboundThreadKey,
+        })).text;
+      }
+      if (outboundSystem) {
+        outboundSystem = (await maybeRedactOutboundText(outboundSystem, {
+          workspacePath,
+          threadKey: outboundThreadKey,
+        })).text;
+      }
+      if (targetThreadId) {
+        // Existing thread: persist immediately. New threads re-key + persist
+        // on the thread event below.
+        void persistThreadRehydrationMap(
+          targetThreadId,
+          getRuntimeRehydrationMap(targetThreadId),
+        );
+      }
+    }
+    if (targetThreadId) setActiveTurnWorkspace(targetThreadId, workspacePath);
     const runtimeResult = await runCodexAgentTurn({
       service,
       profile: resolvedRequest.profile,
       requestedModel: resolvedRequest.requestedModel,
       usesChatGptAuth: resolvedRequest.isChatGptProfile,
       workspacePath,
-      message: rawMessage,
-      system: request.system,
+      message: outboundMessage,
+      system: outboundSystem,
       attachments,
       skills: explicitSkills,
       threadId: targetThreadId,
@@ -1004,6 +1087,17 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
       onEvent: (event) => {
         if (event.kind === 'thread') {
           activeThreadId = event.threadId;
+          setActiveTurnWorkspace(event.threadId, workspacePath);
+          // Re-key the provisional outbound map onto the real thread id, then
+          // persist so a reveal survives restart for first-message tokens.
+          if (outboundArmed && outboundThreadKey !== event.threadId) {
+            const provisionalMap = getRuntimeRehydrationMap(outboundThreadKey);
+            if (Object.keys(provisionalMap).length > 0) {
+              mergeRuntimeRehydrationMap(event.threadId, provisionalMap);
+              deleteRuntimeRehydrationMap(outboundThreadKey);
+              void persistThreadRehydrationMap(event.threadId, provisionalMap);
+            }
+          }
           emit('thread', { threadId: event.threadId });
           return;
         }
@@ -1075,6 +1169,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
     emit('error', createAgentStreamErrorPayload(formattedMessage, errorTrace));
   } finally {
     unregisterRunningAgent(runningAgentId);
+    if (activeThreadId) clearActiveTurnWorkspace(activeThreadId);
     setCurrentTurnMessageId(null);
     if (!streamClosed) {
       res.end();
@@ -1109,9 +1204,24 @@ router.post('/chat/steer', async (req: Request, res: Response) => {
   body = req.body;
 
   try {
-    const turnId = await getCodexService().steer(body.threadId as string, {
+    const threadId = body.threadId as string;
+    // #19: a steer joins a running turn, so it redacts under that turn's
+    // workspace safe/ gate; no known workspace fails closed.
+    const steerWorkspace = resolveThreadWorkspace(threadId);
+    let steerMessage = body.message;
+    if (steerWorkspace == null || existsSync(path.join(steerWorkspace, 'safe'))) {
+      await assertNoAttachmentsInSafeWorkspace((body.attachments?.length ?? 0) > 0);
+      if (steerMessage) {
+        steerMessage = (await maybeRedactOutboundText(steerMessage, {
+          workspacePath: steerWorkspace,
+          threadKey: threadId,
+        })).text;
+        void persistThreadRehydrationMap(threadId, getRuntimeRehydrationMap(threadId));
+      }
+    }
+    const turnId = await getCodexService().steer(threadId, {
       turnId: body.turnId,
-      message: body.message,
+      message: steerMessage,
       attachments: body.attachments,
       skills: body.skills,
     });

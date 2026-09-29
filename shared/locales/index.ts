@@ -5,6 +5,7 @@ import es from './es.json';
 import ko from './ko.json';
 import it from './it.json';
 import ru from './ru.json';
+import fr from './fr.json';
 
 export const resources = {
   en: { translation: en },
@@ -14,10 +15,11 @@ export const resources = {
   ko: { translation: ko },
   it: { translation: it },
   ru: { translation: ru },
+  fr: { translation: fr },
 } as const;
 
 export type LocaleKey = keyof typeof resources.en.translation;
-export const supportedLanguages = ['en', 'zh-CN', 'ja', 'es', 'ko', 'it', 'ru'] as const;
+export const supportedLanguages = ['en', 'zh-CN', 'ja', 'es', 'ko', 'it', 'ru', 'fr'] as const;
 export type SupportedLanguage = (typeof supportedLanguages)[number];
 
 export const languageNames: Record<SupportedLanguage, string> = {
@@ -28,4 +30,5 @@ export const languageNames: Record<SupportedLanguage, string> = {
   'ko': '한국어',
   'it': 'Italiano',
   'ru': 'Русский',
+  'fr': 'Français',
 };

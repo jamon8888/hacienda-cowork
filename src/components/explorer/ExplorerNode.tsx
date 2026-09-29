@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore }
 import { NodeRendererProps } from '../../lib/react-arborist';
 import { useNodesContext } from '../../lib/react-arborist/context';
 import { actions as dnd } from '../../lib/react-arborist/state/dnd-slice';
-import { ChevronRight, ChevronDown, Clapperboard, Loader2, Play, Square } from 'lucide-react';
+import { ChevronRight, ChevronDown, Clapperboard, Loader2, Play, ShieldCheck, Square } from 'lucide-react';
 import { FileSystemProxy } from '../FileSystemProxy';
 import { getFileHelp } from '../../contexts/HelpContext';
 import { createFileDragData } from '../../../shared/types/drag';
@@ -27,6 +27,7 @@ import type { ProjectRunnerState } from '../../../shared/types/projectRunner';
 import {
   AGENT_SIDEBAR_ID,
   EXPLORER_RENAME_INPUT_ID,
+  EXPLORER_SAFE_BADGE_ID,
   FILE_TREE_ID,
   PANE_CONTENT_ANY_SELECTOR,
 } from '../../../shared/element-ids';
@@ -38,6 +39,7 @@ import {
 import { Button } from '../ui/button';
 import { useLayoutActions } from '../../hooks/useLayout';
 import { getActiveFilePathSnapshot, subscribeActiveFilePath } from '../../stores/activeFileStore';
+import { getSafeStatusSnapshot, subscribeSafeStatus } from '../../stores/safeStatusStore';
 import { canUseHostNativeFileManager } from '../../remote/workstationConnection';
 
 /**
@@ -96,6 +98,14 @@ import { canUseHostNativeFileManager } from '../../remote/workstationConnection'
  * [ ] Tree → Embedded browser - drag file to webpage (e.g., file upload)
  * [ ] NO UI HANGS - drag operations should not freeze the UI
  */
+
+/** Stable no-op pair for rows that are not the safe/ folder (see isSafeFolder). */
+function subscribeNoSafeStatus(): () => void {
+  return () => {};
+}
+function getNoSafeStatus(): null {
+  return null;
+}
 
 interface ExplorerNodeProps extends NodeRendererProps<FileTreeNode> {
   workspacePath: string | null;
@@ -244,6 +254,20 @@ export const ExplorerNode = React.memo(function ExplorerNode({
     getActiveFilePathSnapshot,
     getActiveFilePathSnapshot,
   );
+  // #37: only the workspace-root safe/ folder subscribes; other rows stay inert.
+  const isSafeFolder = data.type === 'directory' && node.level === 0 && data.name === 'safe';
+  const safeStatus = useSyncExternalStore(
+    isSafeFolder ? subscribeSafeStatus : subscribeNoSafeStatus,
+    isSafeFolder ? getSafeStatusSnapshot : getNoSafeStatus,
+    isSafeFolder ? getSafeStatusSnapshot : getNoSafeStatus,
+  );
+  const safeBadgeState = !isSafeFolder || !safeStatus
+    ? null
+    : safeStatus.indexing || safeStatus.progress
+      ? 'processing'
+      : safeStatus.fileCount > 0
+        ? 'processed'
+        : null;
   const isActive = data.type === 'file' && storeActiveFilePath === fullPath;
   const shouldFlash = flashPath === fullPath;
   const isRunnableProject = data.type === 'directory' && data.runnableProject?.kind === 'node-web-app';
@@ -1129,7 +1153,7 @@ export const ExplorerNode = React.memo(function ExplorerNode({
         disableDrag={true}
         skipAutoFetch={true}
         showPath={false}
-        className={clsx('w-full', canUseProjectRunner ? 'pr-16' : 'pr-3')}
+        className={clsx('w-full', canUseProjectRunner ? 'pr-16' : isSafeFolder ? 'pr-8' : 'pr-3')}
         prefix={renderChevron()}
         isEditing={node.isEditing}
         onEditSubmit={handleEditSubmit}
@@ -1137,6 +1161,20 @@ export const ExplorerNode = React.memo(function ExplorerNode({
         renameInputTestId={EXPLORER_RENAME_INPUT_ID}
       />
       {renderProjectAction()}
+      {safeBadgeState && (
+        <div
+          data-testid={EXPLORER_SAFE_BADGE_ID}
+          data-state={safeBadgeState}
+          aria-label={safeBadgeState === 'processing' ? 'Processing Safe folder' : 'Safe folder processed'}
+          className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center"
+        >
+          {safeBadgeState === 'processing' ? (
+            <Loader2 className="size-3.5 animate-spin text-[var(--oa-text-faint)]" aria-hidden />
+          ) : (
+            <ShieldCheck className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+          )}
+        </div>
+      )}
     </div>
   );
 });

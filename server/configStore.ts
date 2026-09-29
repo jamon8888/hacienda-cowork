@@ -206,6 +206,13 @@ export interface AppConfig {
   telemetryEnabled?: boolean; // Whether to share anonymous usage analytics
   deviceId?: string; // Anonymous device identifier for telemetry (UUID)
 
+  // Search quality (reranker toggle). Explicit user override only: null/undefined
+  // means "automatic" (resolved per machine in rerankerPreference handler).
+  // Kept out of SettingsSnapshot: it describes this device, not portable UI prefs.
+  rerankerEnabledOverride?: boolean | null;
+  /** #13/#18: raw-code semantic indexing opt-in; absent = off. */
+  codeIndexingEnabled?: boolean;
+
   // Onboarding: user email (from Stay Connected screen)
   userEmail?: string;
 
@@ -2516,6 +2523,48 @@ export async function setTelemetryEnabled(enabled: boolean): Promise<void> {
   } catch {
     // Telemetry module may not be loaded yet during startup
   }
+}
+
+// =============================================================================
+// Search quality (reranker) override
+// =============================================================================
+
+/**
+ * Get the explicit reranker override (search quality toggle).
+ * Returns null when unset — the caller resolves the per-machine default.
+ */
+export async function getRerankerEnabledOverride(): Promise<boolean | null> {
+  const config = await loadConfig();
+  return config.rerankerEnabledOverride ?? null;
+}
+
+/**
+ * Set the explicit reranker override. Pass null to return to automatic.
+ */
+export async function setRerankerEnabledOverride(value: boolean | null): Promise<void> {
+  const config = await loadConfig();
+  if (value === null) {
+    delete config.rerankerEnabledOverride;
+  } else {
+    config.rerankerEnabledOverride = value;
+  }
+  await saveConfig(config);
+}
+
+// =============================================================================
+// Code indexing opt-in (#13/#18)
+// =============================================================================
+
+/** Raw-code semantic indexing is off unless explicitly enabled. */
+export async function getCodeIndexingEnabled(): Promise<boolean> {
+  const config = await loadConfig();
+  return config.codeIndexingEnabled === true;
+}
+
+export async function setCodeIndexingEnabled(value: boolean): Promise<void> {
+  const config = await loadConfig();
+  config.codeIndexingEnabled = value;
+  await saveConfig(config);
 }
 
 // =============================================================================

@@ -3104,6 +3104,21 @@
   transition: border-color 0.14s ease, background-color 0.14s ease;
 }
 
+.oa-pii-label {
+  border-radius: 4px;
+  padding: 0 2px;
+  background: color-mix(in srgb, var(--pii-category-color, #6b7280) 18%, transparent);
+  color: var(--pii-category-color, #6b7280);
+  border-bottom: var(--border-width) solid color-mix(in srgb, var(--pii-category-color, #6b7280) 55%, transparent);
+}
+
+.dark .oa-pii-label,
+:root.dark .oa-pii-label {
+  background: color-mix(in srgb, var(--pii-category-color-dark, #4b5563) 24%, transparent);
+  color: var(--pii-category-color-dark, #4b5563);
+  border-bottom-color: color-mix(in srgb, var(--pii-category-color-dark, #4b5563) 60%, transparent);
+}
+
 .oa-tiptap-viewer .ProseMirror .oa-unlinked-mention:hover,
 .oa-tiptap-viewer .ProseMirror .oa-unlinked-mention:focus-visible {
   background: color-mix(in srgb, var(--oa-bg-hover) 46%, transparent);

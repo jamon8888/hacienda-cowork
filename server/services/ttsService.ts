@@ -20,7 +20,7 @@ import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { Worker } from 'node:worker_threads';
 // @ts-ignore - no type declarations for tar-stream
-import tar, { type Headers as TarHeader } from 'tar-stream';
+import tar from 'tar-stream';
 // @ts-ignore - no type declarations for unbzip2-stream
 import unbzip2Stream from 'unbzip2-stream';
 import {
@@ -327,7 +327,7 @@ async function extractTarBz2Archive(archivePath: string, destinationDir: string)
   const extract = tar.extract();
 
   const extractDone = new Promise<void>((resolvePromise, rejectPromise) => {
-    extract.on('entry', (header: TarHeader, stream: Readable, next: () => void) => {
+    extract.on('entry', (header, stream, next) => {
       let destinationPath: string;
       try {
         destinationPath = resolveArchiveEntry(destinationDir, header.name);

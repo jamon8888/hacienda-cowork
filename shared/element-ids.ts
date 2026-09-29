@@ -146,6 +146,16 @@ export const TOP_NOTICE_ID = (noticeId: string) => `top-notice-${noticeId}` as c
 export const TOP_NOTICE_DISMISS_BUTTON_ID = (noticeId: string) => `top-notice-dismiss-${noticeId}` as const;
 
 // =============================================================================
+// SAFE BANNER (basemind workspace-open onboarding)
+// =============================================================================
+export const SAFE_BANNER_ID = 'safe-banner' as const;
+export const SAFE_BANNER_CTA_BUTTON_ID = 'safe-banner-cta-button' as const;
+export const SAFE_BANNER_LATER_BUTTON_ID = 'safe-banner-later-button' as const;
+export const SAFE_BANNER_LEARN_MORE_BUTTON_ID = 'safe-banner-learn-more-button' as const;
+export const SAFE_BANNER_RETRY_BUTTON_ID = 'safe-banner-retry-button' as const;
+export const SAFE_BANNER_STATUS_ID = 'safe-banner-status' as const;
+
+// =============================================================================
 // SIDEBAR BUTTONS
 // =============================================================================
 export const EXPLORER_BUTTON_ID = 'explorer-button' as const;
@@ -164,6 +174,8 @@ export const FILE_TREE_ID = 'file-tree' as const;
 export const FILE_ENTRY_BY_NAME = (filename: string) => `[role="treeitem"][data-name="${filename}"]` as const;
 export const EXPLORER_SEARCH_INPUT_ID = 'explorer-search-input' as const;
 export const EXPLORER_RENAME_INPUT_ID = 'explorer-rename-input' as const;
+/** #37: state badge on the workspace-root safe/ folder row. */
+export const EXPLORER_SAFE_BADGE_ID = 'explorer-safe-badge' as const;
 export const WORKSPACE_PICKER_BUTTON_ID = 'workspace-picker-button' as const;
 export const SEARCH_COMPUTER_BUTTON_ID = 'search-computer-button' as const;
 export const RUN_AGENT_SEARCH_BUTTON_ID = 'run-agent-search-button' as const;
@@ -393,6 +405,14 @@ export const ELEMENT_IDS = {
   topNotice: TOP_NOTICE_ID,
   topNoticeDismissButton: TOP_NOTICE_DISMISS_BUTTON_ID,
 
+  // === SAFE BANNER ===
+  safeBanner: SAFE_BANNER_ID,
+  safeBannerCtaButton: SAFE_BANNER_CTA_BUTTON_ID,
+  safeBannerLaterButton: SAFE_BANNER_LATER_BUTTON_ID,
+  safeBannerLearnMoreButton: SAFE_BANNER_LEARN_MORE_BUTTON_ID,
+  safeBannerRetryButton: SAFE_BANNER_RETRY_BUTTON_ID,
+  safeBannerStatus: SAFE_BANNER_STATUS_ID,
+
   // === SIDEBAR BUTTONS ===
   explorerButton: EXPLORER_BUTTON_ID,
   browserButton: BROWSER_BUTTON_ID,
@@ -408,6 +428,7 @@ export const ELEMENT_IDS = {
   fileEntryByName: FILE_ENTRY_BY_NAME,
   explorerSearchInput: EXPLORER_SEARCH_INPUT_ID,
   explorerRenameInput: EXPLORER_RENAME_INPUT_ID,
+  explorerSafeBadge: EXPLORER_SAFE_BADGE_ID,
   workspacePickerButton: WORKSPACE_PICKER_BUTTON_ID,
   searchComputerButton: SEARCH_COMPUTER_BUTTON_ID,
   runAgentSearchButton: RUN_AGENT_SEARCH_BUTTON_ID,

@@ -4,6 +4,12 @@ import { FileWatcherManager } from './fileWatcher';
 import { broadcastEvent } from './handlers/broadcast';
 import { invalidateRunnableProjectDetection } from './utils/runnableProjects';
 import { invalidateVaultIndex } from './utils/vaultIndex';
+import {
+  clearSafeSync,
+  scheduleSafeSync,
+  shouldSafeSyncForWorkspaceEvent,
+  type SafeSyncEventType,
+} from './utils/safeSync';
 
 type WorkspaceKey = string;
 type FileChangeCallback = Parameters<FileWatcherManager['start']>[0];
@@ -16,6 +22,10 @@ interface WorkspaceWatchManager {
 
 type WorkspaceWatchManagerFactory = () => WorkspaceWatchManager;
 type ThumbnailServiceLike = { invalidate: (path: string) => void };
+type SafeSyncLike = {
+  schedule: (workspaceKey: string, relativePath: string, workspacePath?: string) => void;
+  clear: (workspaceKey: string) => void;
+};
 
 async function loadWorkspaceWatchThumbnailService(): Promise<ThumbnailServiceLike | null> {
   if (!process.versions.electron) {
@@ -29,6 +39,11 @@ async function loadWorkspaceWatchThumbnailService(): Promise<ThumbnailServiceLik
   }
 }
 
+const defaultSafeSync: SafeSyncLike = {
+  schedule: scheduleSafeSync,
+  clear: clearSafeSync,
+};
+
 interface WorkspaceBinding {
   workspaceKey: WorkspaceKey;
   workspacePath: string;
@@ -37,6 +52,7 @@ interface WorkspaceBinding {
 interface WorkspaceWatchEntry {
   manager: WorkspaceWatchManager;
   refCount: number;
+  workspaceKey: WorkspaceKey;
   workspacePath: string;
   workspacePaths: Set<string>;
 }
@@ -47,6 +63,7 @@ let workspaceWatchRegistryQueue: Promise<void> = Promise.resolve();
 let createWorkspaceWatchManager: WorkspaceWatchManagerFactory = () => new FileWatcherManager();
 let getWorkspaceWatchThumbnailService: () => Promise<ThumbnailServiceLike | null> =
   loadWorkspaceWatchThumbnailService;
+let safeSyncService: SafeSyncLike = defaultSafeSync;
 
 function runWorkspaceWatchRegistryOperation<T>(operation: () => Promise<T>): Promise<T> {
   const result = workspaceWatchRegistryQueue.then(operation, operation);
@@ -109,10 +126,14 @@ function pruneWorkspaceAlias(entry: WorkspaceWatchEntry, targetBinding: Workspac
 function handleWorkspaceWatchEvent(
   entry: WorkspaceWatchEntry,
   thumbnailService: ThumbnailServiceLike | null,
-  eventType: 'add' | 'unlink' | 'addDir' | 'unlinkDir' | 'change',
+  eventType: SafeSyncEventType,
   relativePath: string,
   mtime?: number,
 ): void {
+  if (shouldSafeSyncForWorkspaceEvent(eventType, relativePath)) {
+    safeSyncService.schedule(entry.workspaceKey, relativePath, entry.workspacePath);
+  }
+
   for (const workspacePath of entry.workspacePaths) {
     if (shouldInvalidateVaultIndexForWorkspaceEvent(eventType, relativePath)) {
       invalidateVaultIndex(workspacePath);
@@ -128,7 +149,7 @@ function handleWorkspaceWatchEvent(
 }
 
 export function shouldInvalidateVaultIndexForWorkspaceEvent(
-  eventType: 'add' | 'unlink' | 'addDir' | 'unlinkDir' | 'change',
+  eventType: SafeSyncEventType,
   relativePath: string,
 ): boolean {
   if (eventType === 'addDir' || eventType === 'unlinkDir') {
@@ -159,6 +180,7 @@ async function retainWorkspaceWatch(binding: WorkspaceBinding): Promise<void> {
   const entry: WorkspaceWatchEntry = {
     manager: createWorkspaceWatchManager(),
     refCount: 1,
+    workspaceKey: binding.workspaceKey,
     workspacePath: binding.workspacePath,
     workspacePaths: new Set([binding.workspacePath]),
   };
@@ -193,6 +215,7 @@ async function releaseWorkspaceWatch(binding: WorkspaceBinding): Promise<void> {
   }
 
   workspaceEntries.delete(binding.workspaceKey);
+  safeSyncService.clear(binding.workspaceKey);
   await existingEntry.manager.stop();
 }
 
@@ -271,6 +294,7 @@ export async function stopAllWorkspaceWatches(): Promise<void> {
     const remainingEntries = Array.from(workspaceEntries.values());
     workspaceEntries.clear();
     for (const entry of remainingEntries) {
+      safeSyncService.clear(entry.workspaceKey);
       await entry.manager.stop();
     }
   });
@@ -291,4 +315,10 @@ export function setWorkspaceWatchThumbnailServiceForTests(
   getWorkspaceWatchThumbnailService = service
     ? async () => service
     : loadWorkspaceWatchThumbnailService;
+}
+
+export function setWorkspaceWatchSafeSyncForTests(service: SafeSyncLike | null): void {
+  // Test-only seam (thumbnail pattern): observe schedule/clear without
+  // waiting on the real 2s debounce.
+  safeSyncService = service ?? defaultSafeSync;
 }

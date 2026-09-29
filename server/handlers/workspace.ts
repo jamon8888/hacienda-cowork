@@ -61,6 +61,12 @@ export async function setWorkspace(workspacePath: string): Promise<{ success: bo
   // Save workspace for future sessions
   await saveLastWorkspace(normalizedPath);
 
+  // Re-point basemind serve --root at the new workspace (no-op when basemind
+  // isn't registered; toolManager.updateServer hot-reloads the running serve).
+  void import('../utils/basemindManager')
+    .then((m) => m.ensureBasemindServerConfig('basemind'))
+    .catch(() => {});
+
   // Add to recent folders
   await addRecentFolder(normalizedPath);
 
