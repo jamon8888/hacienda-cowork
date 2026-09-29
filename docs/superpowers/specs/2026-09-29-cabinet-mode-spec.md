@@ -42,11 +42,16 @@ conversation costs little, a client name sent in clear cannot be recalled.
 Per-workspace setting; user identity beyond the OS account; audit viewer UI;
 audit export or signing; anchoring the chain off the machine; retention policy; blocking outside Safe workspaces.
 
-## Open questions (for review with Jamin)
+## Decided after review (2026-09-29, Candy — owner of the privacy scope)
 
-1. Is the OS account enough as "who" for a firm, or is a named user needed
-   (multi-user install)?
-2. The log is now hash-chained (an edited or deleted line is detectable). It does not stop deleting or rewriting the whole file: should the chain be anchored off the machine (periodic head hash sent to a server, or qualified eIDAS timestamp) before the log is offered as evidence? Context: art. 1366 C. civ. — identification of the author and integrity of the record.
+1. **Who:** the OS account is enough for v1; each lawyer's computer has a
+   named user account, recorded as `osUser`.
+2. **Anchoring:** the hash chain ships in v1; anchoring it off the machine
+   (head hash sent to a server, or qualified eIDAS timestamp) is a separate
+   project, out of scope here.
+
+## Open question
+
 3. Retention: how long must the log be kept?
 
 ## Acceptance criteria
