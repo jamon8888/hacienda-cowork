@@ -73,6 +73,15 @@ describe('cabinet mode setting', () => {
     expect(auditLines().map((e) => e.event)).toEqual(['cabinet_mode_disabled', 'cabinet_mode_enabled']);
   });
 
+  test('turning back on still works when the audit entry cannot be written', async () => {
+    await setCabinetMode(false, { confirmed: true });
+    const result = await setCabinetMode(true, {}, {
+      audit: async () => { throw new Error('disk full'); },
+    });
+    expect(result).toEqual({ enabled: true });
+    expect(await getCabinetModeEnabled()).toBe(true);
+  });
+
   test('a block entry carries the surface and nothing else from the request', async () => {
     await appendCabinetAudit({ event: 'send_blocked', surface: 'tool' });
     const [entry] = auditLines();
@@ -120,6 +129,22 @@ describe('cabinet audit chain', () => {
     lines.splice(1, 1);
     writeFileSync(auditFile, `${lines.join('\n')}\n`);
     expect(await verifyCabinetAuditChain(auditFile)).toEqual({ ok: false, brokenAt: 2 });
+  });
+
+  test('a truncated last line does not lock the log: appends continue, the break stays visible', async () => {
+    await threeEntries();
+    writeFileSync(auditFile, `${readFileSync(auditFile, 'utf8')}{"at":"2026-`);
+    await appendCabinetAudit({ event: 'send_blocked', surface: 'tool' });
+    const raw = readFileSync(auditFile, 'utf8').trim().split('\n');
+    expect(raw).toHaveLength(5);
+    expect(await verifyCabinetAuditChain(auditFile)).toEqual({ ok: false, brokenAt: 4 });
+  });
+
+  test('a last line that parses but has no hash is treated the same way', async () => {
+    await threeEntries();
+    writeFileSync(auditFile, `${readFileSync(auditFile, 'utf8')}{"event":"x"}\n`);
+    await appendCabinetAudit({ event: 'cabinet_mode_enabled' });
+    expect(await verifyCabinetAuditChain(auditFile)).toEqual({ ok: false, brokenAt: 4 });
   });
 
   test('concurrent appends still form one chain', async () => {

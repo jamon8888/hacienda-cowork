@@ -21,8 +21,18 @@ export async function setCabinetMode(
     throw new Error('Turning off cabinet mode requires explicit confirmation.');
   }
   if (value === (await getCabinetModeEnabled())) return { enabled: value };
-  // Audit first: no trace, no change.
-  await audit({ event: value ? 'cabinet_mode_enabled' : 'cabinet_mode_disabled' });
+  if (value) {
+    // Turning protection on is the safe direction: a broken audit log must
+    // not keep it off.
+    try {
+      await audit({ event: 'cabinet_mode_enabled' });
+    } catch (error) {
+      console.warn('[cabinet] could not record re-enabling cabinet mode', error);
+    }
+  } else {
+    // Audit first: no trace, no change.
+    await audit({ event: 'cabinet_mode_disabled' });
+  }
   await setCabinetModeEnabledInConfig(value);
   return { enabled: value };
 }

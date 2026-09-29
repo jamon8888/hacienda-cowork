@@ -60,9 +60,29 @@ function hashLine(prev: string, bodyJson: string): string {
   return createHash('sha256').update(`${prev}\n${bodyJson}`).digest('hex');
 }
 
-async function readLines(file: string): Promise<string[]> {
-  if (!existsSync(file)) return [];
-  return (await readFile(file, 'utf8')).split('\n').filter((line) => line.trim() !== '');
+async function readRaw(file: string): Promise<string> {
+  return existsSync(file) ? readFile(file, 'utf8') : '';
+}
+
+function splitLines(raw: string): string[] {
+  return raw.split('\n').filter((line) => line.trim() !== '');
+}
+
+/**
+ * Hash the next line must point to. A tail that is truncated or has no hash
+ * (crash mid-append, tampering) must not lock the log: the next entry chains
+ * to the raw bytes of that line, so the break stays visible to verify at that
+ * line while appending keeps working.
+ */
+function chainHeadOf(lastLine: string | undefined): string {
+  if (lastLine === undefined) return CABINET_AUDIT_GENESIS;
+  try {
+    const parsed = JSON.parse(lastLine) as { hash?: unknown };
+    if (typeof parsed?.hash === 'string') return parsed.hash;
+  } catch {
+    // fall through to the raw-bytes anchor
+  }
+  return createHash('sha256').update(lastLine).digest('hex');
 }
 
 // Appends are serialized: each one must read the hash the previous one wrote.
@@ -72,9 +92,12 @@ export function appendCabinetAudit(entry: CabinetAuditEntry): Promise<void> {
   const run = appendQueue.then(async () => {
     const file = await resolveAuditFile();
     await mkdir(dirname(file), { recursive: true });
-    const lines = await readLines(file);
-    const last = lines.length > 0 ? JSON.parse(lines[lines.length - 1]) as { hash?: string } : null;
-    const prev = last?.hash ?? CABINET_AUDIT_GENESIS;
+    const raw = await readRaw(file);
+    const lines = splitLines(raw);
+    const prev = chainHeadOf(lines[lines.length - 1]);
+    // A truncated tail has no newline; start on a fresh line so it stays a
+    // separate (broken) line instead of swallowing this entry.
+    const lead = raw !== '' && !raw.endsWith('\n') ? '\n' : '';
     const body = {
       at: new Date().toISOString(),
       ...entry,
@@ -86,7 +109,7 @@ export function appendCabinetAudit(entry: CabinetAuditEntry): Promise<void> {
     const bodyJson = JSON.stringify(body);
     // `hash` is written last so verification can drop it and re-serialize.
     const line = JSON.stringify({ ...body, hash: hashLine(prev, bodyJson) });
-    await appendFile(file, `${line}\n`, 'utf8');
+    await appendFile(file, `${lead}${line}\n`, 'utf8');
   });
   // A failed append must not poison the queue for later ones.
   appendQueue = run.catch(() => {});
@@ -100,7 +123,7 @@ export function appendCabinetAudit(entry: CabinetAuditEntry): Promise<void> {
 export async function verifyCabinetAuditChain(
   file?: string,
 ): Promise<{ ok: true; entries: number } | { ok: false; brokenAt: number }> {
-  const lines = await readLines(file ?? (await resolveAuditFile()));
+  const lines = splitLines(await readRaw(file ?? (await resolveAuditFile())));
   let prev = CABINET_AUDIT_GENESIS;
   for (let i = 0; i < lines.length; i++) {
     let parsed: Record<string, unknown>;
