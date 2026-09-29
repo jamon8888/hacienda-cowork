@@ -212,6 +212,8 @@ export interface AppConfig {
   rerankerEnabledOverride?: boolean | null;
   /** #13/#18: raw-code semantic indexing opt-in; absent = off. */
   codeIndexingEnabled?: boolean;
+  /** Cabinet mode (spec 2026-09-29): absent = on. Written only by services/cabinetMode. */
+  cabinetModeEnabled?: boolean;
 
   // Onboarding: user email (from Stay Connected screen)
   userEmail?: string;
@@ -2564,6 +2566,23 @@ export async function getCodeIndexingEnabled(): Promise<boolean> {
 export async function setCodeIndexingEnabled(value: boolean): Promise<void> {
   const config = await loadConfig();
   config.codeIndexingEnabled = value;
+  await saveConfig(config);
+}
+
+// =============================================================================
+// Cabinet mode (spec 2026-09-29)
+// =============================================================================
+
+/** On unless explicitly turned off. */
+export async function getCabinetModeEnabled(): Promise<boolean> {
+  const config = await loadConfig();
+  return config.cabinetModeEnabled !== false;
+}
+
+/** Raw write. Callers go through services/cabinetMode, which audits first. */
+export async function setCabinetModeEnabledInConfig(value: boolean): Promise<void> {
+  const config = await loadConfig();
+  config.cabinetModeEnabled = value;
   await saveConfig(config);
 }
 
