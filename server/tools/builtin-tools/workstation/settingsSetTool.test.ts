@@ -14,5 +14,14 @@ describe('settingsSetTool', () => {
       text: 'The cuaAccessPolicy setting is read-only for agents. You can read it with interpreter_settings_get, but only the user can change it in Settings > Permissions.',
     }]);
   });
-});
 
+  test('does not let agents turn cabinet mode off', async () => {
+    const result = await settingsSetTool.handler({ path: 'cabinetModeEnabled', value: false });
+
+    expect(result.isError).toBe(true);
+    expect(result.content).toEqual([{
+      type: 'text',
+      text: 'The cabinetModeEnabled setting is read-only for agents. You can read it with interpreter_settings_get, but only the user can change it in Settings > General > Privacy.',
+    }]);
+  });
+});
