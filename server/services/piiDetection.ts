@@ -108,6 +108,16 @@ export function resolveNerModelDir(baseDirs: string[] = resolveHubBaseDirs()): s
   return null;
 }
 
+/**
+ * True when `redact_text` can actually load the NER model: the same candle
+ * criterion and the same hub directories the tool call passes as
+ * `ner_model_dir`. `isPiiModelReady` is looser (it also accepts ONNX-only
+ * caches), so it cannot vouch that detection will run.
+ */
+export function isFullDetectionReady(baseDirs?: string[]): boolean {
+  return resolveNerModelDir(baseDirs) !== null;
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
 }
@@ -147,6 +157,15 @@ export function parseRedactTextResult(result: unknown): RedactTextResult {
   };
 }
 
+function errorPayloadText(raw: unknown): string {
+  const content = asRecord(raw)?.content;
+  if (Array.isArray(content)) {
+    const text = content.map((part) => asRecord(part)?.text).find((t) => typeof t === 'string');
+    if (typeof text === 'string' && text) return text;
+  }
+  return 'redact_text returned an error';
+}
+
 async function detectPii(
   text: string,
   options?: { categories?: string[] },
@@ -169,6 +188,9 @@ async function detectPii(
     // detection silently degraded to the regex fallback on every send.
     { threadId: await getAppMcpOwnerThreadId() },
   );
+  // An error payload parses to no detections, which is indistinguishable from
+  // "nothing found". Surface it so callers can fall back or, in cabinet mode, block.
+  if (asRecord(raw)?.isError === true) throw new Error(errorPayloadText(raw));
   // Confidence is filtered upstream by basemind (DEFAULT_MIN_CONFIDENCE);
   // the Electron side passes detections through untouched.
   return parseRedactTextResult(raw).detections;
@@ -234,6 +256,7 @@ export const piiDetectionService = {
   detectPii,
   redactFile,
   isPiiModelReady,
+  isFullDetectionReady,
   resolveNerModelDir,
   parseRedactTextResult,
 };

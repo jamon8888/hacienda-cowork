@@ -26,6 +26,9 @@ let nextDetections: Array<{ category: string; start: number; end: number; text: 
   { category: 'email', start: 5, end: 21, text: 'john@example.com', confidence: 0.9 },
 ];
 
+// When set, the mocked tool answers with an error payload instead of throwing.
+let nextIsError = false;
+
 mock.module('../tools/toolManager', () => ({
   ToolManager: class {
     async callTool(
@@ -37,6 +40,7 @@ mock.module('../tools/toolManager', () => ({
       toolContext?: { threadId?: string },
     ) {
       callToolCalls.push({ serverId, toolName, args, toolContext });
+      if (nextIsError) return { isError: true, content: [{ type: 'text', text: 'redact_text failed' }] };
       return {
         structuredContent: {
           result: {
@@ -77,6 +81,18 @@ describe('detectPii thread context', () => {
     const { piiDetectionService } = await import('./piiDetection');
     await piiDetectionService.detectPii('text', { categories: ['email'] });
     expect(callToolCalls.at(-1)?.args.categories).toEqual(['email']);
+  });
+});
+
+describe('detectPii error payloads', () => {
+  test('throws on an isError result instead of reporting no detections', async () => {
+    nextIsError = true;
+    try {
+      const { piiDetectionService } = await import('./piiDetection');
+      await expect(piiDetectionService.detectPii('Jane Doe')).rejects.toThrow('redact_text failed');
+    } finally {
+      nextIsError = false;
+    }
   });
 });
 

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, test } from 'bun:test';
 
-import { isPiiModelReady, parseRedactTextResult, resolveNerModelDir, sweepResidualPii } from './piiDetection';
+import { isFullDetectionReady, isPiiModelReady, parseRedactTextResult, resolveNerModelDir, sweepResidualPii } from './piiDetection';
 
 describe('parseRedactTextResult', () => {
   test('maps basemind redact_text output onto the renderer contract', () => {
@@ -66,6 +66,24 @@ describe('fastino GLiNER2 readiness (candle loader layout)', () => {
       expect(resolveNerModelDir([baseDir])).toBeNull();
       const snapshot = writeFastinoSnapshot(baseDir);
       expect(resolveNerModelDir([baseDir])).toBe(snapshot);
+    } finally {
+      rmSync(baseDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('isFullDetectionReady', () => {
+  test('needs the candle safetensors layout, not just any weights', () => {
+    const baseDir = mkdtempSync(path.join(tmpdir(), 'pii-full-'));
+    try {
+      const onnxOnly = path.join(baseDir, 'models--knowledgator--gliner-pii-edge-v1.0');
+      mkdirSync(onnxOnly, { recursive: true });
+      writeFileSync(path.join(onnxOnly, 'model.onnx'), 'weights');
+      // Looks ready to the download UI, but redact_text cannot load it.
+      expect(isPiiModelReady(baseDir)).toBe(true);
+      expect(isFullDetectionReady([baseDir])).toBe(false);
+      writeFastinoSnapshot(baseDir);
+      expect(isFullDetectionReady([baseDir])).toBe(true);
     } finally {
       rmSync(baseDir, { recursive: true, force: true });
     }

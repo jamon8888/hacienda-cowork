@@ -481,6 +481,7 @@ describe('cabinet mode', () => {
   const cabinetDeps = {
     ...stubDeps,
     isCabinetMode: () => true,
+    isFullDetectionReady: () => true,
     recordBlock: async (surface: 'outbound' | 'tool') => { blocks.push(surface); },
     blockedSendMessage: async () => 'Cabinet mode: nothing was sent.',
   };
@@ -505,6 +506,22 @@ describe('cabinet mode', () => {
         detectNer: async () => { throw new Error('daemon down'); },
       }),
     ).rejects.toBeInstanceOf(DetectionUnavailableError);
+  });
+
+  test('refuses when NER reports ready but the candle model cannot load', async () => {
+    // isNerReady also accepts ONNX-only caches, where redact_text silently
+    // returns no NER detections and would redact pattern-only.
+    const ws = workspace(true);
+    let nerCalled = false;
+    await expect(
+      maybeRedactOutboundText('Jane Doe signs for Acme', { workspacePath: ws }, {
+        ...cabinetDeps,
+        isNerReady: () => true,
+        isFullDetectionReady: () => false,
+        detectNer: async () => { nerCalled = true; return []; },
+      }),
+    ).rejects.toBeInstanceOf(DetectionUnavailableError);
+    expect(nerCalled).toBe(false);
   });
 
   test('refuses even text with no regex match (names are NER-only)', async () => {

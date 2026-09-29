@@ -46,6 +46,7 @@ export interface RuntimeRedactionDeps {
   detectNer?: (text: string) => Promise<PiiDetection[]>;
   listCustomTerms?: () => Promise<CustomTerm[]>;
   isCabinetMode?: () => boolean | Promise<boolean>;
+  isFullDetectionReady?: () => boolean | Promise<boolean>;
   recordBlock?: (surface: 'outbound' | 'tool') => Promise<void>;
   blockedSendMessage?: () => Promise<string>;
 }
@@ -66,6 +67,11 @@ async function defaultListCustomTerms(): Promise<CustomTerm[]> {
 async function defaultIsNerReady(): Promise<boolean> {
   const { piiDetectionService } = await import('./piiDetection');
   return piiDetectionService.isPiiModelReady();
+}
+
+async function defaultIsFullDetectionReady(): Promise<boolean> {
+  const { isFullDetectionReady } = await import('./piiDetection');
+  return isFullDetectionReady();
 }
 
 async function defaultIsCabinetMode(): Promise<boolean> {
@@ -95,6 +101,7 @@ function resolveDeps(deps: RuntimeRedactionDeps = {}): {
   detectNer: (text: string) => Promise<PiiDetection[]>;
   listCustomTerms: () => Promise<CustomTerm[]>;
   isCabinetMode: () => boolean | Promise<boolean>;
+  isFullDetectionReady: () => boolean | Promise<boolean>;
   recordBlock: (surface: 'outbound' | 'tool') => Promise<void>;
   blockedSendMessage: () => Promise<string>;
 } {
@@ -103,6 +110,7 @@ function resolveDeps(deps: RuntimeRedactionDeps = {}): {
     detectNer: deps.detectNer ?? defaultDetectNer,
     listCustomTerms: deps.listCustomTerms ?? defaultListCustomTerms,
     isCabinetMode: deps.isCabinetMode ?? defaultIsCabinetMode,
+    isFullDetectionReady: deps.isFullDetectionReady ?? defaultIsFullDetectionReady,
     recordBlock: deps.recordBlock ?? defaultRecordBlock,
     blockedSendMessage: deps.blockedSendMessage ?? defaultBlockedSendMessage,
   };
@@ -225,7 +233,11 @@ export async function redactFileReadOutputText(
   let detections: PiiDetection[] = regexDetections;
   let nerRan = false;
   try {
-    if (await resolved.isNerReady()) {
+    // isNerReady also accepts ONNX-only caches that redact_text cannot load;
+    // it then degrades to pattern-only without saying so. Cabinet mode asks
+    // for the stricter criterion before trusting an empty NER result.
+    const canRunFullDetection = !options.requireFullDetection || await resolved.isFullDetectionReady();
+    if (canRunFullDetection && await resolved.isNerReady()) {
       detections = mergeDetections(await resolved.detectNer(text), regexDetections);
       nerRan = true;
     }
