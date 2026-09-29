@@ -82,6 +82,14 @@ describe('cabinet mode setting', () => {
     expect(await getCabinetModeEnabled()).toBe(true);
   });
 
+  test('rejects non-boolean input without touching config or the log', async () => {
+    for (const [value, confirmed] of [[null, true], ['x', false], [undefined, undefined], [false, 'true'], [false, 1]] as const) {
+      await expect(setCabinetMode(value as never, { confirmed: confirmed as never })).rejects.toThrow('boolean');
+    }
+    expect(await getCabinetModeEnabled()).toBe(true);
+    expect(auditLines()).toHaveLength(0);
+  });
+
   test('a block entry carries the surface and nothing else from the request', async () => {
     await appendCabinetAudit({ event: 'send_blocked', surface: 'tool' });
     const [entry] = auditLines();

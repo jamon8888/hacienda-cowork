@@ -17,6 +17,11 @@ export async function setCabinetMode(
   deps: CabinetModeDeps = {},
 ): Promise<{ enabled: boolean }> {
   const audit = deps.audit ?? appendCabinetAudit;
+  // The IPC layer forwards the request body untyped; a truthy non-boolean must
+  // neither write a false audit event nor store a non-boolean setting.
+  if (typeof value !== 'boolean' || (options.confirmed !== undefined && typeof options.confirmed !== 'boolean')) {
+    throw new Error('Cabinet mode value and confirmation must be boolean.');
+  }
   if (!value && options.confirmed !== true) {
     throw new Error('Turning off cabinet mode requires explicit confirmation.');
   }
