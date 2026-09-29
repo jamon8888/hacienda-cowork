@@ -32,7 +32,7 @@ conversation costs little, a client name sent in clear cannot be recalled.
 | 4 | Outbound text (chat, steer, goal objective, headless tasks/subagents) | Throw a localized error; the message is not sent. Covered at the single chokepoint `maybeRedactOutboundText`. |
 | 5 | Tool results | Each text part replaced by `CABINET_WITHHELD_MARKER`; the agent loop continues but the model sees no content. Fail closed without breaking the tool contract. |
 | 6 | Turning off | Requires `confirmed: true` over IPC (set only by the confirm dialog). If the audit entry cannot be written, the setting is **not** changed. |
-| 7 | Audit | Append-only JSONL at `<appData>/audit/cabinet-mode.jsonl`: `at`, `event`, `osUser`, `hostname`, `appVersion`, and `surface` for blocks. **Never** message content, file names or detections. |
+| 7 | Audit | Append-only JSONL at `<appData>/audit/cabinet-mode.jsonl`: `at`, `event`, `osUser`, `hostname`, `appVersion`, and `surface` for blocks. **Never** message content, file names or detections. **Hash-chained** (added 2026-09-29): each line carries `prev` (previous line's hash) and `hash` = sha256(prev + line without hash); genesis = 64 zeros; `verifyCabinetAuditChain` reports the first broken line. |
 | 8 | Events | `cabinet_mode_disabled`, `cabinet_mode_enabled`, `send_blocked` (`surface: outbound | tool`). |
 | 9 | UI | Privacy section of Settings: a switch; switching off opens an AlertDialog stating the consequence and the responsibility; confirm button "Turn off — I take responsibility". |
 | 10 | i18n | Every visible string in the 8 locales before merge (repo rule). |
@@ -40,13 +40,13 @@ conversation costs little, a client name sent in clear cannot be recalled.
 ## Non-goals (v1)
 
 Per-workspace setting; user identity beyond the OS account; audit viewer UI;
-audit export or signing; retention policy; blocking outside Safe workspaces.
+audit export or signing; anchoring the chain off the machine; retention policy; blocking outside Safe workspaces.
 
 ## Open questions (for review with Jamin)
 
 1. Is the OS account enough as "who" for a firm, or is a named user needed
    (multi-user install)?
-2. Should the audit log be tamper-evident (hash chain) before selling to a firm?
+2. The log is now hash-chained (an edited or deleted line is detectable). It does not stop deleting or rewriting the whole file: should the chain be anchored off the machine (periodic head hash sent to a server, or qualified eIDAS timestamp) before the log is offered as evidence? Context: art. 1366 C. civ. — identification of the author and integrity of the record.
 3. Retention: how long must the log be kept?
 
 ## Acceptance criteria
@@ -63,4 +63,5 @@ audit export or signing; retention policy; blocking outside Safe workspaces.
 7. `setCabinetModeEnabled(false)` without `confirmed: true` throws; config unchanged.
 8. Audit write failure on disable: config unchanged, error surfaced.
 9. Fresh config: `getCabinetModeEnabled()` is `true`.
-10. `pnpm typecheck`, `pnpm run test:unit`, `pnpm run test:vitest` green.
+10. Editing or deleting a line makes `verifyCabinetAuditChain` fail at that line (or the next one for a deletion); concurrent appends form one valid chain.
+11. `pnpm typecheck`, `pnpm run test:unit`, `pnpm run test:vitest` green.

@@ -15,7 +15,7 @@
 - Default **on**: config key `cabinetModeEnabled`, absent = on (`config.cabinetModeEnabled !== false`).
 - Applies only in armed workspaces (`<workspace>/safe/` exists); unknown workspace path keeps the existing fail-closed rule (treated as armed).
 - "Full detection unavailable" = `isNerReady()` is false **or** `detectNer()` throws.
-- Audit file: `<getInterpreterAppDataDir()>/audit/cabinet-mode.jsonl`, one JSON object per line, fields `at`, `event`, `osUser`, `hostname`, `appVersion`, plus `surface` for `send_blocked`. **Never** content, file names or detections.
+- Audit file: `<getInterpreterAppDataDir()>/audit/cabinet-mode.jsonl`, one JSON object per line, fields `at`, `event`, `osUser`, `hostname`, `appVersion`, plus `surface` for `send_blocked`, then `prev` and `hash` (sha256 chain, genesis = 64 zeros). **Never** content, file names or detections.
 - Events: `cabinet_mode_disabled`, `cabinet_mode_enabled`, `send_blocked` (`surface: 'outbound' | 'tool'`).
 - Disabling requires `confirmed === true`; if the audit write fails, the setting is not changed.
 - Every visible string in the 8 locales (`en, es, fr, it, ja, ko, ru, zh-CN`) before merge.
@@ -24,7 +24,7 @@
 
 ---
 
-### Task 1: Setting and audit log
+### Task 1: Setting and hash-chained audit log
 
 **Files:**
 - Modify: `server/configStore.ts` (field next to `codeIndexingEnabled` ~line 214; accessors after the code-indexing block ~line 2568)
@@ -36,20 +36,25 @@
 - Produces:
   - `getCabinetModeEnabled(): Promise<boolean>` (configStore)
   - `setCabinetModeEnabledInConfig(value: boolean): Promise<void>` (configStore — only `cabinetMode.ts` calls it)
-  - `appendCabinetAudit(entry: CabinetAuditEntry): Promise<void>`, `setCabinetAuditFileForTests(path: string | null): void`, type `CabinetAuditEntry` (cabinetAudit)
+  - `appendCabinetAudit(entry: CabinetAuditEntry): Promise<void>`, `verifyCabinetAuditChain(file?: string): Promise<{ ok: true; entries: number } | { ok: false; brokenAt: number }>`, `CABINET_AUDIT_GENESIS: string`, `setCabinetAuditFileForTests(path: string | null): void`, type `CabinetAuditEntry` (cabinetAudit)
   - `setCabinetMode(value: boolean, options: { confirmed?: boolean }, deps?: CabinetModeDeps): Promise<{ enabled: boolean }>` (cabinetMode)
 
 - [ ] **Step 1: Write the failing test** — `server/services/cabinetMode.test.ts`
 
 ```ts
-import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 import { getCabinetModeEnabled, setConfigOverride } from '../configStore';
-import { appendCabinetAudit, setCabinetAuditFileForTests } from './cabinetAudit';
+import {
+  appendCabinetAudit,
+  CABINET_AUDIT_GENESIS,
+  setCabinetAuditFileForTests,
+  verifyCabinetAuditChain,
+} from './cabinetAudit';
 import { setCabinetMode } from './cabinetMode';
 
 let dir: string;
@@ -115,8 +120,57 @@ describe('cabinet mode setting', () => {
   test('a block entry carries the surface and nothing else from the request', async () => {
     await appendCabinetAudit({ event: 'send_blocked', surface: 'tool' });
     const [entry] = auditLines();
-    expect(Object.keys(entry).sort()).toEqual(['appVersion', 'at', 'event', 'hostname', 'osUser', 'surface']);
+    expect(Object.keys(entry).sort()).toEqual(['appVersion', 'at', 'event', 'hash', 'hostname', 'osUser', 'prev', 'surface']);
     expect(entry.surface).toBe('tool');
+  });
+});
+
+describe('cabinet audit chain', () => {
+  async function threeEntries(): Promise<void> {
+    await appendCabinetAudit({ event: 'send_blocked', surface: 'outbound' });
+    await appendCabinetAudit({ event: 'cabinet_mode_disabled' });
+    await appendCabinetAudit({ event: 'cabinet_mode_enabled' });
+  }
+
+  test('each entry points to the previous one; the first to the genesis value', async () => {
+    await threeEntries();
+    const lines = auditLines();
+    expect(lines[0].prev).toBe(CABINET_AUDIT_GENESIS);
+    expect(lines[1].prev).toBe(lines[0].hash);
+    expect(lines[2].prev).toBe(lines[1].hash);
+    expect(String(lines[0].hash)).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  test('an untouched log verifies', async () => {
+    await threeEntries();
+    expect(await verifyCabinetAuditChain(auditFile)).toEqual({ ok: true, entries: 3 });
+  });
+
+  test('a missing log verifies as empty', async () => {
+    expect(await verifyCabinetAuditChain(auditFile)).toEqual({ ok: true, entries: 0 });
+  });
+
+  test('editing one entry breaks the chain at that line', async () => {
+    await threeEntries();
+    const lines = readFileSync(auditFile, 'utf8').trim().split('\n');
+    lines[1] = lines[1].replace('cabinet_mode_disabled', 'cabinet_mode_enabled');
+    writeFileSync(auditFile, `${lines.join('\n')}\n`);
+    expect(await verifyCabinetAuditChain(auditFile)).toEqual({ ok: false, brokenAt: 2 });
+  });
+
+  test('deleting one entry breaks the chain at the next line', async () => {
+    await threeEntries();
+    const lines = readFileSync(auditFile, 'utf8').trim().split('\n');
+    lines.splice(1, 1);
+    writeFileSync(auditFile, `${lines.join('\n')}\n`);
+    expect(await verifyCabinetAuditChain(auditFile)).toEqual({ ok: false, brokenAt: 2 });
+  });
+
+  test('concurrent appends still form one chain', async () => {
+    await Promise.all(
+      Array.from({ length: 10 }, () => appendCabinetAudit({ event: 'send_blocked', surface: 'tool' })),
+    );
+    expect(await verifyCabinetAuditChain(auditFile)).toEqual({ ok: true, entries: 10 });
   });
 });
 ```
@@ -163,11 +217,21 @@ Create `server/services/cabinetAudit.ts`:
  * Append-only audit log for cabinet mode (spec 2026-09-29): who turned it
  * off or on, and when a send was blocked. Never content, file names or
  * detections — the log must be safe to hand over as it is.
+ *
+ * Hash-chained: each line carries `prev` (the previous line's `hash`) and
+ * `hash` = sha256(prev + "\n" + the line's JSON without `hash`). Editing or
+ * deleting a line breaks the chain from that point. The chain alone does not
+ * stop someone from deleting or rewriting the whole file; anchoring it off
+ * the machine is out of scope for v1 (spec, open question 2).
  */
 
-import { appendFile, mkdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { hostname, userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
+
+export const CABINET_AUDIT_GENESIS = '0'.repeat(64);
 
 export type CabinetAuditEntry =
   | { event: 'cabinet_mode_disabled' }
@@ -207,17 +271,66 @@ function appVersion(): string {
   return 'dev';
 }
 
-export async function appendCabinetAudit(entry: CabinetAuditEntry): Promise<void> {
-  const file = await resolveAuditFile();
-  await mkdir(dirname(file), { recursive: true });
-  const line = JSON.stringify({
-    at: new Date().toISOString(),
-    ...entry,
-    osUser: osUser(),
-    hostname: hostname(),
-    appVersion: appVersion(),
+function hashLine(prev: string, bodyJson: string): string {
+  return createHash('sha256').update(`${prev}\n${bodyJson}`).digest('hex');
+}
+
+async function readLines(file: string): Promise<string[]> {
+  if (!existsSync(file)) return [];
+  return (await readFile(file, 'utf8')).split('\n').filter((line) => line.trim() !== '');
+}
+
+// Appends are serialized: each one must read the hash the previous one wrote.
+let appendQueue: Promise<void> = Promise.resolve();
+
+export function appendCabinetAudit(entry: CabinetAuditEntry): Promise<void> {
+  const run = appendQueue.then(async () => {
+    const file = await resolveAuditFile();
+    await mkdir(dirname(file), { recursive: true });
+    const lines = await readLines(file);
+    const last = lines.length > 0 ? JSON.parse(lines[lines.length - 1]) as { hash?: string } : null;
+    const prev = last?.hash ?? CABINET_AUDIT_GENESIS;
+    const body = {
+      at: new Date().toISOString(),
+      ...entry,
+      osUser: osUser(),
+      hostname: hostname(),
+      appVersion: appVersion(),
+      prev,
+    };
+    const bodyJson = JSON.stringify(body);
+    // `hash` is written last so verification can drop it and re-serialize.
+    const line = JSON.stringify({ ...body, hash: hashLine(prev, bodyJson) });
+    await appendFile(file, `${line}\n`, 'utf8');
   });
-  await appendFile(file, `${line}\n`, 'utf8');
+  // A failed append must not poison the queue for later ones.
+  appendQueue = run.catch(() => {});
+  return run;
+}
+
+/**
+ * Recompute the chain. `brokenAt` is the 1-based line where it first fails:
+ * an edited line fails itself, a deleted line fails the one after it.
+ */
+export async function verifyCabinetAuditChain(
+  file?: string,
+): Promise<{ ok: true; entries: number } | { ok: false; brokenAt: number }> {
+  const lines = await readLines(file ?? (await resolveAuditFile()));
+  let prev = CABINET_AUDIT_GENESIS;
+  for (let i = 0; i < lines.length; i++) {
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(lines[i]) as Record<string, unknown>;
+    } catch {
+      return { ok: false, brokenAt: i + 1 };
+    }
+    const { hash, ...body } = parsed;
+    if (body.prev !== prev || hash !== hashLine(prev, JSON.stringify(body))) {
+      return { ok: false, brokenAt: i + 1 };
+    }
+    prev = hash as string;
+  }
+  return { ok: true, entries: lines.length };
 }
 ```
 
@@ -257,13 +370,13 @@ export async function setCabinetMode(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `bun test server/services/cabinetMode.test.ts`
-Expected: PASS (6 tests).
+Expected: PASS (12 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add server/configStore.ts server/services/cabinetAudit.ts server/services/cabinetMode.ts server/services/cabinetMode.test.ts
-git commit -s -m "feat(cabinet): setting on by default, confirmed and audited switch"
+git commit -s -m "feat(cabinet): setting on by default, confirmed switch, hash-chained audit log"
 ```
 
 ---
@@ -904,7 +1017,8 @@ Expected: green (compare with the baseline noted in `2026-09-24-safe-mirror-pipe
 1. `pnpm dev`, open a test workspace, make it Safe (banner).
 2. Write in chat: `Jean Dupont (Acme SAS) doit 125 000 € — 06 12 34 56 78`. In the `[AGENT]` logs, the provider payload must show tokens for all four.
 3. Stop basemind (`basemind` process / daemon), send the same message. Expected: the localized `basemind.cabinet.blockedSend` error, nothing in the provider payload, and a `send_blocked` / `outbound` line in `<appData>/audit/cabinet-mode.jsonl`.
-4. Settings → Privacy → switch off → dialog → confirm. Expected: a `cabinet_mode_disabled` line with `osUser`, `hostname`, `appVersion`.
+4. Settings → Privacy → switch off → dialog → confirm. Expected: a `cabinet_mode_disabled` line with `osUser`, `hostname`, `appVersion`, `prev`, `hash`.
+   Then check the chain: `bun -e "import('./server/services/cabinetAudit.ts').then(async (m) => console.log(await m.verifyCabinetAuditChain(process.argv[1])))" <appData>/audit/cabinet-mode.jsonl` → `{ ok: true, … }`.
 5. With basemind still stopped, send again: the message leaves with regex-only redaction (today's behaviour). Switch back on.
 
 - [ ] **Step 3: Review before merge**
