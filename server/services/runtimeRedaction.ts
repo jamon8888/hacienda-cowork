@@ -456,14 +456,26 @@ export async function maybeRedactOutboundText(
  */
 export async function redactOutboundTurnInput(
   input: { message: string; system?: string },
-  options: OutboundTextOptions,
+  options: OutboundTextOptions & {
+    /** threadKey is a provisional key for a thread with no id yet. */
+    provisionalKey?: boolean;
+  },
   deps: RuntimeRedactionDeps = {},
 ): Promise<{ message: string; system?: string }> {
-  const message = (await maybeRedactOutboundText(input.message, options, deps)).text;
-  const system = input.system
-    ? (await maybeRedactOutboundText(input.system, options, deps)).text
-    : input.system;
-  return { message, system };
+  try {
+    const message = (await maybeRedactOutboundText(input.message, options, deps)).text;
+    const system = input.system
+      ? (await maybeRedactOutboundText(input.system, options, deps)).text
+      : input.system;
+    return { message, system };
+  } catch (error) {
+    // The message may already have stored originals under the provisional key
+    // before the system prompt was refused; nothing will ever re-key them, so
+    // they would sit in memory for the life of the process. A real thread's
+    // map is not ours to drop.
+    if (options.provisionalKey && options.threadKey) deleteRuntimeRehydrationMap(options.threadKey);
+    throw error;
+  }
 }
 
 /**

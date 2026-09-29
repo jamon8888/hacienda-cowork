@@ -635,6 +635,41 @@ describe('cabinet mode', () => {
     expect(text).toBe('Mail [EMAIL_0]');
   });
 
+  test('a blocked turn leaves no provisional rehydration map behind', async () => {
+    const ws = workspace(true);
+    let calls = 0;
+    const deps = {
+      ...cabinetDeps,
+      isNerReady: () => true,
+      detectNer: async () => {
+        calls += 1;
+        if (calls > 1) throw new Error('daemon died between the two passes');
+        return [];
+      },
+    };
+    await expect(
+      redactOutboundTurnInput(
+        { message: `Mail ${PROBE_EMAIL}`, system: 'You help Jane Doe' },
+        { workspacePath: ws, threadKey: 'pending-turn-1', provisionalKey: true },
+        deps,
+      ),
+    ).rejects.toBeInstanceOf(DetectionUnavailableError);
+    expect(getRuntimeRehydrationMap('pending-turn-1')).toEqual({});
+  });
+
+  test('a blocked turn on an existing thread keeps that thread map', async () => {
+    const ws = workspace(true);
+    mergeRuntimeRehydrationMap('thread-keep', { '[NAME_0]': 'Jane Doe' });
+    await expect(
+      redactOutboundTurnInput(
+        { message: 'x', system: 'y' },
+        { workspacePath: ws, threadKey: 'thread-keep' },
+        cabinetDeps,
+      ),
+    ).rejects.toBeInstanceOf(DetectionUnavailableError);
+    expect(getRuntimeRehydrationMap('thread-keep')).toEqual({ '[NAME_0]': 'Jane Doe' });
+  });
+
   test('a failing audit write never unblocks', async () => {
     const ws = workspace(true);
     await expect(

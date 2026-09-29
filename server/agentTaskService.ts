@@ -288,7 +288,7 @@ async function startHeadlessAgentTask(
   const threadKey = options.threadId ?? `pending-task-${nanoid()}`;
   const outbound = await redactOutboundTurnInput(
     { message: options.message ?? '', system: options.system },
-    { workspacePath: options.workspace ?? null, threadKey },
+    { workspacePath: options.workspace ?? null, threadKey, provisionalKey: !options.threadId },
   );
   if (options.threadId) void persistRehydrationForThread(options.threadId);
   let result: Awaited<ReturnType<typeof runCodexSubagent>>;

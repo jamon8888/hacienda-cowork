@@ -1,6 +1,7 @@
 import { Router, Request, Response, raw } from 'express';
 import {
   maybeRedactOutboundText,
+  redactOutboundTurnInput,
   mergeRuntimeRehydrationMap,
   getRuntimeRehydrationMap,
   deleteRuntimeRehydrationMap,
@@ -1033,18 +1034,12 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
     const outboundArmed = existsSync(path.join(workspacePath, 'safe'));
     if (outboundArmed) {
       await assertNoAttachmentsInSafeWorkspace(attachments.length > 0);
-      if (outboundMessage) {
-        outboundMessage = (await maybeRedactOutboundText(outboundMessage, {
-          workspacePath,
-          threadKey: outboundThreadKey,
-        })).text;
-      }
-      if (outboundSystem) {
-        outboundSystem = (await maybeRedactOutboundText(outboundSystem, {
-          workspacePath,
-          threadKey: outboundThreadKey,
-        })).text;
-      }
+      const outbound = await redactOutboundTurnInput(
+        { message: outboundMessage ?? '', system: outboundSystem },
+        { workspacePath, threadKey: outboundThreadKey, provisionalKey: !targetThreadId },
+      );
+      if (outboundMessage) outboundMessage = outbound.message;
+      outboundSystem = outbound.system;
       if (targetThreadId) {
         // Existing thread: persist immediately. New threads re-key + persist
         // on the thread event below.
