@@ -30,10 +30,24 @@ import type { PiiDetection } from '../../src/lib/pii/regex-detector';
 export const RUNTIME_REDACTION_DEFERRED_MARKER =
   '[redaction deferred: non-text content is not scanned for PII]';
 
+export const CABINET_WITHHELD_MARKER =
+  '[withheld: cabinet mode — full PII detection unavailable, content not sent]';
+
+/** Full detection (NER) could not run and cabinet mode forbids the fallback. */
+export class DetectionUnavailableError extends Error {
+  constructor(message = 'Full PII detection is unavailable (cabinet mode).') {
+    super(message);
+    this.name = 'DetectionUnavailableError';
+  }
+}
+
 export interface RuntimeRedactionDeps {
   isNerReady?: () => boolean;
   detectNer?: (text: string) => Promise<PiiDetection[]>;
   listCustomTerms?: () => Promise<CustomTerm[]>;
+  isCabinetMode?: () => boolean | Promise<boolean>;
+  recordBlock?: (surface: 'outbound' | 'tool') => Promise<void>;
+  blockedSendMessage?: () => Promise<string>;
 }
 
 async function defaultDetectNer(text: string): Promise<PiiDetection[]> {
@@ -54,16 +68,56 @@ async function defaultIsNerReady(): Promise<boolean> {
   return piiDetectionService.isPiiModelReady();
 }
 
+async function defaultIsCabinetMode(): Promise<boolean> {
+  const { getCabinetModeEnabled } = await import('../configStore');
+  return getCabinetModeEnabled();
+}
+
+async function defaultRecordBlock(surface: 'outbound' | 'tool'): Promise<void> {
+  const { appendCabinetAudit } = await import('./cabinetAudit');
+  await appendCabinetAudit({ event: 'send_blocked', surface });
+}
+
+async function defaultBlockedSendMessage(): Promise<string> {
+  // ChatView surfaces send errors as raw err.message, so the sentence is
+  // localized here (same rule as attachmentBlockedInSafe in routes/agent.ts).
+  const { getLanguage } = await import('../configStore');
+  const { resources, supportedLanguages } = await import('../../shared/locales');
+  const language = await getLanguage();
+  const locale = language && (supportedLanguages as readonly string[]).includes(language)
+    ? (language as keyof typeof resources)
+    : 'en';
+  return resources[locale].translation['basemind.cabinet.blockedSend'];
+}
+
 function resolveDeps(deps: RuntimeRedactionDeps = {}): {
   isNerReady: () => boolean | Promise<boolean>;
   detectNer: (text: string) => Promise<PiiDetection[]>;
   listCustomTerms: () => Promise<CustomTerm[]>;
+  isCabinetMode: () => boolean | Promise<boolean>;
+  recordBlock: (surface: 'outbound' | 'tool') => Promise<void>;
+  blockedSendMessage: () => Promise<string>;
 } {
   return {
     isNerReady: deps.isNerReady ?? defaultIsNerReady,
     detectNer: deps.detectNer ?? defaultDetectNer,
     listCustomTerms: deps.listCustomTerms ?? defaultListCustomTerms,
+    isCabinetMode: deps.isCabinetMode ?? defaultIsCabinetMode,
+    recordBlock: deps.recordBlock ?? defaultRecordBlock,
+    blockedSendMessage: deps.blockedSendMessage ?? defaultBlockedSendMessage,
   };
+}
+
+async function recordBlockQuietly(
+  resolved: ReturnType<typeof resolveDeps>,
+  surface: 'outbound' | 'tool',
+): Promise<void> {
+  // The block stands whether or not it could be logged.
+  try {
+    await resolved.recordBlock(surface);
+  } catch (error) {
+    console.warn('[cabinet] could not record a blocked send', error);
+  }
 }
 
 // Thread-scoped rehydration maps: token -> original text. In-memory only;
@@ -141,6 +195,8 @@ function isNonTextContent(text: string): boolean {
 
 export interface RedactTextOptions {
   threadKey?: string;
+  /** Cabinet mode: throw DetectionUnavailableError instead of the regex-only fallback. */
+  requireFullDetection?: boolean;
 }
 
 export async function redactFileReadOutputText(
@@ -167,13 +223,16 @@ export async function redactFileReadOutputText(
   // NER runs unconditionally when ready: regex covers patterns (email, phone,
   // …) but NER-only categories (names, addresses) would otherwise pass raw.
   let detections: PiiDetection[] = regexDetections;
+  let nerRan = false;
   try {
     if (await resolved.isNerReady()) {
       detections = mergeDetections(await resolved.detectNer(text), regexDetections);
+      nerRan = true;
     }
   } catch {
     detections = regexDetections;
   }
+  if (options.requireFullDetection && !nerRan) throw new DetectionUnavailableError();
   if (detections.length === 0) return { text, redacted: false, deferred: false };
   const reserved = options.threadKey ? Object.keys(runtimeRehydrationMaps.get(options.threadKey) ?? {}) : [];
   const { redactedText, rehydrationMap } = buildRedactedText(text, detections, new Set(reserved));
@@ -195,13 +254,22 @@ function isMcpContentResult(value: unknown): value is { content: McpContentPart[
 
 export async function applyFileReadRedaction(
   result: unknown,
-  options: RedactTextOptions = {},
+  options: RedactTextOptions & { onWithheld?: () => void } = {},
   deps: RuntimeRedactionDeps = {},
 ): Promise<unknown> {
+  const redactOrWithhold = async (text: string) => {
+    try {
+      return await redactFileReadOutputText(text, options, deps);
+    } catch (error) {
+      if (!(error instanceof DetectionUnavailableError)) throw error;
+      options.onWithheld?.();
+      return { text: CABINET_WITHHELD_MARKER, redacted: false, deferred: true };
+    }
+  };
   // Error text can echo paths or content, so it redacts like any other text;
   // the isError flag survives via the spread below and diagnostics keep working.
   if (typeof result === 'string') {
-    return (await redactFileReadOutputText(result, options, deps)).text;
+    return (await redactOrWithhold(result)).text;
   }
   if (isMcpContentResult(result)) {
     // Sequential on purpose: each part stores into the thread map before the
@@ -214,7 +282,7 @@ export async function applyFileReadRedaction(
         content.push(part);
         continue;
       }
-      const redacted = await redactFileReadOutputText(part.text, options, deps);
+      const redacted = await redactOrWithhold(part.text);
       if (redacted.redacted || redacted.deferred) {
         content.push({ ...part, text: redacted.text });
         changed = true;
@@ -256,7 +324,16 @@ export async function maybeRedactToolResult(
   // An unknown workspacePath fails closed (treat as armed) so a missing
   // resolution never leaks file bytes to a remote model.
   if (workspacePath != null && !existsSync(join(workspacePath, 'safe'))) return result;
-  return applyFileReadRedaction(result, threadKey ? { threadKey } : {}, deps);
+  const resolved = resolveDeps(deps);
+  const requireFullDetection = await resolved.isCabinetMode();
+  let withheld = false;
+  const redacted = await applyFileReadRedaction(result, {
+    ...(threadKey ? { threadKey } : {}),
+    requireFullDetection,
+    onWithheld: () => { withheld = true; },
+  }, deps);
+  if (withheld) await recordBlockQuietly(resolved, 'tool');
+  return redacted;
 }
 
 export interface OutboundTextOptions {
@@ -280,12 +357,20 @@ export async function maybeRedactOutboundText(
   if (options.workspacePath != null && !existsSync(join(options.workspacePath, 'safe'))) {
     return { text, redacted: false };
   }
-  const result = await redactFileReadOutputText(
-    text,
-    options.threadKey ? { threadKey: options.threadKey } : {},
-    deps,
-  );
-  return { text: result.text, redacted: result.redacted || result.deferred };
+  const resolved = resolveDeps(deps);
+  const requireFullDetection = await resolved.isCabinetMode();
+  try {
+    const result = await redactFileReadOutputText(
+      text,
+      { ...(options.threadKey ? { threadKey: options.threadKey } : {}), requireFullDetection },
+      deps,
+    );
+    return { text: result.text, redacted: result.redacted || result.deferred };
+  } catch (error) {
+    if (!(error instanceof DetectionUnavailableError)) throw error;
+    await recordBlockQuietly(resolved, 'outbound');
+    throw new DetectionUnavailableError(await resolved.blockedSendMessage());
+  }
 }
 
 /**

@@ -6,9 +6,11 @@ import { afterEach, describe, expect, test } from 'bun:test';
 
 import {
   applyFileReadRedaction,
+  CABINET_WITHHELD_MARKER,
   clearActiveTurnWorkspace,
   clearRuntimeRehydrationMaps,
   deleteRuntimeRehydrationMap,
+  DetectionUnavailableError,
   getActiveTurnWorkspace,
   getRuntimeRehydrationMap,
   maybeRedactOutboundText,
@@ -41,6 +43,10 @@ const stubDeps = {
   isNerReady: () => false,
   detectNer: async (_text: string): Promise<never[]> => [],
   listCustomTerms: async () => [],
+  // Cabinet mode has its own describe block; everything else keeps today's fallback.
+  isCabinetMode: () => false,
+  recordBlock: async () => {},
+  blockedSendMessage: async () => 'blocked',
 };
 
 describe('applyFileReadRedaction', () => {
@@ -467,5 +473,100 @@ describe('pinned custom terms', () => {
     );
     expect(text).not.toContain('Jean Dupond');
     expect(text).not.toContain('CUSTOM');
+  });
+});
+
+describe('cabinet mode', () => {
+  const blocks: string[] = [];
+  const cabinetDeps = {
+    ...stubDeps,
+    isCabinetMode: () => true,
+    recordBlock: async (surface: 'outbound' | 'tool') => { blocks.push(surface); },
+    blockedSendMessage: async () => 'Cabinet mode: nothing was sent.',
+  };
+
+  test('refuses outbound text when NER is not ready', async () => {
+    blocks.length = 0;
+    const ws = workspace(true);
+    const call = maybeRedactOutboundText(`Mail ${PROBE_EMAIL}`, { workspacePath: ws, threadKey: 't-c1' }, cabinetDeps);
+    await expect(call).rejects.toBeInstanceOf(DetectionUnavailableError);
+    await expect(
+      maybeRedactOutboundText('x', { workspacePath: ws, threadKey: 't-c1' }, cabinetDeps),
+    ).rejects.toThrow('Cabinet mode: nothing was sent.');
+    expect(blocks).toEqual(['outbound', 'outbound']);
+  });
+
+  test('refuses outbound text when NER throws', async () => {
+    const ws = workspace(true);
+    await expect(
+      maybeRedactOutboundText('Jane Doe', { workspacePath: ws, threadKey: 't-c2' }, {
+        ...cabinetDeps,
+        isNerReady: () => true,
+        detectNer: async () => { throw new Error('daemon down'); },
+      }),
+    ).rejects.toBeInstanceOf(DetectionUnavailableError);
+  });
+
+  test('refuses even text with no regex match (names are NER-only)', async () => {
+    const ws = workspace(true);
+    await expect(
+      maybeRedactOutboundText('Jane Doe signs for Acme', { workspacePath: ws }, cabinetDeps),
+    ).rejects.toBeInstanceOf(DetectionUnavailableError);
+  });
+
+  test('withholds tool result text parts when NER is not ready', async () => {
+    blocks.length = 0;
+    const ws = workspace(true);
+    const result = await maybeRedactToolResult({
+      serverId: 'builtin-filesystem',
+      toolName: 'read_file',
+      result: { content: [{ type: 'text', text: 'Jane Doe owes 10 000 €' }, { type: 'image', data: 'x' }], isError: false },
+      workspacePath: ws,
+      threadKey: 't-c3',
+    }, cabinetDeps);
+    const content = (result as { content: Array<{ type: string; text?: string }> }).content;
+    expect(content[0].text).toBe(CABINET_WITHHELD_MARKER);
+    expect(content[1].type).toBe('image');
+    expect(blocks).toEqual(['tool']);
+  });
+
+  test('withholds a plain string tool result', async () => {
+    const ws = workspace(true);
+    const result = await maybeRedactToolResult({
+      serverId: 'builtin-filesystem', toolName: 'read_file', result: 'Jane Doe', workspacePath: ws, threadKey: 't-c4',
+    }, cabinetDeps);
+    expect(result).toBe(CABINET_WITHHELD_MARKER);
+  });
+
+  test('behaves as today when NER is ready', async () => {
+    const ws = workspace(true);
+    const { text } = await maybeRedactOutboundText(`Mail ${PROBE_EMAIL}`, { workspacePath: ws, threadKey: 't-c5' }, {
+      ...cabinetDeps,
+      isNerReady: () => true,
+      detectNer: async () => [],
+    });
+    expect(text).toBe('Mail [EMAIL_0]');
+  });
+
+  test('does nothing outside a Safe workspace', async () => {
+    const ws = workspace(false);
+    const { text } = await maybeRedactOutboundText('Jane Doe', { workspacePath: ws }, cabinetDeps);
+    expect(text).toBe('Jane Doe');
+  });
+
+  test('cabinet off keeps the regex fallback', async () => {
+    const ws = workspace(true);
+    const { text } = await maybeRedactOutboundText(`Mail ${PROBE_EMAIL}`, { workspacePath: ws, threadKey: 't-c6' }, stubDeps);
+    expect(text).toBe('Mail [EMAIL_0]');
+  });
+
+  test('a failing audit write never unblocks', async () => {
+    const ws = workspace(true);
+    await expect(
+      maybeRedactOutboundText('Jane Doe', { workspacePath: ws }, {
+        ...cabinetDeps,
+        recordBlock: async () => { throw new Error('disk full'); },
+      }),
+    ).rejects.toBeInstanceOf(DetectionUnavailableError);
   });
 });
