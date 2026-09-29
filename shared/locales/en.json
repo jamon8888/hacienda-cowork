@@ -1815,6 +1815,7 @@
   "basemind.cabinet.disableBody": "When full detection is unavailable, text will leave with pattern-only redaction: names, companies and amounts may be sent in clear. You take responsibility for this choice. It is recorded on this computer.",
   "basemind.cabinet.disableConfirm": "Turn off — I take responsibility",
   "basemind.cabinet.blockedSend": "Cabinet mode: full detection is unavailable, so nothing was sent. Start the Safe engine and try again.",
+  "basemind.cabinet.changeFailed": "Cabinet mode could not be read or changed. Nothing was modified; try again.",
   "basemind.indexing.progress_one": "Indexing {{count}} file…",
   "basemind.indexing.progress_other": "Indexing {{count}} files…",
   "basemind.indexing.ready": "Ready",

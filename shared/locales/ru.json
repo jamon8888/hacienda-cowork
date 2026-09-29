@@ -1815,6 +1815,7 @@
   "basemind.cabinet.disableBody": "Когда полное обнаружение недоступно, текст будет отправлен только с маскированием по шаблонам: имена, названия компаний и суммы могут уйти в открытом виде. Вы берёте на себя ответственность за этот выбор. Он записывается на этом компьютере.",
   "basemind.cabinet.disableConfirm": "Отключить — беру ответственность на себя",
   "basemind.cabinet.blockedSend": "Режим юридической фирмы: полное обнаружение недоступно, ничего не отправлено. Запустите движок Safe и повторите попытку.",
+  "basemind.cabinet.changeFailed": "Не удалось прочитать или изменить режим юридической фирмы. Ничего не изменено; повторите попытку.",
   "basemind.indexing.progress_one": "Indexing {{count}} file…",
   "basemind.indexing.progress_other": "Indexing {{count}} files…",
   "basemind.indexing.ready": "Ready",

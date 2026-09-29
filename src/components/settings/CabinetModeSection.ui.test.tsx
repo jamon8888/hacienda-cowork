@@ -16,16 +16,23 @@ beforeEach(() => {
   scanMocks.setCabinetMode.mockClear();
 });
 
+// The switch stays disabled until the real state has been read.
+async function findLoadedSwitch(): Promise<HTMLElement> {
+  const toggle = await screen.findByRole('switch');
+  await waitFor(() => expect(toggle).toBeEnabled());
+  return toggle;
+}
+
 describe('CabinetModeSectionContent', () => {
   test('shows cabinet mode on by default', async () => {
     render(<CabinetModeSectionContent />);
-    const toggle = await screen.findByRole('switch');
+    const toggle = await findLoadedSwitch();
     expect(toggle).toHaveAttribute('aria-checked', 'true');
   });
 
   test('switching off asks for confirmation and does nothing on cancel', async () => {
     render(<CabinetModeSectionContent />);
-    await userEvent.click(await screen.findByRole('switch'));
+    await userEvent.click(await findLoadedSwitch());
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /cancel|annuler/i }));
     expect(scanMocks.setCabinetMode).not.toHaveBeenCalled();
@@ -34,7 +41,7 @@ describe('CabinetModeSectionContent', () => {
 
   test('confirming turns it off with confirmed=true', async () => {
     render(<CabinetModeSectionContent />);
-    await userEvent.click(await screen.findByRole('switch'));
+    await userEvent.click(await findLoadedSwitch());
     await userEvent.click(await screen.findByTestId('cabinet-disable-confirm'));
     await waitFor(() => expect(scanMocks.setCabinetMode).toHaveBeenCalledWith(false, true));
     expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
@@ -43,10 +50,27 @@ describe('CabinetModeSectionContent', () => {
   test('switching back on needs no dialog', async () => {
     scanMocks.getCabinetMode.mockResolvedValueOnce({ enabled: false });
     render(<CabinetModeSectionContent />);
-    const toggle = await screen.findByRole('switch');
+    const toggle = await findLoadedSwitch();
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
     await userEvent.click(toggle);
     await waitFor(() => expect(scanMocks.setCabinetMode).toHaveBeenCalledWith(true, false));
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  test('shows an error and locks the switch when the state cannot be loaded', async () => {
+    scanMocks.getCabinetMode.mockRejectedValueOnce(new Error('ipc down'));
+    render(<CabinetModeSectionContent />);
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    // Never show "on" for a state we could not read.
+    expect(screen.getByRole('switch')).toBeDisabled();
+  });
+
+  test('surfaces a failed change and keeps the switch where it was', async () => {
+    scanMocks.setCabinetMode.mockRejectedValueOnce(new Error('disk full'));
+    render(<CabinetModeSectionContent />);
+    await userEvent.click(await findLoadedSwitch());
+    await userEvent.click(await screen.findByTestId('cabinet-disable-confirm'));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
   });
 });

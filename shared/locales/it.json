@@ -1815,6 +1815,7 @@
   "basemind.cabinet.disableBody": "Quando il rilevamento completo non è disponibile, il testo partirà con il solo mascheramento tramite modelli: nomi, società e importi potrebbero essere inviati in chiaro. Ti assumi la responsabilità di questa scelta. Viene registrata su questo computer.",
   "basemind.cabinet.disableConfirm": "Disattiva — me ne assumo la responsabilità",
   "basemind.cabinet.blockedSend": "Modalità studio legale: il rilevamento completo non è disponibile, non è stato inviato nulla. Avvia il motore Safe e riprova.",
+  "basemind.cabinet.changeFailed": "Impossibile leggere o modificare la modalità studio legale. Nulla è stato modificato; riprova.",
   "basemind.indexing.progress_one": "Indexing {{count}} file…",
   "basemind.indexing.progress_other": "Indexing {{count}} files…",
   "basemind.indexing.ready": "Ready",

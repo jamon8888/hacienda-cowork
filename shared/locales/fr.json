@@ -1815,6 +1815,7 @@
   "basemind.cabinet.disableBody": "Quand la détection complète est indisponible, le texte partira avec un masquage par motifs seulement : noms, sociétés et montants pourront être envoyés en clair. Vous prenez la responsabilité de ce choix. Il est enregistré sur cet ordinateur.",
   "basemind.cabinet.disableConfirm": "Désactiver — j'en prends la responsabilité",
   "basemind.cabinet.blockedSend": "Mode cabinet : la détection complète est indisponible, rien n'a été envoyé. Démarrez le moteur Safe et réessayez.",
+  "basemind.cabinet.changeFailed": "Le mode cabinet n'a pas pu être lu ou modifié. Rien n'a été changé ; réessayez.",
   "basemind.indexing.progress_one": "Indexation de {{count}} fichier…",
   "basemind.indexing.progress_other": "Indexation de {{count}} fichiers…",
   "basemind.indexing.ready": "Prêt",

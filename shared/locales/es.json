@@ -1815,6 +1815,7 @@
   "basemind.cabinet.disableBody": "Cuando la detección completa no esté disponible, el texto saldrá solo con enmascaramiento por patrones: nombres, empresas e importes podrían enviarse sin ocultar. Usted asume la responsabilidad de esta elección. Queda registrada en este ordenador.",
   "basemind.cabinet.disableConfirm": "Desactivar — asumo la responsabilidad",
   "basemind.cabinet.blockedSend": "Modo despacho: la detección completa no está disponible, no se ha enviado nada. Inicie el motor Safe e inténtelo de nuevo.",
+  "basemind.cabinet.changeFailed": "No se pudo leer o cambiar el modo despacho. No se ha modificado nada; inténtelo de nuevo.",
   "basemind.indexing.progress_one": "Indexing {{count}} file…",
   "basemind.indexing.progress_other": "Indexing {{count}} files…",
   "basemind.indexing.ready": "Ready",
