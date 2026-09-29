@@ -476,6 +476,30 @@ describe('pinned custom terms', () => {
   });
 });
 
+describe('structured MCP output', () => {
+  test('redacts structuredContent strings and resource text like text parts', async () => {
+    clearRuntimeRehydrationMaps();
+    const ws = workspace(true);
+    const result = await maybeRedactToolResult({
+      serverId: 'basemind',
+      toolName: 'search',
+      result: {
+        content: [
+          { type: 'text', text: `Mail ${PROBE_EMAIL}` },
+          { type: 'resource', resource: { uri: 'file:///a.txt', text: `Mail ${PROBE_EMAIL}` } },
+        ],
+        structuredContent: { hits: [{ snippet: `Mail ${PROBE_EMAIL}`, score: 3 }] },
+      },
+      workspacePath: ws,
+      threadKey: 't-sc1',
+    }, stubDeps);
+    expect(JSON.stringify(result)).not.toContain(PROBE_EMAIL);
+    const r = result as { structuredContent: { hits: Array<{ snippet: string; score: number }> } };
+    expect(r.structuredContent.hits[0].snippet).toMatch(/^Mail \[EMAIL_\d+\]$/);
+    expect(r.structuredContent.hits[0].score).toBe(3);
+  });
+});
+
 describe('cabinet mode', () => {
   const blocks: string[] = [];
   const cabinetDeps = {
@@ -553,6 +577,40 @@ describe('cabinet mode', () => {
       serverId: 'builtin-filesystem', toolName: 'read_file', result: 'Jane Doe', workspacePath: ws, threadKey: 't-c4',
     }, cabinetDeps);
     expect(result).toBe(CABINET_WITHHELD_MARKER);
+  });
+
+  test('withholds structuredContent strings and embedded resource text too', async () => {
+    blocks.length = 0;
+    const ws = workspace(true);
+    const result = await maybeRedactToolResult({
+      serverId: 'basemind',
+      toolName: 'search',
+      result: {
+        content: [
+          { type: 'text', text: 'Jane Doe owes 10 000 €' },
+          { type: 'resource', resource: { uri: 'file:///a.txt', text: 'Jane Doe again' } },
+        ],
+        structuredContent: { hits: [{ snippet: 'Jane Doe owes 10 000 €', score: 3, tags: ['Acme'] }], total: 1 },
+        isError: false,
+      },
+      workspacePath: ws,
+      threadKey: 't-c7',
+    }, cabinetDeps);
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain('Jane Doe');
+    expect(serialized).not.toContain('Acme');
+    const r = result as {
+      content: Array<{ resource?: { uri: string; text: string } }>;
+      structuredContent: { hits: Array<{ snippet: string; score: number; tags: string[] }>; total: number };
+    };
+    expect(r.content[1].resource).toEqual({ uri: 'file:///a.txt', text: CABINET_WITHHELD_MARKER });
+    expect(r.structuredContent.hits[0].snippet).toBe(CABINET_WITHHELD_MARKER);
+    expect(r.structuredContent.hits[0].tags).toEqual([CABINET_WITHHELD_MARKER]);
+    // Numbers and structure survive: the tool contract is not broken.
+    expect(r.structuredContent.hits[0].score).toBe(3);
+    expect(r.structuredContent.total).toBe(1);
+    expect(blocks.length).toBeGreaterThan(0);
+    expect(blocks.every((b) => b === 'tool')).toBe(true);
   });
 
   test('behaves as today when NER is ready', async () => {

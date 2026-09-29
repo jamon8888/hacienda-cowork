@@ -255,13 +255,52 @@ export async function redactFileReadOutputText(
 interface McpContentPart {
   type: string;
   text?: string;
+  resource?: { text?: unknown; [key: string]: unknown };
   [key: string]: unknown;
 }
 
-function isMcpContentResult(value: unknown): value is { content: McpContentPart[] } & Record<string, unknown> {
+function isMcpContentResult(value: unknown): value is { content: McpContentPart[]; structuredContent?: unknown } & Record<string, unknown> {
   if (typeof value !== 'object' || value === null) return false;
   const content = (value as { content?: unknown }).content;
   return Array.isArray(content);
+}
+
+/**
+ * Redact every string inside a JSON-like value, in place of the original
+ * shape (keys, numbers, booleans and nesting are kept). Sequential for the
+ * same reason as the content parts: reserved tokens accumulate in order.
+ */
+async function redactStringLeaves(
+  value: unknown,
+  redact: (text: string) => Promise<{ text: string; redacted: boolean; deferred: boolean }>,
+): Promise<{ value: unknown; changed: boolean }> {
+  if (typeof value === 'string') {
+    if (value === '') return { value, changed: false };
+    const result = await redact(value);
+    const changed = result.redacted || result.deferred;
+    return { value: changed ? result.text : value, changed };
+  }
+  if (Array.isArray(value)) {
+    let changed = false;
+    const out: unknown[] = [];
+    for (const item of value) {
+      const walked = await redactStringLeaves(item, redact);
+      out.push(walked.value);
+      changed ||= walked.changed;
+    }
+    return { value: changed ? out : value, changed };
+  }
+  if (typeof value === 'object' && value !== null) {
+    let changed = false;
+    const out: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+      const walked = await redactStringLeaves(item, redact);
+      out[key] = walked.value;
+      changed ||= walked.changed;
+    }
+    return { value: changed ? out : value, changed };
+  }
+  return { value, changed: false };
 }
 
 export async function applyFileReadRedaction(
@@ -290,6 +329,17 @@ export async function applyFileReadRedaction(
     const content: McpContentPart[] = [];
     let changed = false;
     for (const part of result.content) {
+      if (part?.type === 'resource' && typeof part.resource?.text === 'string') {
+        // Embedded resources carry text the model reads just like a text part.
+        const redacted = await redactOrWithhold(part.resource.text);
+        if (redacted.redacted || redacted.deferred) {
+          content.push({ ...part, resource: { ...part.resource, text: redacted.text } });
+          changed = true;
+        } else {
+          content.push(part);
+        }
+        continue;
+      }
       if (part?.type !== 'text' || typeof part.text !== 'string') {
         content.push(part);
         continue;
@@ -302,8 +352,22 @@ export async function applyFileReadRedaction(
         content.push(part);
       }
     }
+    // The CLI surface prints the whole result body, so structuredContent
+    // reaches the model as well: a copy of the text parts, or more.
+    let structuredContent = result.structuredContent;
+    if (structuredContent !== undefined) {
+      const walked = await redactStringLeaves(structuredContent, redactOrWithhold);
+      if (walked.changed) {
+        structuredContent = walked.value;
+        changed = true;
+      }
+    }
     if (!changed) return result;
-    return { ...result, content };
+    return {
+      ...result,
+      content,
+      ...(structuredContent !== undefined ? { structuredContent } : {}),
+    };
   }
   return result;
 }
