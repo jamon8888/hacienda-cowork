@@ -669,6 +669,9 @@ interface WorkspaceScanIpc {
   /** #13/#18: raw-code semantic indexing opt-in; off by default. */
   getCodeIndexingEnabled(): Promise<{ enabled: boolean }>;
   setCodeIndexingEnabled(value: boolean): Promise<{ enabled: boolean }>;
+  /** Cabinet mode (spec 2026-09-29): on by default; turning off needs confirmed=true. */
+  getCabinetMode(): Promise<{ enabled: boolean }>;
+  setCabinetMode(value: boolean, confirmed: boolean): Promise<{ enabled: boolean }>;
 }
 
 interface BasemindDownloadResult {
@@ -772,6 +775,8 @@ export const workspaceScan: WorkspaceScanIpc = isMarketingDemoMode()
     status: async () => { throw new Error('Not available in demo mode'); },
     getCodeIndexingEnabled: async () => { throw new Error('Not available in demo mode'); },
     setCodeIndexingEnabled: async () => { throw new Error('Not available in demo mode'); },
+    getCabinetMode: async () => { throw new Error('Not available in demo mode'); },
+    setCabinetMode: async () => { throw new Error('Not available in demo mode'); },
   }
   : (client.workspaceScan as WorkspaceScanIpc);
 export const basemind: BasemindIpc = isMarketingDemoMode()
