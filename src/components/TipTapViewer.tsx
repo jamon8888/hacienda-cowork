@@ -14,7 +14,7 @@ import Underline from '@tiptap/extension-underline';
 import { DraggableTaskItem } from '../extensions/DraggableTaskItem';
 import { ResizableImage, type ResolveImageSrc } from '../extensions/ResizableImage';
 import { AnimationHighlight } from '../extensions/AnimationHighlight';
-import { openExternal, pii, showContextMenu, vault, workspace, type ContextMenuItem } from '@/ipc';
+import { openExternal, pii, showContextMenu, showPrompt, vault, workspace, type ContextMenuItem } from '@/ipc';
 import { PiiLabel, type PiiLabelStorage } from '../extensions/PiiLabel';
 import {
   buildRedactedText,
@@ -855,10 +855,13 @@ export const TipTapViewer = forwardRef<TipTapViewerRef, TipTapViewerProps>(
         // NER unavailable — custom term still covers the gesture.
       }
       piiSubmenu = categories.map((category) => {
-        const entry = Object.prototype.hasOwnProperty.call(PII_COLORS, category)
-          ? PII_COLORS[category]
+        // Detections carry the raw detector label (`payment_card`); the palette
+        // is keyed by canonical category (`credit_card`).
+        const normalized = normalizePiiCategory(category);
+        const entry = Object.prototype.hasOwnProperty.call(PII_COLORS, normalized)
+          ? PII_COLORS[normalized]
           : undefined;
-        return { label: entry?.label ?? category, action: `pii:${category}` };
+        return { label: entry?.label ?? category, action: `pii:${normalized}` };
       });
       piiSubmenu.push({
         label: t('basemind.pii.customTerm'),
@@ -905,7 +908,7 @@ export const TipTapViewer = forwardRef<TipTapViewerRef, TipTapViewerProps>(
       } else if (action.startsWith('pii:') && gestureText && filePath) {
         const category = action.slice('pii:'.length);
         if (category === 'custom') {
-          const customLabel = window.prompt(t('basemind.pii.customTermPrompt'), gestureText);
+          const customLabel = await showPrompt(t('basemind.pii.customTermPrompt'), gestureText);
           if (customLabel === null) return;
           const label = customLabel.trim() || gestureText;
           await applyPiiGesture(customTermCategory(label), {

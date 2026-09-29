@@ -40,6 +40,12 @@ const CATEGORY_ALIASES: Record<string, string> = {
   ipv6: 'ipv6',
   creditcard: 'credit_card',
   credit_card: 'credit_card',
+  // GLiNER2's wording for a concept that already has a canonical category —
+  // the model emits whichever synonym it was asked for, the UI sees one.
+  street_address: 'address',
+  payment_card: 'credit_card',
+  card_number: 'credit_card',
+  access_token: 'bearer_token',
 };
 
 export function normalizePiiCategory(label: string): string {
