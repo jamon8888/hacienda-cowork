@@ -124,6 +124,17 @@ Interpreter workstation tools are model-facing through the `interpreter-app` CLI
 - Do not add a second direct model-facing tool surface for workstation tools.
 - Codex-native capabilities such as shell execution and patching remain native runtime features. `js_repl` is a builtin workstation tool (`builtin-js-repl`) backed by a persistent Node kernel in the Express backend (`server/tools/builtin-tools/js-repl/`).
 
+### Safe Workspace Redaction: Known Limits
+
+In a workspace with a `safe/` folder, `server/services/runtimeRedaction.ts` gates what Workstation itself sends: the user message, the task system prompt and the saved custom instructions (`redactOutboundTurnInput`), steer text, and every `ToolManager.callTool` result (builtins and MCP servers reached through `interpreter-app`). With cabinet mode on and full PII detection unavailable, the turn or steer is refused and tool results are replaced by a withheld marker. A turn or steer with no text to scan (skills only) runs one local detector probe (`assertCabinetTurnAllowed`) so it is refused the same way.
+
+What the gate does not cover:
+
+- **Native runtime tools.** OIX shell execution, patching and the file reads they perform run inside the harness; their output goes to the provider without passing through Workstation, so it is never redacted or withheld, with or without cabinet mode. Intercepting it would need a hook in the runtime, not in this app.
+- **Detection lost mid-turn.** Cabinet mode checks at turn start and at each steer. If detection stops while a turn is running, app tool results are withheld from then on, but native tool output keeps flowing until the turn ends or is stopped.
+- **Runtime context.** The workspace path (`cwd`), the interpreter CLI path and skill metadata in the developer prompt are sent as they are.
+- **Callers outside the gate.** Turns started through `runCodexSubagent` without `redactOutboundTurnInput` (the hidden overlay agent) send their message and system prompt ungated; in a Safe workspace the runtime leaves the saved custom instructions out of such turns rather than sending them raw.
+
 ---
 
 ## Built-in Tools

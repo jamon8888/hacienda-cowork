@@ -1810,7 +1810,7 @@
   "basemind.filesWillBeRedacted": "Files will be redacted before sending to {{provider}} via basemind",
   "basemind.attachmentBlockedInSafe": "Images can't be redacted, so they are never sent from a Safe folder. Your message was not sent.",
   "basemind.cabinet.title": "Режим юридической фирмы",
-  "basemind.cabinet.description": "В папке Safe, если полное обнаружение недоступно, провайдеру ИИ ничего не отправляется.",
+  "basemind.cabinet.description": "В папке Safe, если при отправке полное обнаружение недоступно, провайдеру ИИ ничего не отправляется, а результаты инструментов приложения удерживаются. Ограничение: вывод собственных shell- и файловых команд агента никогда не проверяется.",
   "basemind.cabinet.disableTitle": "Отключить режим юридической фирмы?",
   "basemind.cabinet.disableBody": "Когда полное обнаружение недоступно, текст будет отправлен только с маскированием по шаблонам: имена, названия компаний и суммы могут уйти в открытом виде. Вы берёте на себя ответственность за этот выбор. Он записывается на этом компьютере.",
   "basemind.cabinet.disableConfirm": "Отключить — беру ответственность на себя",

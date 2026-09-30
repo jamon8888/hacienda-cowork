@@ -1810,7 +1810,7 @@
   "basemind.filesWillBeRedacted": "Files will be redacted before sending to {{provider}} via basemind",
   "basemind.attachmentBlockedInSafe": "Images can't be redacted, so they are never sent from a Safe folder. Your message was not sent.",
   "basemind.cabinet.title": "Modalità studio legale",
-  "basemind.cabinet.description": "In una cartella Safe, se il rilevamento completo non può essere eseguito, non viene inviato nulla al fornitore di IA.",
+  "basemind.cabinet.description": "In una cartella Safe, se il rilevamento completo non può essere eseguito all'invio, non viene inviato nulla al fornitore di IA e i risultati degli strumenti dell'app vengono trattenuti. Limite: l'output dei comandi di shell e sui file dell'agente stesso non viene mai analizzato.",
   "basemind.cabinet.disableTitle": "Disattivare la modalità studio legale?",
   "basemind.cabinet.disableBody": "Quando il rilevamento completo non è disponibile, il testo partirà con il solo mascheramento tramite modelli: nomi, società e importi potrebbero essere inviati in chiaro. Ti assumi la responsabilità di questa scelta. Viene registrata su questo computer.",
   "basemind.cabinet.disableConfirm": "Disattiva — me ne assumo la responsabilità",

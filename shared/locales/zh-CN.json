@@ -1810,7 +1810,7 @@
   "basemind.filesWillBeRedacted": "Files will be redacted before sending to {{provider}} via basemind",
   "basemind.attachmentBlockedInSafe": "Images can't be redacted, so they are never sent from a Safe folder. Your message was not sent.",
   "basemind.cabinet.title": "律所模式",
-  "basemind.cabinet.description": "在 Safe 文件夹中，如果无法运行完整检测，则不会向 AI 提供商发送任何内容。",
+  "basemind.cabinet.description": "在 Safe 文件夹中，如果发送时无法运行完整检测，则不会向 AI 提供商发送任何内容，应用工具的结果也会被扣留。限制：代理自身的 shell 和文件命令的输出不会被扫描。",
   "basemind.cabinet.disableTitle": "要关闭律所模式吗？",
   "basemind.cabinet.disableBody": "当完整检测不可用时，文本将仅经过基于模式的遮蔽后发送：姓名、公司名称和金额可能以明文发送。您将对此选择承担责任。此操作会记录在这台电脑上。",
   "basemind.cabinet.disableConfirm": "关闭 — 我承担责任",

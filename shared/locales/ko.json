@@ -1810,7 +1810,7 @@
   "basemind.filesWillBeRedacted": "Files will be redacted before sending to {{provider}} via basemind",
   "basemind.attachmentBlockedInSafe": "Images can't be redacted, so they are never sent from a Safe folder. Your message was not sent.",
   "basemind.cabinet.title": "사무소 모드",
-  "basemind.cabinet.description": "Safe 폴더에서 전체 탐지를 실행할 수 없으면 AI 제공업체로 아무것도 전송되지 않습니다.",
+  "basemind.cabinet.description": "Safe 폴더에서 전송 시 전체 탐지를 실행할 수 없으면 AI 제공업체로 아무것도 전송되지 않으며 앱 도구 결과도 보류됩니다. 제한: 에이전트 자체의 셸 및 파일 명령 출력은 검사되지 않습니다.",
   "basemind.cabinet.disableTitle": "사무소 모드를 끄시겠습니까?",
   "basemind.cabinet.disableBody": "전체 탐지를 사용할 수 없을 때 텍스트는 패턴 기반 마스킹만 적용된 채 전송됩니다. 이름, 회사명, 금액이 가려지지 않은 채 전송될 수 있습니다. 이 선택에 대한 책임은 사용자에게 있습니다. 이 작업은 이 컴퓨터에 기록됩니다.",
   "basemind.cabinet.disableConfirm": "끄기 — 책임을 지겠습니다",

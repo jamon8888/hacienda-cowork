@@ -6,6 +6,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 
 import {
   applyFileReadRedaction,
+  assertCabinetTurnAllowed,
   CABINET_WITHHELD_MARKER,
   clearActiveTurnWorkspace,
   clearRuntimeRehydrationMaps,
@@ -729,6 +730,49 @@ describe('cabinet mode', () => {
       ),
     ).rejects.toBeInstanceOf(DetectionUnavailableError);
     expect(getRuntimeRehydrationMap('pending-turn-ci')).toEqual({});
+  });
+
+  test('refuses a turn with no free text (skills only) when NER is down', async () => {
+    // Nothing to redact means no detector call: without a probe the turn
+    // would start and native runtime tools could read safe/ files.
+    blocks.length = 0;
+    await expect(
+      redactOutboundTurnInput(
+        { message: '' },
+        { workspacePath: workspace(true), threadKey: 'pending-empty', provisionalKey: true },
+        cabinetDeps,
+      ),
+    ).rejects.toBeInstanceOf(DetectionUnavailableError);
+    expect(blocks).toEqual(['outbound']);
+  });
+
+  test('a turn with no free text starts when NER runs', async () => {
+    const result = await redactOutboundTurnInput(
+      { message: '' },
+      { workspacePath: workspace(true), threadKey: 'pending-empty-ok', provisionalKey: true },
+      { ...cabinetDeps, isNerReady: () => true, detectNer: async () => [] },
+    );
+    expect(result.message).toBe('');
+    expect(getRuntimeRehydrationMap('pending-empty-ok')).toEqual({});
+  });
+
+  test('assertCabinetTurnAllowed probes the detector only in armed cabinet mode', async () => {
+    let probes = 0;
+    const detectNer = async () => { probes += 1; return []; };
+    await assertCabinetTurnAllowed({ workspacePath: workspace(true) }, { ...cabinetDeps, isNerReady: () => true, detectNer });
+    await assertCabinetTurnAllowed({ workspacePath: workspace(true) }, { ...stubDeps, isNerReady: () => true, detectNer });
+    await assertCabinetTurnAllowed({ workspacePath: workspace(false) }, { ...cabinetDeps, isNerReady: () => true, detectNer });
+    expect(probes).toBe(1);
+    await expect(
+      assertCabinetTurnAllowed({ workspacePath: workspace(true) }, {
+        ...cabinetDeps,
+        isNerReady: () => true,
+        detectNer: async () => { throw new Error('daemon down'); },
+      }),
+    ).rejects.toBeInstanceOf(DetectionUnavailableError);
+    // An unknown workspace fails closed, like every other gate.
+    await expect(assertCabinetTurnAllowed({ workspacePath: null }, cabinetDeps))
+      .rejects.toBeInstanceOf(DetectionUnavailableError);
   });
 
   test('a failing audit write never unblocks', async () => {

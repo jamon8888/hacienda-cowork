@@ -460,6 +460,24 @@ export async function maybeRedactOutboundText(
   }
 }
 
+const CABINET_PROBE_TEXT = 'Cabinet mode detection probe.';
+
+/**
+ * Turn-level cabinet check for input with no free text to scan (a
+ * skills-only turn or steer). Runs one real detector call, because the
+ * readiness checks only look for model files and cannot see a dead daemon.
+ * The probe is local; nothing is sent to the provider. Refuses (and
+ * records the block) exactly like a refused message.
+ */
+export async function assertCabinetTurnAllowed(
+  options: Pick<OutboundTextOptions, 'workspacePath'>,
+  deps: RuntimeRedactionDeps = {},
+): Promise<void> {
+  if (options.workspacePath != null && !existsSync(join(options.workspacePath, 'safe'))) return;
+  if (!(await resolveDeps(deps).isCabinetMode())) return;
+  await maybeRedactOutboundText(CABINET_PROBE_TEXT, { workspacePath: options.workspacePath }, deps);
+}
+
 /**
  * Message, system prompt and saved custom instructions of one outbound turn,
  * redacted under the same workspace safe/ gate (#19). /chat/stream calls it
@@ -485,6 +503,11 @@ export async function redactOutboundTurnInput(
     const customInstructions = savedInstructions
       ? (await maybeRedactOutboundText(savedInstructions, options, deps)).text
       : null;
+    // A skills-only turn has no text to scan, so nothing above reached the
+    // detector; the turn itself still needs it (native tools read files).
+    if (!input.message && !input.system && !savedInstructions) {
+      await assertCabinetTurnAllowed(options, deps);
+    }
     return { message, system, customInstructions };
   } catch (error) {
     // The message may already have stored originals under the provisional key

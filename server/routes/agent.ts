@@ -1,5 +1,6 @@
 import { Router, Request, Response, raw } from 'express';
 import {
+  assertCabinetTurnAllowed,
   maybeRedactOutboundText,
   redactOutboundTurnInput,
   mergeRuntimeRehydrationMap,
@@ -1216,6 +1217,10 @@ router.post('/chat/steer', async (req: Request, res: Response) => {
           threadKey: threadId,
         })).text;
         void persistThreadRehydrationMap(threadId, getRuntimeRehydrationMap(threadId));
+      } else {
+        // Skills-only steer: no text reached the detector, so re-check that
+        // cabinet mode can still run full detection before the turn goes on.
+        await assertCabinetTurnAllowed({ workspacePath: steerWorkspace });
       }
     }
     const turnId = await getCodexService().steer(threadId, {

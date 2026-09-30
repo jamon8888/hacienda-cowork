@@ -1810,7 +1810,7 @@
   "basemind.filesWillBeRedacted": "Files will be redacted before sending to {{provider}} via basemind",
   "basemind.attachmentBlockedInSafe": "Images can't be redacted, so they are never sent from a Safe folder. Your message was not sent.",
   "basemind.cabinet.title": "事務所モード",
-  "basemind.cabinet.description": "Safe フォルダーでは、完全な検出を実行できない場合、AI プロバイダーには何も送信されません。",
+  "basemind.cabinet.description": "Safe フォルダーでは、送信時に完全な検出を実行できない場合、AI プロバイダーには何も送信されず、アプリツールの結果も保留されます。制限：エージェント自身のシェルおよびファイル操作コマンドの出力は検査されません。",
   "basemind.cabinet.disableTitle": "事務所モードをオフにしますか？",
   "basemind.cabinet.disableBody": "完全な検出が利用できない場合、テキストはパターンによるマスキングのみで送信されます。氏名、会社名、金額が伏せられずに送信される可能性があります。この選択の責任はあなたにあります。この操作はこのコンピューターに記録されます。",
   "basemind.cabinet.disableConfirm": "オフにする — 責任を負います",

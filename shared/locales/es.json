@@ -1810,7 +1810,7 @@
   "basemind.filesWillBeRedacted": "Files will be redacted before sending to {{provider}} via basemind",
   "basemind.attachmentBlockedInSafe": "Images can't be redacted, so they are never sent from a Safe folder. Your message was not sent.",
   "basemind.cabinet.title": "Modo despacho",
-  "basemind.cabinet.description": "En una carpeta Safe, si la detección completa no puede ejecutarse, no se envía nada al proveedor de IA.",
+  "basemind.cabinet.description": "En una carpeta Safe, si la detección completa no puede ejecutarse al enviar, no se envía nada al proveedor de IA y se retienen los resultados de las herramientas de la app. Límite: la salida de los comandos de shell y de archivos del propio agente nunca se analiza.",
   "basemind.cabinet.disableTitle": "¿Desactivar el modo despacho?",
   "basemind.cabinet.disableBody": "Cuando la detección completa no esté disponible, el texto saldrá solo con enmascaramiento por patrones: nombres, empresas e importes podrían enviarse sin ocultar. Usted asume la responsabilidad de esta elección. Queda registrada en este ordenador.",
   "basemind.cabinet.disableConfirm": "Desactivar — asumo la responsabilidad",
