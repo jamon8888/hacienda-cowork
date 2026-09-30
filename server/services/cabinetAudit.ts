@@ -117,26 +117,30 @@ export function appendCabinetAudit(entry: CabinetAuditEntry): Promise<void> {
 }
 
 /**
- * Recompute the chain. `brokenAt` is the 1-based line where it first fails:
- * an edited line fails itself, a deleted line fails the one after it.
+ * Recompute the chain. `broken` lists every 1-based line that fails (an edited
+ * line fails itself, a deleted line fails the one after it); `brokenAt` is
+ * the first. After a break the check carries on from where appendCabinetAudit
+ * chained the next entry (the line's hash, or its raw bytes when it has
+ * none), so a later edit or deletion is not hidden behind the first one.
  */
 export async function verifyCabinetAuditChain(
   file?: string,
-): Promise<{ ok: true; entries: number } | { ok: false; brokenAt: number }> {
+): Promise<{ ok: true; entries: number } | { ok: false; brokenAt: number; broken: number[] }> {
   const lines = splitLines(await readRaw(file ?? (await resolveAuditFile())));
+  const broken: number[] = [];
   let prev = CABINET_AUDIT_GENESIS;
   for (let i = 0; i < lines.length; i++) {
-    let parsed: Record<string, unknown>;
+    let valid = false;
     try {
-      parsed = JSON.parse(lines[i]) as Record<string, unknown>;
+      const { hash, ...body } = JSON.parse(lines[i]) as Record<string, unknown>;
+      valid = body.prev === prev && hash === hashLine(prev, JSON.stringify(body));
     } catch {
-      return { ok: false, brokenAt: i + 1 };
+      valid = false;
     }
-    const { hash, ...body } = parsed;
-    if (body.prev !== prev || hash !== hashLine(prev, JSON.stringify(body))) {
-      return { ok: false, brokenAt: i + 1 };
-    }
-    prev = hash as string;
+    if (!valid) broken.push(i + 1);
+    prev = chainHeadOf(lines[i]);
   }
-  return { ok: true, entries: lines.length };
+  return broken.length === 0
+    ? { ok: true, entries: lines.length }
+    : { ok: false, brokenAt: broken[0], broken };
 }
