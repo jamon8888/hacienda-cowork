@@ -1007,6 +1007,100 @@ describe('ToolManager MCP integration', () => {
     });
   });
 
+  describe('thrown tool errors in a Safe workspace', () => {
+    // The error text is model-visible once the bridge turns it into a result,
+    // and it can carry what the tool choked on (a path, an address).
+    const failure = () => new Error('upstream refused john@example.com');
+    const saved = { home: process.env.HOME, hub: process.env.HF_HUB_CACHE };
+    let root: string;
+    let auditFile: string;
+    let threadId: string;
+    let threadCount = 0;
+
+    beforeEach(() => {
+      // A live thread keeps its tokens reserved, so each test gets its own.
+      threadId = `thr-err-${threadCount += 1}`;
+      root = mkdtempSync(path.join(tmpdir(), 'tm-errors-'));
+      mkdirSync(path.join(root, 'safe'));
+      auditFile = path.join(root, 'audit.jsonl');
+      setCabinetAuditFileForTests(auditFile);
+      // No NER model anywhere: cabinet mode sees full detection as down.
+      process.env.HOME = root;
+      process.env.HF_HUB_CACHE = path.join(root, 'no-hub');
+      approvalManager.setAutoApprove(true);
+      mockCallTool.mockImplementation(async () => { throw failure(); });
+    });
+
+    afterEach(() => {
+      setCabinetAuditFileForTests(null);
+      if (saved.home === undefined) delete process.env.HOME; else process.env.HOME = saved.home;
+      if (saved.hub === undefined) delete process.env.HF_HUB_CACHE; else process.env.HF_HUB_CACHE = saved.hub;
+      mockCallTool.mockImplementation(async () => ({
+        content: [{ type: 'text', text: 'runtime tool result' }],
+        isError: false,
+      }));
+      rmSync(root, { recursive: true, force: true });
+    });
+
+    const callMcp = (workspace: string, options?: { appInternal?: boolean }) => new ToolManager().callTool(
+      'test-mcp', 'do_thing', {}, undefined, undefined,
+      { threadId, workspace },
+      undefined,
+      options,
+    );
+
+    test('come back as a redacted error result instead of raw text (cabinet off)', async () => {
+      setConfigOverride({ agents: {}, mcpServers: {}, cabinetModeEnabled: false } as any);
+      expect(await callMcp(root)).toEqual({
+        content: [{ type: 'text', text: 'upstream refused [EMAIL_0]' }],
+        isError: true,
+      });
+    });
+
+    test('are withheld and logged when cabinet mode cannot run NER', async () => {
+      setConfigOverride({ agents: {}, mcpServers: {} } as any);
+      const result = await callMcp(root) as { content: Array<{ text: string }>; isError: boolean };
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result)).not.toContain('john@example.com');
+      expect(result.content[0].text).toContain('withheld');
+      const lines = readFileSync(auditFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+      expect(lines.map((l) => [l.event, l.surface])).toEqual([['send_blocked', 'tool']]);
+    });
+
+    test('keep throwing outside a Safe workspace', async () => {
+      const open = mkdtempSync(path.join(tmpdir(), 'tm-open-'));
+      try {
+        await expect(callMcp(open)).rejects.toThrow('upstream refused john@example.com');
+      } finally {
+        rmSync(open, { recursive: true, force: true });
+      }
+    });
+
+    test('keep throwing to app-internal callers', async () => {
+      await expect(callMcp(root, { appInternal: true })).rejects.toThrow('upstream refused john@example.com');
+    });
+
+    test('are redacted on the built-in path too', async () => {
+      setConfigOverride({ agents: {}, mcpServers: {}, cabinetModeEnabled: false } as any);
+      const { getBuiltinToolHandler } = await import('./builtinTools');
+      const tool = getBuiltinToolHandler('builtin-utility', 'calculate')!;
+      const original = tool.handler;
+      tool.handler = async () => { throw failure(); };
+      try {
+        const result = await new ToolManager().callTool(
+          'builtin-utility', 'calculate', { expression: '1' }, undefined, undefined,
+          { threadId, workspace: root },
+        );
+        expect(result).toEqual({
+          content: [{ type: 'text', text: 'upstream refused [EMAIL_0]' }],
+          isError: true,
+        });
+      } finally {
+        tool.handler = original;
+      }
+    });
+  });
+
   test('callTool gates MCP runtime calls through approval manager at the shared CLI and chat convergence point', async () => {
     const manager = new ToolManager();
     rememberToolCallMetadata('item_mcp_approval_1', { threadId: 'thr-mcp-approval-1' });

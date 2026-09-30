@@ -423,6 +423,26 @@ export async function maybeRedactToolResult(
   return redacted;
 }
 
+/**
+ * Gate for an error a tool threw. The bridges turn a thrown error into text
+ * the model reads, and the message can carry what the tool choked on (a path,
+ * an address), so it goes through the same gate as a tool result. Returns the
+ * redacted `isError` result, or null when the gate leaves the message alone
+ * (outside a Safe workspace, exempt servers) and the caller should rethrow.
+ */
+export async function maybeRedactToolError(
+  options: Omit<MaybeRedactOptions, 'result'> & { error: unknown },
+  deps: RuntimeRedactionDeps = {},
+): Promise<unknown | null> {
+  const { error, ...rest } = options;
+  const original = {
+    content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+    isError: true,
+  };
+  const gated = await maybeRedactToolResult({ ...rest, result: original }, deps);
+  return gated === original ? null : gated;
+}
+
 export interface OutboundTextOptions {
   /** Workspace root; redaction arms only when `<workspace>/safe/` exists (#19). */
   workspacePath?: string | null;
