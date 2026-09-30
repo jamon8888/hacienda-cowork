@@ -1,6 +1,7 @@
 import type { BuiltinToolContext, BuiltinToolDefinition } from '../../builtinTools';
 import type { AgentPermissionOwnerReference } from '../../../../shared/types/approval';
 import type { AgentModelConfig } from '../../../../shared/types/model';
+import { nanoid } from 'nanoid';
 import { overlaySessionManager } from '../../../overlaySessionManager';
 import type { OverlaySessionDebugSnapshot } from '../../../overlaySessionManager';
 import { prefixToolName } from '../../../../shared/utils/mcpToolName';
@@ -246,12 +247,19 @@ export interface CallHiddenAgentToolDeps {
   getAgentBindingForAgentId: (agentId: string) => ParentOwnerBindingSource | undefined | Promise<ParentOwnerBindingSource | undefined>;
   /** Outbound gate for the delegated turn (safe/ redaction, cabinet mode). */
   redactTurnInput?: RedactTurnInput;
+  /** Drops a provisional rehydration map once the delegated run is over. */
+  deleteRuntimeRehydrationMap?: (threadKey: string) => void | Promise<void>;
 }
 
 const defaultRedactTurnInput: RedactTurnInput = async (input, options) => {
   // Lazy: runtimeRedaction reaches ToolManager, which loads the builtin tools.
   const { redactOutboundTurnInput } = await import('../../../services/runtimeRedaction');
   return redactOutboundTurnInput(input, options);
+};
+
+const defaultDeleteRuntimeRehydrationMap = async (threadKey: string): Promise<void> => {
+  const { deleteRuntimeRehydrationMap } = await import('../../../services/runtimeRedaction');
+  deleteRuntimeRehydrationMap(threadKey);
 };
 
 const defaultDeps: CallHiddenAgentToolDeps = {
@@ -320,6 +328,7 @@ export function createCallHiddenAgentTool(deps: CallHiddenAgentToolDeps = defaul
     handler: async (args, context?: BuiltinToolContext) => {
       let session: HiddenAgentSession | null = null;
       let attachedOverlaySession = false;
+      let provisionalThreadKey: string | null = null;
       try {
         if (!context?.agentId) {
           throw new Error('call_hidden_agent requires an overlay agent context.');
@@ -340,6 +349,9 @@ export function createCallHiddenAgentTool(deps: CallHiddenAgentToolDeps = defaul
         // included), the system guidance and the saved custom instructions are
         // redacted in a Safe workspace, or the call is refused before any
         // session exists. Unknown workspace fails closed inside the gate.
+        // Without a parent thread nothing will ever re-key the map, so the key
+        // is ours: unique per call, and dropped in finally.
+        if (!parentOwner.threadId) provisionalThreadKey = `pending-hidden-${context.agentId}-${nanoid()}`;
         const outbound = await (deps.redactTurnInput ?? defaultRedactTurnInput)(
           {
             message: buildHiddenAgentMessage({
@@ -352,8 +364,8 @@ export function createCallHiddenAgentTool(deps: CallHiddenAgentToolDeps = defaul
           },
           {
             workspacePath: parentOwner.workspacePath ?? null,
-            threadKey: parentOwner.threadId ?? `pending-hidden-${context.agentId}`,
-            provisionalKey: !parentOwner.threadId,
+            threadKey: parentOwner.threadId ?? provisionalThreadKey,
+            provisionalKey: provisionalThreadKey !== null,
           },
         );
         session = await deps.createSession({
@@ -406,6 +418,16 @@ export function createCallHiddenAgentTool(deps: CallHiddenAgentToolDeps = defaul
           isError: true,
         };
       } finally {
+        // The map holds original PII values; a run that never re-keys it would
+        // keep them in memory for the life of the process. A parent thread's
+        // map is not ours to drop.
+        if (provisionalThreadKey) {
+          try {
+            await (deps.deleteRuntimeRehydrationMap ?? defaultDeleteRuntimeRehydrationMap)(provisionalThreadKey);
+          } catch {
+            // Cleanup never masks the run's own outcome.
+          }
+        }
         if (attachedOverlaySession && session) {
           deps.releaseOverlaySession(session.agentId);
         }

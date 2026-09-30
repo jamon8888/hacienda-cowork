@@ -324,6 +324,83 @@ describe('callHiddenAgentTool', () => {
       expect(calls.runSubagent).toEqual([]);
     });
 
+    describe('provisional rehydration map', () => {
+      const gate: NonNullable<CallHiddenAgentToolDeps['redactTurnInput']> = async (input) => ({
+        message: input.message,
+        system: input.system,
+        customInstructions: null,
+      });
+
+      function harness(runSubagent?: CallHiddenAgentToolDeps['runSubagent']) {
+        const calls = { createSession: [] as unknown[], runSubagent: [] as any[] };
+        const gateOptions: Array<{ threadKey?: string | null; provisionalKey?: boolean }> = [];
+        const deleted: string[] = [];
+        const base = makeDeps(calls);
+        const tool = createCallHiddenAgentTool({
+          ...base,
+          runSubagent: runSubagent ?? base.runSubagent,
+          redactTurnInput: async (input, options) => {
+            gateOptions.push(options);
+            return gate(input, options);
+          },
+          deleteRuntimeRehydrationMap: (key) => {
+            deleted.push(key);
+          },
+        });
+        return { tool, gateOptions, deleted };
+      }
+
+      test('drops the provisional map after a run with no parent thread', async () => {
+        const h = harness();
+
+        await h.tool.handler(
+          { message: 'Summarize.' },
+          { agentId: 'overlay-agent-1', modelConfig, workspace: '/workspace' },
+        );
+
+        expect(h.gateOptions[0].provisionalKey).toBe(true);
+        expect(h.deleted).toEqual([h.gateOptions[0].threadKey!]);
+      });
+
+      test('drops the provisional map when the run fails', async () => {
+        const h = harness(async () => {
+          throw new Error('runner exploded');
+        });
+
+        const result = await h.tool.handler(
+          { message: 'Summarize.' },
+          { agentId: 'overlay-agent-1', modelConfig, workspace: '/workspace' },
+        );
+
+        expect(result.isError).toBe(true);
+        expect(h.deleted).toEqual([h.gateOptions[0].threadKey!]);
+      });
+
+      test('gives concurrent calls from one agent separate provisional keys', async () => {
+        const h = harness();
+        const context = { agentId: 'overlay-agent-1', modelConfig, workspace: '/workspace' };
+
+        await Promise.all([
+          h.tool.handler({ message: 'One.' }, context),
+          h.tool.handler({ message: 'Two.' }, context),
+        ]);
+
+        expect(h.gateOptions[0].threadKey).not.toBe(h.gateOptions[1].threadKey);
+      });
+
+      test('leaves the map alone when the parent thread owns it', async () => {
+        const h = harness();
+
+        await h.tool.handler(
+          { message: 'Summarize.' },
+          { agentId: 'overlay-agent-1', threadId: 'thread-x', modelConfig, workspace: '/workspace' },
+        );
+
+        expect(h.gateOptions[0]).toMatchObject({ threadKey: 'thread-x', provisionalKey: false });
+        expect(h.deleted).toEqual([]);
+      });
+    });
+
     test('the default gate refuses a Safe workspace when detection is unavailable', async () => {
       const workspace = mkdtempSync(join(tmpdir(), 'hidden-safe-'));
       tempDirs.push(workspace);
