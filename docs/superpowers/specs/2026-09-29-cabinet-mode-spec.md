@@ -49,10 +49,15 @@ audit export or signing; anchoring the chain off the machine; retention policy; 
 2. **Anchoring:** the hash chain ships in v1; anchoring it off the machine
    (head hash sent to a server, or qualified eIDAS timestamp) is a separate
    project, out of scope here.
+3. **Retention (2026-09-30):** no automatic purge in v1. The log is append-only
+   and holds no content, file names or detections, so nothing deletes it until
+   the firm (or its DPO) sets a retention period; a purge or per-period
+   archive, keeping the chain verifiable, is added then. The hash chain makes
+   any manual deletion visible.
 
 ## Open question
 
-3. Retention: how long must the log be kept?
+None.
 
 ## Acceptance criteria
 
