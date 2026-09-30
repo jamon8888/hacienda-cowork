@@ -682,8 +682,10 @@ describe('cabinet mode', () => {
     const hub = mkdtempSync(join(tmpdir(), 'pii-hub-'));
     tempDirs.push(userData, hub);
     const snapshot = join(hub, 'models--fastino--gliner2-privacy-filter-PII-multi', 'snapshots', 'rev');
-    mkdirSync(snapshot, { recursive: true });
+    mkdirSync(join(snapshot, 'encoder_config'), { recursive: true });
     writeFileSync(join(snapshot, 'model.safetensors'), 'weights');
+    writeFileSync(join(snapshot, 'tokenizer.json'), '{}');
+    writeFileSync(join(snapshot, 'encoder_config', 'config.json'), '{}');
     process.env.INTERPRETER_USER_DATA_DIR = userData;
     process.env.HF_HUB_CACHE = hub;
     try {

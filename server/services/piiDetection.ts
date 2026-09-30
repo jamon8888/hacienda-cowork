@@ -80,6 +80,21 @@ export function isPiiModelReady(baseDirs: string[] = resolveHubBaseDirs()): bool
 }
 
 /**
+ * The files `redact_text` reads from `ner_model_dir`. The preseed lands the
+ * weights first and the small configs after, so weights alone can be a
+ * download cut short; existsSync follows links, so a dangling one fails too.
+ */
+const CANDLE_ARTIFACTS = [
+  'model.safetensors',
+  'tokenizer.json',
+  path.join('encoder_config', 'config.json'),
+];
+
+function hasCandleArtifacts(dir: string): boolean {
+  return CANDLE_ARTIFACTS.every((file) => fs.existsSync(path.join(dir, file)));
+}
+
+/**
  * Snapshot directory holding a candle-ready GLiNER2 layout
  * (`model.safetensors` etc.) for `redact_text`'s `ner_model_dir`, or null when
  * nothing candle-ready is cached. Consults every hub candidate dir because the
@@ -98,9 +113,7 @@ export function resolveNerModelDir(baseDirs: string[] = resolveHubBaseDirs()): s
       for (const revision of revisions) {
         const dir = path.join(snapshots, revision);
         try {
-          if (fs.statSync(dir).isDirectory() && fs.existsSync(path.join(dir, 'model.safetensors'))) {
-            return dir;
-          }
+          if (fs.statSync(dir).isDirectory() && hasCandleArtifacts(dir)) return dir;
         } catch {
           // unreadable revision dir — keep looking
         }

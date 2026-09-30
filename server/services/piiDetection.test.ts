@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, test } from 'bun:test';
@@ -84,6 +84,49 @@ describe('isFullDetectionReady', () => {
       expect(isFullDetectionReady([baseDir])).toBe(false);
       writeFastinoSnapshot(baseDir);
       expect(isFullDetectionReady([baseDir])).toBe(true);
+    } finally {
+      rmSync(baseDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('isFullDetectionReady after an interrupted download', () => {
+  // The preseed lands model.safetensors first and the small configs after it,
+  // so a cut download leaves weights with no tokenizer or encoder config.
+  test('is not ready while the tokenizer or encoder config is missing', () => {
+    for (const missing of ['tokenizer.json', path.join('encoder_config', 'config.json')]) {
+      const baseDir = mkdtempSync(path.join(tmpdir(), 'pii-partial-'));
+      try {
+        const snapshot = writeFastinoSnapshot(baseDir);
+        rmSync(path.join(snapshot, missing));
+        expect(isFullDetectionReady([baseDir])).toBe(false);
+        expect(resolveNerModelDir([baseDir])).toBeNull();
+      } finally {
+        rmSync(baseDir, { recursive: true, force: true });
+      }
+    }
+  });
+
+  test('is not ready when a snapshot entry is a dangling link', () => {
+    const baseDir = mkdtempSync(path.join(tmpdir(), 'pii-dangling-'));
+    try {
+      const snapshot = writeFastinoSnapshot(baseDir);
+      rmSync(path.join(snapshot, 'model.safetensors'));
+      symlinkSync('../../blobs/gone', path.join(snapshot, 'model.safetensors'));
+      expect(isFullDetectionReady([baseDir])).toBe(false);
+    } finally {
+      rmSync(baseDir, { recursive: true, force: true });
+    }
+  });
+
+  test('prefers a complete snapshot over an interrupted one in the same repo', () => {
+    const baseDir = mkdtempSync(path.join(tmpdir(), 'pii-two-rev-'));
+    try {
+      const complete = writeFastinoSnapshot(baseDir);
+      const partial = path.join(path.dirname(complete), '0000partial');
+      mkdirSync(partial, { recursive: true });
+      writeFileSync(path.join(partial, 'model.safetensors'), 'weights');
+      expect(resolveNerModelDir([baseDir])).toBe(complete);
     } finally {
       rmSync(baseDir, { recursive: true, force: true });
     }

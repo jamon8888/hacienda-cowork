@@ -145,8 +145,10 @@ describe('ner_model_dir wiring (GLiNER2 spec #37)', () => {
       'snapshots',
       '36126f612f1f9e376dc2c25b297d827912effef4',
     );
-    mkdirSync(snapshot, { recursive: true });
+    mkdirSync(path.join(snapshot, 'encoder_config'), { recursive: true });
     writeFileSync(path.join(snapshot, 'model.safetensors'), 'weights');
+    writeFileSync(path.join(snapshot, 'tokenizer.json'), '{}');
+    writeFileSync(path.join(snapshot, 'encoder_config', 'config.json'), '{}');
     const previous = process.env.HF_HUB_CACHE;
     process.env.HF_HUB_CACHE = base;
     try {
