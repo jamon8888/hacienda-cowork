@@ -43,7 +43,7 @@ export class DetectionUnavailableError extends Error {
 
 export interface RuntimeRedactionDeps {
   isNerReady?: () => boolean;
-  detectNer?: (text: string) => Promise<PiiDetection[]>;
+  detectNer?: (text: string, options?: { requireNer?: boolean }) => Promise<PiiDetection[]>;
   listCustomTerms?: () => Promise<CustomTerm[]>;
   isCabinetMode?: () => boolean | Promise<boolean>;
   isFullDetectionReady?: () => boolean | Promise<boolean>;
@@ -51,11 +51,11 @@ export interface RuntimeRedactionDeps {
   blockedSendMessage?: () => Promise<string>;
 }
 
-async function defaultDetectNer(text: string): Promise<PiiDetection[]> {
+async function defaultDetectNer(text: string, options?: { requireNer?: boolean }): Promise<PiiDetection[]> {
   // Lazy import: piiDetection pulls in ToolManager, which loads this module
   // for the callTool hook. Deferring to call time breaks the cycle.
   const { piiDetectionService } = await import('./piiDetection');
-  return piiDetectionService.detectPii(text);
+  return piiDetectionService.detectPii(text, options?.requireNer ? { requireNer: true } : undefined);
 }
 
 async function defaultListCustomTerms(): Promise<CustomTerm[]> {
@@ -98,7 +98,7 @@ async function defaultBlockedSendMessage(): Promise<string> {
 
 function resolveDeps(deps: RuntimeRedactionDeps = {}): {
   isNerReady: () => boolean | Promise<boolean>;
-  detectNer: (text: string) => Promise<PiiDetection[]>;
+  detectNer: (text: string, options?: { requireNer?: boolean }) => Promise<PiiDetection[]>;
   listCustomTerms: () => Promise<CustomTerm[]>;
   isCabinetMode: () => boolean | Promise<boolean>;
   isFullDetectionReady: () => boolean | Promise<boolean>;
@@ -238,7 +238,10 @@ export async function redactFileReadOutputText(
     // for the stricter criterion before trusting an empty NER result.
     const canRunFullDetection = !options.requireFullDetection || await resolved.isFullDetectionReady();
     if (canRunFullDetection && await resolved.isNerReady()) {
-      detections = mergeDetections(await resolved.detectNer(text), regexDetections);
+      detections = mergeDetections(
+        await resolved.detectNer(text, options.requireFullDetection ? { requireNer: true } : undefined),
+        regexDetections,
+      );
       nerRan = true;
     }
   } catch {

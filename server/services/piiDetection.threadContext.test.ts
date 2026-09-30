@@ -26,6 +26,9 @@ let nextDetections: Array<{ category: string; start: number; end: number; text: 
   { category: 'email', start: 5, end: 21, text: 'john@example.com', confidence: 0.9 },
 ];
 
+// Value of `ner_ran` in the mocked payload; undefined omits it (older daemon).
+let nextNerRan: boolean | undefined;
+
 // When set, the mocked tool answers with an error payload instead of throwing.
 let nextIsError = false;
 
@@ -47,6 +50,7 @@ mock.module('../tools/toolManager', () => ({
             redacted_text: 'Call [EMAIL_0]',
             rehydration_map: { '[EMAIL_0]': 'john@example.com' },
             detections: nextDetections,
+            ...(nextNerRan === undefined ? {} : { ner_ran: nextNerRan }),
           },
         },
       };
@@ -93,6 +97,38 @@ describe('detectPii error payloads', () => {
     } finally {
       nextIsError = false;
     }
+  });
+});
+
+describe('detectPii require_ner', () => {
+  test('asks basemind to fail rather than degrade, only when requested', async () => {
+    nextDetections = [];
+    nextNerRan = true;
+    const { piiDetectionService } = await import('./piiDetection');
+    await piiDetectionService.detectPii('text');
+    expect(callToolCalls.at(-1)?.args.require_ner).toBeUndefined();
+    await piiDetectionService.detectPii('text', { requireNer: true });
+    expect(callToolCalls.at(-1)?.args.require_ner).toBe(true);
+  });
+
+  test('throws when basemind reports that NER did not run', async () => {
+    nextDetections = [];
+    nextNerRan = false;
+    try {
+      const { piiDetectionService } = await import('./piiDetection');
+      // Without the flag the degrade-to-pattern policy is unchanged.
+      await expect(piiDetectionService.detectPii('Jane Doe')).resolves.toEqual([]);
+      await expect(piiDetectionService.detectPii('Jane Doe', { requireNer: true })).rejects.toThrow('NER did not run');
+    } finally {
+      nextNerRan = undefined;
+    }
+  });
+
+  test('an older daemon that omits ner_ran is not treated as a failure', async () => {
+    nextDetections = [];
+    nextNerRan = undefined;
+    const { piiDetectionService } = await import('./piiDetection');
+    await expect(piiDetectionService.detectPii('Jane Doe', { requireNer: true })).resolves.toEqual([]);
   });
 });
 

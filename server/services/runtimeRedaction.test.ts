@@ -532,6 +532,19 @@ describe('cabinet mode', () => {
     ).rejects.toBeInstanceOf(DetectionUnavailableError);
   });
 
+  test('asks the detector to fail rather than degrade, only in cabinet mode', async () => {
+    const ws = workspace(true);
+    const seen: Array<boolean | undefined> = [];
+    const detectNer = async (_text: string, options?: { requireNer?: boolean }) => {
+      seen.push(options?.requireNer);
+      return [];
+    };
+    const ready = { isNerReady: () => true, detectNer };
+    await maybeRedactOutboundText('Jane Doe', { workspacePath: ws }, { ...cabinetDeps, ...ready });
+    await maybeRedactOutboundText('Jane Doe', { workspacePath: ws }, { ...stubDeps, ...ready });
+    expect(seen).toEqual([true, undefined]);
+  });
+
   test('refuses when NER reports ready but the candle model cannot load', async () => {
     // isNerReady also accepts ONNX-only caches, where redact_text silently
     // returns no NER detections and would redact pattern-only.

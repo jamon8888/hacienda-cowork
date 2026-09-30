@@ -31,6 +31,11 @@ export interface RedactTextResult {
   redacted_text: string;
   rehydration_map: Record<string, string>;
   detections: PiiDetectionResult[];
+  /**
+   * Whether basemind's NER actually ran. Absent from older daemons; `false`
+   * means it degraded to pattern-only redaction.
+   */
+  ner_ran?: boolean;
 }
 
 const MODEL_SEARCH_PATTERNS = [
@@ -154,6 +159,7 @@ export function parseRedactTextResult(result: unknown): RedactTextResult {
     redacted_text: redactedText,
     rehydration_map: rehydrationMap,
     detections: asDetections(payload.detections),
+    ...(typeof payload.ner_ran === 'boolean' ? { ner_ran: payload.ner_ran } : {}),
   };
 }
 
@@ -168,7 +174,7 @@ function errorPayloadText(raw: unknown): string {
 
 async function detectPii(
   text: string,
-  options?: { categories?: string[] },
+  options?: { categories?: string[]; requireNer?: boolean },
 ): Promise<PiiDetectionResult[]> {
   const manager = new ToolManager();
   const raw = await manager.callTool(
@@ -181,6 +187,7 @@ async function detectPii(
       // regex fallback); file redaction below fails closed instead.
       custom_terms: toRedactTextCustomTerms(await listCustomTerms().catch(() => [])),
       ner_model_dir: resolveNerModelDir() ?? undefined,
+      ...(options?.requireNer ? { require_ner: true } : {}),
     },
     undefined,
     undefined,
@@ -193,7 +200,14 @@ async function detectPii(
   if (asRecord(raw)?.isError === true) throw new Error(errorPayloadText(raw));
   // Confidence is filtered upstream by basemind (DEFAULT_MIN_CONFIDENCE);
   // the Electron side passes detections through untouched.
-  return parseRedactTextResult(raw).detections;
+  const parsed = parseRedactTextResult(raw);
+  // basemind reports a silent degrade as ner_ran=false. Callers that asked
+  // for full detection must not read an empty list as "nothing found". An
+  // older daemon omits the field; it cannot say, so it is not blamed here.
+  if (options?.requireNer && parsed.ner_ran === false) {
+    throw new Error('redact_text: NER did not run (pattern-only redaction)');
+  }
+  return parsed.detections;
 }
 
 /**
