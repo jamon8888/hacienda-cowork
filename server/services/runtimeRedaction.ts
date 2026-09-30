@@ -215,17 +215,54 @@ export interface RedactTextOptions {
   requireFullDetection?: boolean;
 }
 
-export async function redactFileReadOutputText(
-  text: string,
-  options: RedactTextOptions = {},
-  deps: RuntimeRedactionDeps = {},
-): Promise<{ text: string; redacted: boolean; deferred: boolean }> {
-  if (isNonTextContent(text)) {
-    // Fail closed: unscannable bytes never reach the model, only the marker.
-    // Non-text MCP parts (images) are left untouched — image OCR redaction is
-    // out of scope (#110) and replacing them would break the vision contract.
-    return { text: RUNTIME_REDACTION_DEFERRED_MARKER, redacted: false, deferred: true };
-  }
+type RedactedText = { text: string; redacted: boolean; deferred: boolean };
+
+/** One text of a batch. `scanOnly` texts (structuredContent keys) are sent to
+ * the detector, so they count toward the gate, but are never rewritten. */
+interface BatchEntry {
+  text: string;
+  scanOnly?: boolean;
+}
+
+/** A paragraph break keeps NER from reading two texts as one sentence; a span
+ * that still crosses it is split, so each side stays redacted. */
+const BATCH_SEPARATOR = '\n\n';
+
+/** redact_text refuses inputs over 1 MiB (UTF-8); leave room for separators. */
+const DETECTOR_MAX_BYTES = (1 << 20) - 1024;
+
+/** Group text positions into runs whose joined UTF-8 size fits one call. A
+ * text too large on its own gets a run of its own and fails as it did before. */
+function chunkForDetector(texts: string[]): number[][] {
+  const chunks: number[][] = [];
+  let current: number[] = [];
+  let bytes = 0;
+  texts.forEach((text, position) => {
+    const size = Buffer.byteLength(text, 'utf8') + (current.length > 0 ? BATCH_SEPARATOR.length : 0);
+    if (current.length > 0 && bytes + size > DETECTOR_MAX_BYTES) {
+      chunks.push(current);
+      current = [];
+      bytes = 0;
+    }
+    bytes += current.length > 0 ? size : Buffer.byteLength(text, 'utf8');
+    current.push(position);
+  });
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+/**
+ * Redact several texts with as few full-detection calls as the input cap allows. A tool result can carry
+ * hundreds of strings; one call per string made a search result cost hundreds
+ * of sequential detector round trips, and in cabinet mode kept knocking on a
+ * dead daemon. Tokens accumulate across the batch (and the thread's live map)
+ * so two different values never share a token, thread or not.
+ */
+async function redactTextBatch(
+  entries: BatchEntry[],
+  options: RedactTextOptions,
+  deps: RuntimeRedactionDeps,
+): Promise<RedactedText[]> {
   const resolved = resolveDeps(deps);
   // Pinned custom terms (#11) match locally, so they redact even when NER is
   // down; NER also receives them through redact_text when it is up.
@@ -235,32 +272,78 @@ export async function redactFileReadOutputText(
   } catch {
     customTerms = [];
   }
-  const regexDetections = mergeDetections(detectCustomTerms(text, customTerms), detectRegex(text));
-  // NER runs unconditionally when ready: regex covers patterns (email, phone,
-  // …) but NER-only categories (names, addresses) would otherwise pass raw.
-  let detections: PiiDetection[] = regexDetections;
-  let nerRan = false;
-  try {
-    // isNerReady also accepts ONNX-only caches that redact_text cannot load;
-    // it then degrades to pattern-only without saying so. Cabinet mode asks
-    // for the stricter criterion before trusting an empty NER result.
-    const canRunFullDetection = !options.requireFullDetection || await resolved.isFullDetectionReady();
-    if (canRunFullDetection && await resolved.isNerReady()) {
-      detections = mergeDetections(
-        await resolved.detectNer(text, options.requireFullDetection ? { requireNer: true } : undefined),
-        regexDetections,
-      );
-      nerRan = true;
+  // Unscannable bytes never reach the model, only the marker. Non-text MCP
+  // parts (images) never get here: image OCR redaction is out of scope (#110).
+  const scannable = entries.map((entry) => !isNonTextContent(entry.text));
+  const toScan = entries.map((_, index) => index).filter((index) => scannable[index] && entries[index].text !== '');
+  const nerByEntry: PiiDetection[][] = entries.map(() => []);
+  if (toScan.length > 0) {
+    let nerRan = false;
+    try {
+      // isNerReady also accepts ONNX-only caches that redact_text cannot load;
+      // it then degrades to pattern-only without saying so. Cabinet mode asks
+      // for the stricter criterion before trusting an empty NER result.
+      const canRunFullDetection = !options.requireFullDetection || await resolved.isFullDetectionReady();
+      if (canRunFullDetection && await resolved.isNerReady()) {
+        // Sequential chunks under redact_text's input cap; the first refusal
+        // throws and stops the rest.
+        for (const chunk of chunkForDetector(toScan.map((index) => entries[index].text))) {
+          const starts: number[] = [];
+          let joined = '';
+          for (const position of chunk) {
+            if (joined) joined += BATCH_SEPARATOR;
+            starts.push(joined.length);
+            joined += entries[toScan[position]].text;
+          }
+          const found = await resolved.detectNer(joined, options.requireFullDetection ? { requireNer: true } : undefined);
+          chunk.forEach((position, slot) => {
+            const index = toScan[position];
+            const from = starts[slot];
+            const to = from + entries[index].text.length;
+            for (const detection of found) {
+              const start = Math.max(detection.start, from);
+              const end = Math.min(detection.end, to);
+              if (start >= end) continue;
+              nerByEntry[index].push({
+                ...detection,
+                start: start - from,
+                end: end - from,
+                text: entries[index].text.slice(start - from, end - from),
+              });
+            }
+          });
+        }
+        nerRan = true;
+      }
+    } catch {
+      nerRan = false;
     }
-  } catch {
-    detections = regexDetections;
+    if (options.requireFullDetection && !nerRan) throw new DetectionUnavailableError();
   }
-  if (options.requireFullDetection && !nerRan) throw new DetectionUnavailableError();
-  if (detections.length === 0) return { text, redacted: false, deferred: false };
-  const reserved = options.threadKey ? Object.keys(runtimeRehydrationMaps.get(options.threadKey) ?? {}) : [];
-  const { redactedText, rehydrationMap } = buildRedactedText(text, detections, new Set(reserved));
-  if (options.threadKey) storeRuntimeRehydrationMap(options.threadKey, rehydrationMap);
-  return { text: redactedText, redacted: true, deferred: false };
+  const reserved = new Set(options.threadKey ? Object.keys(runtimeRehydrationMaps.get(options.threadKey) ?? {}) : []);
+  return entries.map((entry, index): RedactedText => {
+    if (!scannable[index]) return { text: RUNTIME_REDACTION_DEFERRED_MARKER, redacted: false, deferred: true };
+    if (entry.scanOnly) return { text: entry.text, redacted: false, deferred: false };
+    // NER runs unconditionally when ready: regex covers patterns (email,
+    // phone, …) but NER-only categories (names, addresses) would pass raw.
+    const detections = mergeDetections(
+      nerByEntry[index],
+      mergeDetections(detectCustomTerms(entry.text, customTerms), detectRegex(entry.text)),
+    );
+    if (detections.length === 0) return { text: entry.text, redacted: false, deferred: false };
+    const { redactedText, rehydrationMap } = buildRedactedText(entry.text, detections, reserved);
+    for (const token of Object.keys(rehydrationMap)) reserved.add(token);
+    if (options.threadKey) storeRuntimeRehydrationMap(options.threadKey, rehydrationMap);
+    return { text: redactedText, redacted: true, deferred: false };
+  });
+}
+
+export async function redactFileReadOutputText(
+  text: string,
+  options: RedactTextOptions = {},
+  deps: RuntimeRedactionDeps = {},
+): Promise<RedactedText> {
+  return (await redactTextBatch([{ text }], options, deps))[0];
 }
 
 interface McpContentPart {
@@ -276,42 +359,64 @@ function isMcpContentResult(value: unknown): value is { content: McpContentPart[
   return Array.isArray(content);
 }
 
-/**
- * Redact every string inside a JSON-like value, in place of the original
- * shape (keys, numbers, booleans and nesting are kept). Sequential for the
- * same reason as the content parts: reserved tokens accumulate in order.
- */
-async function redactStringLeaves(
+/** Queue the strings of a JSON-like value in walk order; keys are scanned only. */
+function collectStructuredTexts(value: unknown, entries: BatchEntry[]): void {
+  if (typeof value === 'string') {
+    if (value !== '') entries.push({ text: value });
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectStructuredTexts(item, entries);
+    return;
+  }
+  if (typeof value === 'object' && value !== null) {
+    for (const [key, item] of Object.entries(value)) {
+      entries.push({ text: key, scanOnly: true });
+      collectStructuredTexts(item, entries);
+    }
+  }
+}
+
+/** Rebuild a JSON-like value from batch results, in collectStructuredTexts order. */
+function rebuildStructured(
   value: unknown,
-  redact: (text: string) => Promise<{ text: string; redacted: boolean; deferred: boolean }>,
-): Promise<{ value: unknown; changed: boolean }> {
+  results: RedactedText[],
+  cursor: { at: number },
+): { value: unknown; changed: boolean } {
   if (typeof value === 'string') {
     if (value === '') return { value, changed: false };
-    const result = await redact(value);
+    const result = results[cursor.at++];
     const changed = result.redacted || result.deferred;
     return { value: changed ? result.text : value, changed };
   }
   if (Array.isArray(value)) {
     let changed = false;
-    const out: unknown[] = [];
-    for (const item of value) {
-      const walked = await redactStringLeaves(item, redact);
-      out.push(walked.value);
-      changed ||= walked.changed;
-    }
+    const out = value.map((item) => {
+      const rebuilt = rebuildStructured(item, results, cursor);
+      changed ||= rebuilt.changed;
+      return rebuilt.value;
+    });
     return { value: changed ? out : value, changed };
   }
   if (typeof value === 'object' && value !== null) {
     let changed = false;
     const out: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value)) {
-      const walked = await redactStringLeaves(item, redact);
-      out[key] = walked.value;
-      changed ||= walked.changed;
+      cursor.at += 1; // the scan-only key
+      const rebuilt = rebuildStructured(item, results, cursor);
+      out[key] = rebuilt.value;
+      changed ||= rebuilt.changed;
     }
     return { value: changed ? out : value, changed };
   }
   return { value, changed: false };
+}
+
+function mcpPartText(part: McpContentPart): string | null {
+  // Embedded resources carry text the model reads just like a text part.
+  if (part?.type === 'resource' && typeof part.resource?.text === 'string') return part.resource.text;
+  if (part?.type === 'text' && typeof part.text === 'string') return part.text;
+  return null;
 }
 
 export async function applyFileReadRedaction(
@@ -319,75 +424,70 @@ export async function applyFileReadRedaction(
   options: RedactTextOptions & { onWithheld?: () => void } = {},
   deps: RuntimeRedactionDeps = {},
 ): Promise<unknown> {
-  let withheld = false;
-  const redactOrWithhold = async (text: string) => {
+  // Every text of one result goes to the detector in one call, so a refusal
+  // withholds the whole result at once and is recorded once.
+  const redactAll = async (entries: BatchEntry[]): Promise<RedactedText[] | null> => {
     try {
-      return await redactFileReadOutputText(text, options, deps);
+      return await redactTextBatch(entries, options, deps);
     } catch (error) {
       if (!(error instanceof DetectionUnavailableError)) throw error;
-      withheld = true;
       options.onWithheld?.();
-      return { text: CABINET_WITHHELD_MARKER, redacted: false, deferred: true };
+      return null;
     }
   };
+  const withheld: RedactedText = { text: CABINET_WITHHELD_MARKER, redacted: false, deferred: true };
   // Error text can echo paths or content, so it redacts like any other text;
   // the isError flag survives via the spread below and diagnostics keep working.
   if (typeof result === 'string') {
-    return (await redactOrWithhold(result)).text;
+    return ((await redactAll([{ text: result }]))?.[0] ?? withheld).text;
   }
-  if (isMcpContentResult(result)) {
-    // Sequential on purpose: each part stores into the thread map before the
-    // next part redacts, so reserved tokens accumulate and two parts can never
-    // emit the same token for different originals (see the multipart test).
-    const content: McpContentPart[] = [];
-    let changed = false;
-    for (const part of result.content) {
-      if (part?.type === 'resource' && typeof part.resource?.text === 'string') {
-        // Embedded resources carry text the model reads just like a text part.
-        const redacted = await redactOrWithhold(part.resource.text);
-        if (redacted.redacted || redacted.deferred) {
-          content.push({ ...part, resource: { ...part.resource, text: redacted.text } });
-          changed = true;
-        } else {
-          content.push(part);
-        }
-        continue;
-      }
-      if (part?.type !== 'text' || typeof part.text !== 'string') {
-        content.push(part);
-        continue;
-      }
-      const redacted = await redactOrWithhold(part.text);
-      if (redacted.redacted || redacted.deferred) {
-        content.push({ ...part, text: redacted.text });
-        changed = true;
-      } else {
-        content.push(part);
-      }
-    }
-    // The CLI surface prints the whole result body, so structuredContent
-    // reaches the model as well: a copy of the text parts, or more.
-    let structuredContent = result.structuredContent;
-    if (structuredContent !== undefined) {
-      const walked = await redactStringLeaves(structuredContent, redactOrWithhold);
-      if (withheld) {
-        // Withheld as a whole: keys and numbers (a client name used as a key,
-        // an amount stored as a number) are not string leaves and would pass.
-        structuredContent = { withheld: CABINET_WITHHELD_MARKER };
-        changed = true;
-      } else if (walked.changed) {
-        structuredContent = walked.value;
+  if (!isMcpContentResult(result)) return result;
+
+  const entries: BatchEntry[] = [];
+  const entryOfPart = result.content.map((part) => {
+    const text = mcpPartText(part);
+    if (text === null) return null;
+    entries.push({ text });
+    return entries.length - 1;
+  });
+  // The CLI surface prints the whole result body, so structuredContent
+  // reaches the model as well: a copy of the text parts, or more.
+  const structuredFrom = entries.length;
+  if (result.structuredContent !== undefined) collectStructuredTexts(result.structuredContent, entries);
+  const results = await redactAll(entries);
+
+  let changed = false;
+  const content = result.content.map((part, index) => {
+    const at = entryOfPart[index];
+    if (at === null) return part;
+    const redacted = results ? results[at] : withheld;
+    if (!redacted.redacted && !redacted.deferred) return part;
+    changed = true;
+    return part.type === 'resource'
+      ? { ...part, resource: { ...part.resource, text: redacted.text } }
+      : { ...part, text: redacted.text };
+  });
+  let structuredContent = result.structuredContent;
+  if (structuredContent !== undefined) {
+    if (!results) {
+      // Withheld as a whole: keys and numbers (a client name used as a key,
+      // an amount stored as a number) are not string leaves and would pass.
+      structuredContent = { withheld: CABINET_WITHHELD_MARKER };
+      changed = true;
+    } else {
+      const rebuilt = rebuildStructured(structuredContent, results, { at: structuredFrom });
+      if (rebuilt.changed) {
+        structuredContent = rebuilt.value;
         changed = true;
       }
     }
-    if (!changed) return result;
-    return {
-      ...result,
-      content,
-      ...(structuredContent !== undefined ? { structuredContent } : {}),
-    };
   }
-  return result;
+  if (!changed) return result;
+  return {
+    ...result,
+    content,
+    ...(structuredContent !== undefined ? { structuredContent } : {}),
+  };
 }
 
 export interface MaybeRedactOptions {

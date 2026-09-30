@@ -21,6 +21,7 @@ import {
   rekeyRuntimeRehydrationMap,
   setActiveTurnWorkspace,
 } from './runtimeRedaction';
+import type { PiiDetection } from '../../src/lib/pii/regex-detector';
 
 const PROBE_EMAIL = 'john@example.com';
 
@@ -523,6 +524,128 @@ describe('structured MCP output', () => {
     const r = result as { structuredContent: { hits: Array<{ snippet: string; score: number }> } };
     expect(r.structuredContent.hits[0].snippet).toMatch(/^Mail \[EMAIL_\d+\]$/);
     expect(r.structuredContent.hits[0].score).toBe(3);
+  });
+});
+
+describe('one detector call per tool result', () => {
+  // Detector stand-in that finds every "Jane Doe" in whatever text it gets,
+  // so offsets come from the text actually sent to it.
+  function namesDetector(calls: string[]) {
+    return async (text: string): Promise<PiiDetection[]> => {
+      calls.push(text);
+      const found: PiiDetection[] = [];
+      for (let at = text.indexOf('Jane Doe'); at !== -1; at = text.indexOf('Jane Doe', at + 1)) {
+        found.push({ category: 'person', start: at, end: at + 8, text: 'Jane Doe', confidence: 0.9 });
+      }
+      return found;
+    };
+  }
+
+  test('sends every text of a result to the detector in a single call', async () => {
+    const calls: string[] = [];
+    const result = await maybeRedactToolResult({
+      serverId: 'basemind',
+      toolName: 'search',
+      result: {
+        content: [
+          { type: 'text', text: 'Jane Doe signed' },
+          { type: 'text', text: 'Counsel for Jane Doe' },
+          { type: 'resource', resource: { uri: 'file:///a.txt', text: 'Jane Doe again' } },
+        ],
+        structuredContent: { hits: [{ snippet: 'Jane Doe owes' }, { snippet: 'nothing here' }] },
+        isError: false,
+      },
+      workspacePath: workspace(true),
+      threadKey: 't-batch-1',
+    }, { ...stubDeps, isNerReady: () => true, detectNer: namesDetector(calls) });
+
+    expect(calls).toHaveLength(1);
+    const r = result as {
+      content: Array<{ text?: string; resource?: { text: string } }>;
+      structuredContent: { hits: Array<{ snippet: string }> };
+    };
+    // Offsets land on each text; tokens accumulate across the result as before.
+    expect(r.content[0].text).toBe('[NAME_0] signed');
+    expect(r.content[1].text).toBe('Counsel for [NAME_1]');
+    expect(r.content[2].resource?.text).toBe('[NAME_2] again');
+    expect(r.structuredContent.hits.map((h) => h.snippet)).toEqual(['[NAME_3] owes', 'nothing here']);
+  });
+
+  test('splits a batch that would exceed the detector input limit', async () => {
+    // redact_text refuses more than 1 MiB per call; each text alone fits.
+    const sizes: number[] = [];
+    const big = 'é'.repeat(300_000); // 600 000 UTF-8 bytes
+    await maybeRedactToolResult({
+      serverId: 'builtin-filesystem',
+      toolName: 'read_file',
+      result: { content: [{ type: 'text', text: big }, { type: 'text', text: big }], isError: false },
+      workspacePath: workspace(true),
+      threadKey: 't-batch-4',
+    }, {
+      ...stubDeps,
+      isNerReady: () => true,
+      detectNer: async (text: string) => { sizes.push(Buffer.byteLength(text, 'utf8')); return []; },
+    });
+    expect(sizes).toHaveLength(2);
+    expect(Math.max(...sizes)).toBeLessThanOrEqual(1 << 20);
+  });
+
+  test('stops at the first refusal and records one block per result', async () => {
+    const calls: string[] = [];
+    const blocks: string[] = [];
+    const result = await maybeRedactToolResult({
+      serverId: 'basemind',
+      toolName: 'search',
+      result: {
+        content: [{ type: 'text', text: 'a' }, { type: 'text', text: 'b' }, { type: 'text', text: 'c' }],
+        structuredContent: { hits: ['d', 'e'] },
+        isError: false,
+      },
+      workspacePath: workspace(true),
+      threadKey: 't-batch-2',
+    }, {
+      ...stubDeps,
+      isCabinetMode: () => true,
+      isFullDetectionReady: () => true,
+      isNerReady: () => true,
+      detectNer: async (text: string) => { calls.push(text); throw new Error('daemon down'); },
+      recordBlock: async (surface: 'outbound' | 'tool') => { blocks.push(surface); },
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(blocks).toEqual(['tool']);
+    const r = result as { content: Array<{ text: string }>; structuredContent: unknown };
+    expect(r.content.map((part) => part.text)).toEqual([CABINET_WITHHELD_MARKER, CABINET_WITHHELD_MARKER, CABINET_WITHHELD_MARKER]);
+    expect(r.structuredContent).toEqual({ withheld: CABINET_WITHHELD_MARKER });
+  });
+
+  test('never gives two different values the same token, even without a thread', async () => {
+    const result = await maybeRedactToolResult({
+      serverId: 'builtin-filesystem',
+      toolName: 'read_file',
+      result: { content: [{ type: 'text', text: 'a@example.com' }, { type: 'text', text: 'b@example.com' }], isError: false },
+      workspacePath: workspace(true),
+    }, stubDeps);
+    const texts = (result as { content: Array<{ text: string }> }).content.map((part) => part.text);
+    expect(new Set(texts).size).toBe(2);
+  });
+
+  test('checks structuredContent keys too, so a keys-only result is still gated', async () => {
+    const blocks: string[] = [];
+    const result = await maybeRedactToolResult({
+      serverId: 'basemind',
+      toolName: 'stats',
+      result: { content: [], structuredContent: { 'Acme SAS': 125000 }, isError: false },
+      workspacePath: workspace(true),
+      threadKey: 't-batch-3',
+    }, {
+      ...stubDeps,
+      isCabinetMode: () => true,
+      isFullDetectionReady: () => true,
+      recordBlock: async (surface: 'outbound' | 'tool') => { blocks.push(surface); },
+    });
+    expect((result as { structuredContent: unknown }).structuredContent).toEqual({ withheld: CABINET_WITHHELD_MARKER });
+    expect(blocks).toEqual(['tool']);
   });
 });
 
