@@ -1,4 +1,8 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 import type { AgentModelConfig } from '../../../../shared/types/model';
 import {
@@ -15,6 +19,7 @@ import {
 } from '../../../../shared/types/overlayToolCatalog';
 import { prefixToolName } from '../../../../shared/utils/mcpToolName';
 import { approvalManager } from '../../../approvalManager';
+import { setConfigOverride } from '../../../configStore';
 import { agentTabManager } from '../../../agentTabManager';
 import {
   createCallHiddenAgentTool,
@@ -229,5 +234,110 @@ describe('callHiddenAgentTool', () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toBe('call_hidden_agent requires an overlay agent context.');
+  });
+
+  describe('outbound redaction gate', () => {
+    const tempDirs: string[] = [];
+    // Hermetic config: a fresh one has cabinet mode on and no custom instructions.
+    beforeEach(() => setConfigOverride({} as never));
+    afterEach(() => {
+      setConfigOverride(null);
+      while (tempDirs.length > 0) rmSync(tempDirs.pop()!, { recursive: true, force: true });
+    });
+
+    function makeDeps(calls: { createSession: unknown[]; runSubagent: any[] }): CallHiddenAgentToolDeps {
+      const session = {
+        service: {} as any,
+        profile: {} as any,
+        agentId: 'hidden-agent-1',
+        callerToken: 'agtok_hidden_secret',
+        allowedToolNames: [],
+        modelConfig,
+        dispose: () => {},
+      };
+      return {
+        createSession: async (options) => {
+          calls.createSession.push(options);
+          return session;
+        },
+        runSubagent: async (options) => {
+          calls.runSubagent.push(options);
+          return { agentId: 'hidden-agent-1', completed: true, messages: [] };
+        },
+        closeSession: () => {},
+        getOverlaySessionSnapshot: () => null,
+        attachToOverlaySession: () => {},
+        releaseOverlaySession: () => {},
+        getAgentBindingForAgentId: () => undefined,
+      };
+    }
+
+    test('sends the gated message, system prompt and custom instructions', async () => {
+      const calls = { createSession: [] as unknown[], runSubagent: [] as any[] };
+      const seen: Array<{ message: string; system?: string; workspacePath?: string | null }> = [];
+      const tool = createCallHiddenAgentTool({
+        ...makeDeps(calls),
+        redactTurnInput: async (input, options) => {
+          seen.push({ message: input.message, system: input.system, workspacePath: options.workspacePath });
+          return { message: 'GATED MESSAGE', system: 'GATED SYSTEM', customInstructions: 'GATED INSTRUCTIONS' };
+        },
+      });
+
+      const result = await tool.handler(
+        {
+          message: 'Jane Doe owes 10 000 EUR',
+          conversation_context: 'Jane Doe called',
+          selected_context: { note: 'Acme SAS' },
+        },
+        { agentId: 'overlay-agent-1', threadId: 'thread-x', modelConfig, workspace: '/workspace' },
+      );
+
+      expect(result.isError).toBe(false);
+      // What the gate saw is the fully built handoff, screen context included.
+      expect(seen[0].message).toContain('Jane Doe called');
+      expect(seen[0].message).toContain('Acme SAS');
+      expect(seen[0].workspacePath).toBe('/workspace');
+      expect(calls.runSubagent[0]).toMatchObject({
+        message: 'GATED MESSAGE',
+        system: 'GATED SYSTEM',
+        customInstructions: 'GATED INSTRUCTIONS',
+      });
+    });
+
+    test('a refused send starts no session and never reaches the runtime', async () => {
+      const calls = { createSession: [] as unknown[], runSubagent: [] as any[] };
+      const tool = createCallHiddenAgentTool({
+        ...makeDeps(calls),
+        redactTurnInput: async () => {
+          throw new Error('Cabinet mode: nothing was sent.');
+        },
+      });
+
+      const result = await tool.handler(
+        { message: 'Jane Doe owes 10 000 EUR' },
+        { agentId: 'overlay-agent-1', modelConfig, workspace: '/workspace' },
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toBe('Cabinet mode: nothing was sent.');
+      expect(calls.createSession).toEqual([]);
+      expect(calls.runSubagent).toEqual([]);
+    });
+
+    test('the default gate refuses a Safe workspace when detection is unavailable', async () => {
+      const workspace = mkdtempSync(join(tmpdir(), 'hidden-safe-'));
+      tempDirs.push(workspace);
+      mkdirSync(join(workspace, 'safe'));
+      const calls = { createSession: [] as unknown[], runSubagent: [] as any[] };
+      const tool = createCallHiddenAgentTool(makeDeps(calls));
+
+      const result = await tool.handler(
+        { message: 'Jane Doe owes 10 000 EUR' },
+        { agentId: 'overlay-agent-1', modelConfig, workspace },
+      );
+
+      expect(result.isError).toBe(true);
+      expect(calls.runSubagent).toEqual([]);
+    });
   });
 });

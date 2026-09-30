@@ -67,6 +67,8 @@ type CreateHiddenAgentSession = (options: {
 type RunHiddenAgent = (options: {
   message: string;
   system?: string;
+  /** Saved custom instructions after the outbound gate; see redactTurnInput. */
+  customInstructions?: string | null;
   modelConfig: AgentModelConfig;
   timeoutMs: number;
   workspace?: string;
@@ -229,6 +231,11 @@ async function buildParentOwner(
   };
 }
 
+type RedactTurnInput = (
+  input: { message: string; system?: string },
+  options: { workspacePath?: string | null; threadKey?: string | null; provisionalKey?: boolean },
+) => Promise<{ message: string; system?: string; customInstructions: string | null }>;
+
 export interface CallHiddenAgentToolDeps {
   createSession: CreateHiddenAgentSession;
   runSubagent: RunHiddenAgent;
@@ -237,7 +244,15 @@ export interface CallHiddenAgentToolDeps {
   attachToOverlaySession: (sourceAgentId: string | undefined, delegatedAgentId: string) => void;
   releaseOverlaySession: (delegatedAgentId: string) => void;
   getAgentBindingForAgentId: (agentId: string) => ParentOwnerBindingSource | undefined | Promise<ParentOwnerBindingSource | undefined>;
+  /** Outbound gate for the delegated turn (safe/ redaction, cabinet mode). */
+  redactTurnInput?: RedactTurnInput;
 }
+
+const defaultRedactTurnInput: RedactTurnInput = async (input, options) => {
+  // Lazy: runtimeRedaction reaches ToolManager, which loads the builtin tools.
+  const { redactOutboundTurnInput } = await import('../../../services/runtimeRedaction');
+  return redactOutboundTurnInput(input, options);
+};
 
 const defaultDeps: CallHiddenAgentToolDeps = {
   createSession: async (options) => {
@@ -320,6 +335,27 @@ export function createCallHiddenAgentTool(deps: CallHiddenAgentToolDeps = defaul
         const targetRefs = optionalStringArrayArg(args, 'target_refs');
         const timeoutMs = optionalPositiveIntegerArg(args, 'timeout_ms', 300000);
         const parentOwner = await buildParentOwner(context, deps.getAgentBindingForAgentId);
+        // The delegate starts a provider turn outside /chat/stream, so it goes
+        // through the same outbound gate: the handoff (screen context
+        // included), the system guidance and the saved custom instructions are
+        // redacted in a Safe workspace, or the call is refused before any
+        // session exists. Unknown workspace fails closed inside the gate.
+        const outbound = await (deps.redactTurnInput ?? defaultRedactTurnInput)(
+          {
+            message: buildHiddenAgentMessage({
+              message,
+              conversationContext,
+              selectedContext,
+              targetRefs,
+            }),
+            system: buildHiddenAgentSystem(system, deps.getOverlaySessionSnapshot(context.agentId) !== null),
+          },
+          {
+            workspacePath: parentOwner.workspacePath ?? null,
+            threadKey: parentOwner.threadId ?? `pending-hidden-${context.agentId}`,
+            provisionalKey: !parentOwner.threadId,
+          },
+        );
         session = await deps.createSession({
           modelConfig: context.modelConfig,
           allowedToolNames: OVERLAY_HIDDEN_AGENT_ALLOWED_TOOL_NAMES,
@@ -332,13 +368,9 @@ export function createCallHiddenAgentTool(deps: CallHiddenAgentToolDeps = defaul
         }
 
         const result = await deps.runSubagent({
-          message: buildHiddenAgentMessage({
-            message,
-            conversationContext,
-            selectedContext,
-            targetRefs,
-          }),
-          system: buildHiddenAgentSystem(system, attachedOverlaySession),
+          message: outbound.message,
+          system: outbound.system,
+          customInstructions: outbound.customInstructions,
           modelConfig: context.modelConfig,
           timeoutMs,
           workspace: context.workspace,
