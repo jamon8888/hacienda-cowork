@@ -325,6 +325,31 @@ export async function registerBasemindServer(): Promise<string> {
   return serverId;
 }
 
+/**
+ * Keep basemind in step with the open workspace. A Safe workspace (safe/
+ * exists) needs the server registered: the redaction gate, the vault and the
+ * safe/ mirror all call it, and a fresh install never registered it, so NER
+ * could not run and the "Make Safe" banner waited forever on an approval no
+ * one could answer. Registration also sets auto approval for the four tools
+ * the app calls itself. A workspace that is not Safe never starts basemind
+ * (integration spec §8: nothing before the opt-in); an existing registration
+ * is only re-pointed at the new root.
+ */
+export async function ensureBasemindForWorkspace(
+  workspacePath: string | null,
+  deps: {
+    register?: () => Promise<string>;
+    ensureConfig?: (serverId: string) => Promise<void>;
+  } = {},
+): Promise<void> {
+  if (!workspacePath) return;
+  if (existsSync(resolve(workspacePath, 'safe'))) {
+    await (deps.register ?? registerBasemindServer)();
+    return;
+  }
+  await (deps.ensureConfig ?? ensureBasemindServerConfig)('basemind');
+}
+
 export async function unregisterBasemindServer(): Promise<void> {
   const { getToolManager } = await import('../tools/toolManagerAccessor');
   try {

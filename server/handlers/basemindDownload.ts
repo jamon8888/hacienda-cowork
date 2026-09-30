@@ -249,6 +249,10 @@ export async function runBasemindDownload(
       const { getCurrentWorkspace } = await import('../utils/workspace');
       const workspacePath = getCurrentWorkspace();
       if (workspacePath) {
+        // Population redacts through basemind; register it (with auto
+        // approval for the app's own tools) before the first call.
+        const { registerBasemindServer } = await import('../utils/basemindManager');
+        await registerBasemindServer();
         const { runInitialPopulation } = await import('../utils/safeArm');
         await runInitialPopulation(workspacePath);
       }

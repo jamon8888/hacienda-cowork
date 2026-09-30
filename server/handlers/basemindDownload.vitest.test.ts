@@ -4,9 +4,11 @@ const mockResolveBinary = vi.fn(() => '');
 const mockIsReady = vi.fn((_resource?: string) => false);
 const mockCurrentWorkspace = vi.fn((): string | null => null);
 const mockPopulation = vi.fn(async (_workspacePath: string) => ({ written: 0, skipped: 0 }));
+const mockRegister = vi.fn(async () => 'basemind');
 
 vi.mock('../utils/basemindManager', () => ({
   resolveBasemindBinary: () => mockResolveBinary(),
+  registerBasemindServer: () => mockRegister(),
 }));
 vi.mock('../utils/hubCache', () => ({
   isModelResourceReady: (resource: string) => mockIsReady(resource),
@@ -84,6 +86,18 @@ describe('runBasemindDownload safe population', () => {
     expect(result.success).toBe(true);
     expect(mockPopulation).toHaveBeenCalledTimes(1);
     expect(mockPopulation).toHaveBeenCalledWith('/ws');
+  });
+
+  it('registers basemind before populating safe/', async () => {
+    // Population redacts through basemind's redact_text; on a fresh install
+    // nothing had registered the server, so the call waited on an approval
+    // no one could answer and the banner stayed on "In progress" forever.
+    const order: string[] = [];
+    mockRegister.mockImplementationOnce(async () => { order.push('register'); return 'basemind'; });
+    mockPopulation.mockImplementationOnce(async () => { order.push('populate'); return { written: 1, skipped: 0 }; });
+    const { runBasemindDownload } = await load();
+    await runBasemindDownload();
+    expect(order).toEqual(['register', 'populate']);
   });
 
   it('skips population when any stage fails', async () => {
