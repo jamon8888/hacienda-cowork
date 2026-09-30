@@ -99,6 +99,12 @@ export function buildRedactedText(
   text: string,
   detections: PiiDetection[],
   reservedTokens: ReadonlySet<string> = EMPTY_RESERVED_TOKENS,
+  /**
+   * Token → original pairs whose tokens may be emitted again for the same
+   * value and category. Only for text that is resent unchanged every turn
+   * (custom instructions); everything else keeps the fresh-token rule.
+   */
+  reusableTokens?: Readonly<Record<string, string>>,
 ): { redactedText: string; rehydrationMap: Record<string, string> } {
   const sorted = [...detections].sort((a, b) => a.start - b.start || b.end - a.end);
   const accepted: PiiDetection[] = [];
@@ -117,6 +123,12 @@ export function buildRedactedText(
   // way, so repeated redactions never re-emit a live token for new content.
   for (const reserved of reservedTokens) taken.add(reserved);
 
+  const reusable = new Map<string, string>();
+  for (const [token, original] of Object.entries(reusableTokens ?? {})) {
+    const label = /^\[([A-Z_]+)_\d+\]$/.exec(token)?.[1];
+    if (label) reusable.set(`${label}\u0000${original}`, token);
+  }
+
   const counters = new Map<string, number>();
   const rehydrationMap: Record<string, string> = {};
   let redactedText = '';
@@ -124,6 +136,13 @@ export function buildRedactedText(
   for (const detection of accepted) {
     const category = normalizePiiCategory(detection.category);
     const label = tokenLabelForCategory(category);
+    const known = reusable.get(`${label}\u0000${detection.text}`);
+    if (known) {
+      redactedText += text.slice(cursor, detection.start) + known;
+      cursor = detection.end;
+      rehydrationMap[known] = detection.text;
+      continue;
+    }
     let index = counters.get(category) ?? 0;
     let token = `[${label}_${index}]`;
     while (taken.has(token)) {

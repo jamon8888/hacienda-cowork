@@ -448,6 +448,33 @@ describe('redactOutboundTurnInput', () => {
     expect(result.message).toContain('[EMAIL_0]');
   });
 
+  test('keeps the same tokens for unchanged custom instructions across turns', async () => {
+    // New tokens every turn broke the provider's prompt cache and grew the
+    // thread map by one entry per value per turn.
+    clearRuntimeRehydrationMaps();
+    const ws = workspace(true);
+    const deps = {
+      ...stubDeps,
+      loadCustomInstructions: async () => 'Our client is jane@client.test, cc bob@client.test',
+    };
+    const first = await redactOutboundTurnInput({ message: `turn one for ${PROBE_EMAIL}` }, { workspacePath: ws, threadKey: 't-ci-cache' }, deps);
+    const size = Object.keys(getRuntimeRehydrationMap('t-ci-cache')).length;
+    const second = await redactOutboundTurnInput({ message: 'turn two, nothing new' }, { workspacePath: ws, threadKey: 't-ci-cache' }, deps);
+
+    expect(second.customInstructions).toBe(first.customInstructions);
+    expect(Object.keys(getRuntimeRehydrationMap('t-ci-cache'))).toHaveLength(size);
+  });
+
+  test('never reuses a token for a message value, only for custom instructions', async () => {
+    // The live-token rule for everything else stays: a repeated read gets a
+    // fresh token, so the reuse cannot leak into message redaction.
+    clearRuntimeRehydrationMaps();
+    const ws = workspace(true);
+    await redactOutboundTurnInput({ message: `ping ${PROBE_EMAIL}` }, { workspacePath: ws, threadKey: 't-ci-msg' }, stubDeps);
+    const second = await redactOutboundTurnInput({ message: `ping ${PROBE_EMAIL}` }, { workspacePath: ws, threadKey: 't-ci-msg' }, stubDeps);
+    expect(second.message).toBe('ping [EMAIL_1]');
+  });
+
   test('passes custom instructions through outside a safe workspace', async () => {
     const result = await redactOutboundTurnInput(
       { message: 'hi' },
