@@ -162,3 +162,24 @@ describe('ner_model_dir wiring (GLiNER2 spec #37)', () => {
     }
   });
 });
+
+describe('basemind mcpRequest', () => {
+  test('marks its calls app-internal so ToolManager hands back the raw result', async () => {
+    const { setToolManager } = await import('../tools/toolManagerAccessor');
+    const seen: unknown[][] = [];
+    setToolManager({
+      callTool: async (...args: unknown[]) => {
+        seen.push(args);
+        return { structuredContent: { hits: [] } };
+      },
+    } as any);
+    const { mcpRequest } = await import('../utils/basemindManager');
+    await mcpRequest('tools/call', { name: 'code', arguments: { mode: 'semantic' } });
+
+    expect(seen).toHaveLength(1);
+    const [serverId, toolName, , , , toolContext, , options] = seen[0];
+    expect([serverId, toolName]).toEqual(['basemind', 'code']);
+    expect(toolContext).toEqual({ threadId: 'mcp-owner-thread-1' });
+    expect(options).toEqual({ appInternal: true });
+  });
+});

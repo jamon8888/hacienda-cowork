@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 function createRuntimeServer(name: string, overrides: Record<string, any> = {}) {
@@ -130,6 +134,7 @@ import { refreshMcpToolsTool } from './builtin-tools/mcp-management/refreshMcpTo
 import { toggleMcpServerTool } from './builtin-tools/mcp-management/toggleMcpServerTool';
 import { updateMcpServerTool } from './builtin-tools/mcp-management/updateMcpServerTool';
 import { approvalManager } from '../approvalManager';
+import { setCabinetAuditFileForTests } from '../services/cabinetAudit';
 import { clearConfigCache, getMcpServer, setConfigOverride } from '../configStore';
 import { rememberToolCallMetadata } from '../utils/codexMcpBridge';
 import { getLatestToolServersChangedEvent } from '../utils/ipcBridge';
@@ -953,6 +958,53 @@ describe('ToolManager MCP integration', () => {
 
     await expect(manager.callTool('test-mcp', 'do_thing', {}))
       .rejects.toThrow('MCP tool calls require a Codex thread context');
+  });
+
+  describe('app-internal calls in a Safe workspace', () => {
+    // A search payload whose path looks like a phone number to the regex.
+    const payload = {
+      content: [{ type: 'text', text: '{"hits":[{"path":"docs/call-0612345678.txt"}]}' }],
+      structuredContent: { hits: [{ path: 'docs/call-0612345678.txt' }] },
+      isError: false,
+    };
+    let root: string;
+    let auditFile: string;
+
+    beforeEach(() => {
+      root = mkdtempSync(path.join(tmpdir(), 'tm-internal-'));
+      mkdirSync(path.join(root, 'safe'));
+      auditFile = path.join(root, 'audit.jsonl');
+      setCabinetAuditFileForTests(auditFile);
+      approvalManager.setAutoApprove(true);
+      mockCallTool.mockImplementation(async () => structuredClone(payload) as any);
+    });
+
+    afterEach(() => {
+      setCabinetAuditFileForTests(null);
+      mockCallTool.mockImplementation(async () => ({
+        content: [{ type: 'text', text: 'runtime tool result' }],
+        isError: false,
+      }));
+      rmSync(root, { recursive: true, force: true });
+    });
+
+    const callInternal = () => new ToolManager().callTool(
+      'test-mcp', 'do_thing', {}, undefined, undefined,
+      { threadId: 'thr-app-owner', workspace: root },
+      undefined,
+      { appInternal: true },
+    );
+
+    test('hand the raw result back to app code (cabinet off)', async () => {
+      setConfigOverride({ agents: {}, mcpServers: {}, cabinetModeEnabled: false } as any);
+      expect(await callInternal()).toEqual(payload);
+    });
+
+    test('neither withhold the result nor log a blocked send (cabinet on, NER down)', async () => {
+      setConfigOverride({ agents: {}, mcpServers: {} } as any);
+      expect(await callInternal()).toEqual(payload);
+      expect(() => readFileSync(auditFile, 'utf8')).toThrow();
+    });
   });
 
   test('callTool gates MCP runtime calls through approval manager at the shared CLI and chat convergence point', async () => {

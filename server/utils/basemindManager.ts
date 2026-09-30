@@ -178,6 +178,10 @@ export async function mcpRequest(method: string, params: Record<string, unknown>
     undefined,
     undefined,
     { threadId: await getAppMcpOwnerThreadId() },
+    undefined,
+    // Search hits and rescan results feed app code, not the model; the
+    // workspace search builtin re-enters the redaction gate on its own output.
+    { appInternal: true },
   );
   // CallToolResult with isError is a tool-level rejection. Callers treat a
   // resolved value as a successful scan/search (see runAdminRescan), so an

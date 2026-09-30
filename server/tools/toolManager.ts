@@ -995,6 +995,13 @@ export class ToolManager {
     externalToolCallId?: string,
     options?: {
       includeHiddenBuiltins?: boolean;
+      /**
+       * The result goes back to app code (UI handlers, basemind plumbing),
+       * never into model context, so it skips the redaction gate: redacting
+       * it would corrupt paths the app acts on and log false cabinet blocks.
+       * A builtin that forwards such a result to the model is itself gated.
+       */
+      appInternal?: boolean;
     },
   ): Promise<any> {
     // Check if it's a built-in tool
@@ -1069,6 +1076,7 @@ export class ToolManager {
           maxDepth,
           messageId,
         });
+        if (options?.appInternal) return rawResult;
         // NOTE(linked-file-redaction): every tool result is redacted before it
         // reaches model context (#19, workspace safe/-gated, spec §7). threadKey
         // is a real thread id only; without one the output still redacts but
@@ -1168,6 +1176,7 @@ export class ToolManager {
         cwd: toolContext?.workspace,
       },
     );
+    if (options?.appInternal) return mcpResult;
     // NOTE(linked-file-redaction): same post-execution redaction as the
     // builtin path above — all MCP tool results redact under safe/ too.
     return await maybeRedactToolResult({
