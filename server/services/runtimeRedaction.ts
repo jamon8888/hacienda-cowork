@@ -319,11 +319,13 @@ export async function applyFileReadRedaction(
   options: RedactTextOptions & { onWithheld?: () => void } = {},
   deps: RuntimeRedactionDeps = {},
 ): Promise<unknown> {
+  let withheld = false;
   const redactOrWithhold = async (text: string) => {
     try {
       return await redactFileReadOutputText(text, options, deps);
     } catch (error) {
       if (!(error instanceof DetectionUnavailableError)) throw error;
+      withheld = true;
       options.onWithheld?.();
       return { text: CABINET_WITHHELD_MARKER, redacted: false, deferred: true };
     }
@@ -368,7 +370,12 @@ export async function applyFileReadRedaction(
     let structuredContent = result.structuredContent;
     if (structuredContent !== undefined) {
       const walked = await redactStringLeaves(structuredContent, redactOrWithhold);
-      if (walked.changed) {
+      if (withheld) {
+        // Withheld as a whole: keys and numbers (a client name used as a key,
+        // an amount stored as a number) are not string leaves and would pass.
+        structuredContent = { withheld: CABINET_WITHHELD_MARKER };
+        changed = true;
+      } else if (walked.changed) {
         structuredContent = walked.value;
         changed = true;
       }

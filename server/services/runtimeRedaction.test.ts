@@ -643,13 +643,30 @@ describe('cabinet mode', () => {
       structuredContent: { hits: Array<{ snippet: string; score: number; tags: string[] }>; total: number };
     };
     expect(r.content[1].resource).toEqual({ uri: 'file:///a.txt', text: CABINET_WITHHELD_MARKER });
-    expect(r.structuredContent.hits[0].snippet).toBe(CABINET_WITHHELD_MARKER);
-    expect(r.structuredContent.hits[0].tags).toEqual([CABINET_WITHHELD_MARKER]);
-    // Numbers and structure survive: the tool contract is not broken.
-    expect(r.structuredContent.hits[0].score).toBe(3);
-    expect(r.structuredContent.total).toBe(1);
     expect(blocks.length).toBeGreaterThan(0);
     expect(blocks.every((b) => b === 'tool')).toBe(true);
+  });
+
+  test('withholds structuredContent as a whole: keys and numbers never pass', async () => {
+    // An amount stored as a number, or a client name used as a key, is not a
+    // string leaf; withholding leaf by leaf would let both through.
+    const ws = workspace(true);
+    const result = await maybeRedactToolResult({
+      serverId: 'basemind',
+      toolName: 'search',
+      result: {
+        content: [{ type: 'text', text: 'found' }],
+        structuredContent: { 'Acme SAS': { owed: 125000, score: 3 }, total: 1 },
+        isError: false,
+      },
+      workspacePath: ws,
+      threadKey: 't-c8',
+    }, cabinetDeps);
+    const r = result as { structuredContent: unknown; isError: boolean };
+    expect(r.structuredContent).toEqual({ withheld: CABINET_WITHHELD_MARKER });
+    expect(JSON.stringify(result)).not.toContain('Acme');
+    expect(JSON.stringify(result)).not.toContain('125000');
+    expect(r.isError).toBe(false);
   });
 
   test('behaves as today when NER is ready', async () => {
