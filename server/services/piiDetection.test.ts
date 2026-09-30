@@ -52,9 +52,9 @@ describe('fastino GLiNER2 readiness (candle loader layout)', () => {
   test('isPiiModelReady treats a safetensors snapshot as a downloaded model', () => {
     const baseDir = mkdtempSync(path.join(tmpdir(), 'pii-ready-'));
     try {
-      expect(isPiiModelReady(baseDir)).toBe(false);
+      expect(isPiiModelReady([baseDir])).toBe(false);
       writeFastinoSnapshot(baseDir);
-      expect(isPiiModelReady(baseDir)).toBe(true);
+      expect(isPiiModelReady([baseDir])).toBe(true);
     } finally {
       rmSync(baseDir, { recursive: true, force: true });
     }
@@ -80,7 +80,7 @@ describe('isFullDetectionReady', () => {
       mkdirSync(onnxOnly, { recursive: true });
       writeFileSync(path.join(onnxOnly, 'model.onnx'), 'weights');
       // Looks ready to the download UI, but redact_text cannot load it.
-      expect(isPiiModelReady(baseDir)).toBe(true);
+      expect(isPiiModelReady([baseDir])).toBe(true);
       expect(isFullDetectionReady([baseDir])).toBe(false);
       writeFastinoSnapshot(baseDir);
       expect(isFullDetectionReady([baseDir])).toBe(true);

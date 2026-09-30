@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -672,6 +672,30 @@ describe('cabinet mode', () => {
     const ws = workspace(true);
     const { text } = await maybeRedactOutboundText(`Mail ${PROBE_EMAIL}`, { workspacePath: ws, threadKey: 't-c6' }, stubDeps);
     expect(text).toBe('Mail [EMAIL_0]');
+  });
+
+  test('lets the turn through in Electron when the model sits in the hub the preseed writes to', async () => {
+    // Electron main always sets INTERPRETER_USER_DATA_DIR; the NER preseed
+    // writes to resolveHubBaseDirs()[0]. Real readiness checks, no stubs.
+    const saved = { userData: process.env.INTERPRETER_USER_DATA_DIR, hub: process.env.HF_HUB_CACHE };
+    const userData = mkdtempSync(join(tmpdir(), 'pii-userdata-'));
+    const hub = mkdtempSync(join(tmpdir(), 'pii-hub-'));
+    tempDirs.push(userData, hub);
+    const snapshot = join(hub, 'models--fastino--gliner2-privacy-filter-PII-multi', 'snapshots', 'rev');
+    mkdirSync(snapshot, { recursive: true });
+    writeFileSync(join(snapshot, 'model.safetensors'), 'weights');
+    process.env.INTERPRETER_USER_DATA_DIR = userData;
+    process.env.HF_HUB_CACHE = hub;
+    try {
+      const { isNerReady: _ner, isFullDetectionReady: _full, ...realReadiness } = cabinetDeps;
+      const { text } = await maybeRedactOutboundText(`Mail ${PROBE_EMAIL}`, { workspacePath: workspace(true) }, realReadiness);
+      expect(text).toBe('Mail [EMAIL_0]');
+    } finally {
+      if (saved.userData === undefined) delete process.env.INTERPRETER_USER_DATA_DIR;
+      else process.env.INTERPRETER_USER_DATA_DIR = saved.userData;
+      if (saved.hub === undefined) delete process.env.HF_HUB_CACHE;
+      else process.env.HF_HUB_CACHE = saved.hub;
+    }
   });
 
   test('a blocked turn leaves no provisional rehydration map behind', async () => {

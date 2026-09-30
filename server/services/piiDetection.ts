@@ -9,7 +9,6 @@
 
 import path from 'node:path';
 import fs from 'node:fs';
-import { homedir } from 'node:os';
 
 import { ToolManager } from '../tools/toolManager';
 import { getAppMcpOwnerThreadId } from './appMcpThread';
@@ -50,14 +49,12 @@ function isWeightEntry(entry: string): boolean {
   return entry.endsWith('.onnx') || entry === 'model.safetensors';
 }
 
-export function resolvePiiModelBaseDir(homeDir = homedir()): string {
-  const override = process.env.INTERPRETER_USER_DATA_DIR?.trim();
-  if (override) return path.join(override, 'basemind-hub');
-  return path.join(homeDir, '.local', 'share', 'basemind', 'hub');
-}
-
-export function isPiiModelReady(baseDir = resolvePiiModelBaseDir()): boolean {
-  return MODEL_SEARCH_PATTERNS.some((pattern) => {
+/**
+ * True when NER weights (ONNX or candle) are cached in any hub candidate dir —
+ * the dirs basemind reads and the preseed writes, never a userData path.
+ */
+export function isPiiModelReady(baseDirs: string[] = resolveHubBaseDirs()): boolean {
+  return baseDirs.some((baseDir) => MODEL_SEARCH_PATTERNS.some((pattern) => {
     const dir = path.join(baseDir, pattern);
     if (!fs.existsSync(dir)) return false;
     try {
@@ -79,7 +76,7 @@ export function isPiiModelReady(baseDir = resolvePiiModelBaseDir()): boolean {
     } catch {
       return false;
     }
-  });
+  }));
 }
 
 /**
