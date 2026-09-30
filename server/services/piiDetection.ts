@@ -217,7 +217,34 @@ async function detectPii(
   if (options?.requireNer && parsed.ner_ran === false) {
     throw new Error('redact_text: NER did not run (pattern-only redaction)');
   }
-  return parsed.detections;
+  return toStringOffsets(text, parsed.detections);
+}
+
+/**
+ * redact_text reports UTF-8 byte offsets (Rust slices the original by bytes);
+ * callers index JS strings in UTF-16 units. Any accent, symbol or emoji
+ * before a span would shift it and leave part of the value in clear, so the
+ * offsets are converted here and checked against the text basemind reports.
+ */
+function toStringOffsets(text: string, detections: PiiDetectionResult[]): PiiDetectionResult[] {
+  const indexAtByte = new Map<number, number>();
+  let byte = 0;
+  let index = 0;
+  for (const char of text) {
+    indexAtByte.set(byte, index);
+    const codePoint = char.codePointAt(0)!;
+    byte += codePoint < 0x80 ? 1 : codePoint < 0x800 ? 2 : codePoint < 0x10000 ? 3 : 4;
+    index += char.length;
+  }
+  indexAtByte.set(byte, index);
+  return detections.map((detection) => {
+    const start = indexAtByte.get(detection.start);
+    const end = indexAtByte.get(detection.end);
+    if (start === undefined || end === undefined || (detection.text && text.slice(start, end) !== detection.text)) {
+      throw new Error('redact_text returned offsets that do not match the detected text');
+    }
+    return { ...detection, start, end };
+  });
 }
 
 /**

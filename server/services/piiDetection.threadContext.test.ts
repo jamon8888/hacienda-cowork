@@ -100,6 +100,34 @@ describe('detectPii error payloads', () => {
   });
 });
 
+describe('detectPii offsets', () => {
+  // Captured from the pinned basemind binary (`basemind redact --json`):
+  // redact_text reports UTF-8 byte offsets. "é", "€" and "—" take several
+  // bytes and the emoji four (two UTF-16 units), so used as JS string
+  // indices these would cut the phone number and leave digits in clear.
+  const text = 'Réf. 👤 125 000 € — appeler 06 12 34 56 78 ou jean@example.com';
+  const basemindDetections = [
+    { category: 'phone', start: 35, end: 49, text: '06 12 34 56 78', confidence: 0.9 },
+    { category: 'email', start: 53, end: 69, text: 'jean@example.com', confidence: 0.9 },
+  ];
+
+  test('come back as indices into the JS string, so each span is the detected text', async () => {
+    nextDetections = basemindDetections;
+    const { piiDetectionService } = await import('./piiDetection');
+    const detections = await piiDetectionService.detectPii(text);
+    expect(detections.map((d) => text.slice(d.start, d.end))).toEqual(['06 12 34 56 78', 'jean@example.com']);
+    const { buildRedactedText } = await import('../../src/lib/pii/labels');
+    expect(buildRedactedText(text, detections).redactedText)
+      .toBe('Réf. 👤 125 000 € — appeler [PHONE_0] ou [EMAIL_0]');
+  });
+
+  test('refuse offsets that do not land on the detected text', async () => {
+    nextDetections = [{ category: 'phone', start: 35, end: 49, text: '06 99 99 99 99', confidence: 0.9 }];
+    const { piiDetectionService } = await import('./piiDetection');
+    await expect(piiDetectionService.detectPii(text)).rejects.toThrow('offsets');
+  });
+});
+
 describe('detectPii require_ner', () => {
   test('asks basemind to fail rather than degrade, only when requested', async () => {
     nextDetections = [];
