@@ -148,7 +148,10 @@ describe('ToolManager MCP integration', () => {
     approvalManager.setAutoApprove(false);
     approvalManager.clearAll();
     clearConfigCache();
-    setConfigOverride({ agents: {}, mcpServers: {} } as any);
+    // Approval and runtime routing, not redaction: cabinet mode (on by default)
+    // would withhold the output of these workspace-less calls when NER is down.
+    // The redaction tests below set their own config.
+    setConfigOverride({ agents: {}, mcpServers: {}, cabinetModeEnabled: false } as any);
     setToolManager(new ToolManager());
     resetRuntimeServers();
     mockCreateServer.mockClear();
@@ -241,6 +244,7 @@ describe('ToolManager MCP integration', () => {
   test('addServer repairs a persisted server when runtime state is missing', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'github-copilot-mcp': {
           id: 'github-copilot-mcp',
@@ -271,6 +275,7 @@ describe('ToolManager MCP integration', () => {
     runtimeServers.set('github-copilot-mcp', createRuntimeServer('github-copilot-mcp'));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'github-copilot-mcp': {
           id: 'github-copilot-mcp',
@@ -349,6 +354,7 @@ describe('ToolManager MCP integration', () => {
   test('updateServer calls McpService.updateServer with merged entry', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': { id: 'test-mcp', name: 'test-mcp', transport: 'http', url: 'https://old-url.example.com', enabled: true, createdAt: 1 },
       },
@@ -366,6 +372,7 @@ describe('ToolManager MCP integration', () => {
   test('updateServer uses persisted config as the source of truth', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': { id: 'test-mcp', name: 'test-mcp', transport: 'http', url: 'https://old-url.example.com', enabled: true, createdAt: 1 },
       },
@@ -381,6 +388,7 @@ describe('ToolManager MCP integration', () => {
   test('updateServer rejects command when transport remains remote', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': { id: 'test-mcp', name: 'test-mcp', transport: 'http', url: 'https://old-url.example.com', enabled: true, createdAt: 1 },
       },
@@ -403,6 +411,7 @@ describe('ToolManager MCP integration', () => {
   test('startServer calls McpService.enableServer', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -425,6 +434,7 @@ describe('ToolManager MCP integration', () => {
   test('startServer does not block on runtime status reads', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -446,6 +456,7 @@ describe('ToolManager MCP integration', () => {
   test('startOAuthLogin calls McpService.initiateOAuthLogin for configured MCP servers', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -469,6 +480,7 @@ describe('ToolManager MCP integration', () => {
   test('startOAuthLogin does not read runtime status when config exists', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -490,6 +502,7 @@ describe('ToolManager MCP integration', () => {
   test('initialize does not eagerly query Codex MCP runtime status', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -511,6 +524,7 @@ describe('ToolManager MCP integration', () => {
   test('stopServer calls McpService.disableServer', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -533,6 +547,7 @@ describe('ToolManager MCP integration', () => {
   test('stopServer does not block on runtime status reads', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -593,6 +608,7 @@ describe('ToolManager MCP integration', () => {
   test('listAllToolServers preserves persisted MCP config for UI metadata', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -636,6 +652,7 @@ describe('ToolManager MCP integration', () => {
   test('getToolServer preserves persisted MCP config', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -671,6 +688,7 @@ describe('ToolManager MCP integration', () => {
     }));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -703,6 +721,7 @@ describe('ToolManager MCP integration', () => {
     }));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -740,6 +759,7 @@ describe('ToolManager MCP integration', () => {
     ]));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -776,6 +796,7 @@ describe('ToolManager MCP integration', () => {
     ]));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -808,6 +829,7 @@ describe('ToolManager MCP integration', () => {
     ]));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -1146,6 +1168,7 @@ describe('ToolManager MCP integration', () => {
   test('callTool honors MCP auto approval mode without prompting', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -1180,6 +1203,7 @@ describe('ToolManager MCP integration', () => {
   test('callTool honors per-tool MCP approval overrides', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -1455,6 +1479,7 @@ describe('ToolManager MCP integration', () => {
   test('listAllToolServers marks globally disabled MCP servers', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {},
       builtinToolsEnabled: { 'test-mcp': false },
     } as any);
@@ -1495,6 +1520,7 @@ describe('ToolManager MCP integration', () => {
     runtimeServers.delete('test-mcp');
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -1533,6 +1559,7 @@ describe('ToolManager MCP integration', () => {
     }));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -1587,6 +1614,7 @@ describe('ToolManager MCP integration', () => {
     });
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -1632,6 +1660,7 @@ describe('ToolManager MCP integration', () => {
     });
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -1689,6 +1718,7 @@ describe('ToolManager MCP integration', () => {
   test('mcp_add_server does not block local stdio installs on runtime status', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {},
       allowLocalMcpServers: true,
     } as any);
@@ -1780,6 +1810,7 @@ describe('ToolManager MCP integration', () => {
   test('mcp_add_server rejects command on remote transport before runtime creation', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {},
       allowAgentAddTools: true,
       allowLocalMcpServers: false,
@@ -1801,6 +1832,7 @@ describe('ToolManager MCP integration', () => {
   test('mcp_update_server preserves existing config on partial update', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         pubmed: {
           id: 'pubmed',
@@ -1851,6 +1883,7 @@ describe('ToolManager MCP integration', () => {
   test('mcp_update_server maps timeout fields to runtime config', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         pubmed: {
           id: 'pubmed',
@@ -1890,6 +1923,7 @@ describe('ToolManager MCP integration', () => {
     }));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         pubmed: {
           id: 'pubmed',
@@ -1941,6 +1975,7 @@ describe('ToolManager MCP integration', () => {
   test('mcp_toggle_server persists disabled state through the shared path', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -1966,6 +2001,7 @@ describe('ToolManager MCP integration', () => {
   test('mcp_remove_server removes persisted config through the shared path', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',

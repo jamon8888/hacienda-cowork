@@ -277,6 +277,9 @@ describe('interpreterCli handlers', () => {
     setToolManager(new ToolManager());
     setConfigOverride({
       agents: {},
+      // Guard plumbing, not redaction: cabinet mode (on by default) would
+      // withhold this workspace-less read before the guard ever saw it.
+      cabinetModeEnabled: false,
       profiles: [{
         id: 'guard-profile',
         name: 'Guard Profile',
