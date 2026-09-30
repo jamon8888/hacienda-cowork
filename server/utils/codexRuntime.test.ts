@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import {
@@ -1518,6 +1522,67 @@ describe('runCodexAgentTurn overlay continuation', () => {
     expect(runTurnCalls).toHaveLength(1);
     expect(runTurnCalls[0]?.skills).toEqual(explicitSkills);
     expect(runTurnCalls[0]?.developerInstructions).toContain('repo-review');
+  });
+
+  describe('custom instructions', () => {
+    const SAVED = 'Our client is Jane Doe (jane@client.test).';
+    const tempDirs: string[] = [];
+    afterEach(() => {
+      while (tempDirs.length > 0) rmSync(tempDirs.pop()!, { recursive: true, force: true });
+    });
+
+    async function developerInstructionsFor(
+      workspacePath: string,
+      extra: { customInstructions?: string | null } = {},
+    ): Promise<string> {
+      let seen = '';
+      const fakeService = {
+        async listSkills() { return { data: [] }; },
+        async ensureProvider() {},
+        async runTurn(options: any) {
+          seen = options.developerInstructions;
+          return { threadId: 'thread-ci-1', turnId: 'turn-ci-1', status: 'completed' };
+        },
+      } as any;
+      await runCodexAgentTurn({
+        service: fakeService,
+        profile: { modelProvider: 'openai', model: 'gpt-5.4' } as any,
+        workspacePath,
+        message: 'hello',
+        binding: { agentId: 'custom-instructions-agent-test' },
+        ...extra,
+      });
+      return seen;
+    }
+
+    function tempWorkspace(armed: boolean): string {
+      const dir = mkdtempSync(join(tmpdir(), 'ci-ws-'));
+      if (armed) mkdirSync(join(dir, 'safe'));
+      tempDirs.push(dir);
+      return dir;
+    }
+
+    test('uses the gated custom instructions the caller passes, not the raw setting', async () => {
+      setConfigOverride({ customInstructions: SAVED } as any);
+      const text = await developerInstructionsFor(tempWorkspace(true), {
+        customInstructions: 'Our client is [NAME_0] ([EMAIL_0]).',
+      });
+      expect(text).toContain('Our client is [NAME_0] ([EMAIL_0]).');
+      expect(text).not.toContain('Jane Doe');
+    });
+
+    test('omits ungated custom instructions in a Safe workspace', async () => {
+      setConfigOverride({ customInstructions: SAVED } as any);
+      const text = await developerInstructionsFor(tempWorkspace(true));
+      expect(text).not.toContain('Jane Doe');
+      expect(text).not.toContain('<user_custom_instructions>');
+    });
+
+    test('reads the setting outside a Safe workspace', async () => {
+      setConfigOverride({ customInstructions: SAVED } as any);
+      const text = await developerInstructionsFor(tempWorkspace(false));
+      expect(text).toContain(SAVED);
+    });
   });
 
   test('does not inject interpreter app tools as direct MCP tools by default', async () => {

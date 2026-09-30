@@ -296,6 +296,7 @@ async function startHeadlessAgentTask(
     result = await runCodexSubagent({
       message: outbound.message,
       system: outbound.system,
+      customInstructions: outbound.customInstructions,
       skills: options.skills,
       modelConfig,
       timeoutMs: options.timeoutMs,

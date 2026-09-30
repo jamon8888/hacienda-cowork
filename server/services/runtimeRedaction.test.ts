@@ -47,6 +47,7 @@ const stubDeps = {
   isCabinetMode: () => false,
   recordBlock: async () => {},
   blockedSendMessage: async () => 'blocked',
+  loadCustomInstructions: async () => null,
 };
 
 describe('applyFileReadRedaction', () => {
@@ -427,7 +428,31 @@ describe('redactOutboundTurnInput', () => {
       { workspacePath: workspace(false), threadKey: 'pending-task-2' },
       stubDeps,
     );
-    expect(result).toEqual({ message: `task for ${PROBE_EMAIL}`, system: undefined });
+    expect(result).toEqual({ message: `task for ${PROBE_EMAIL}`, system: undefined, customInstructions: null });
+  });
+
+  test('redacts saved custom instructions under the same thread key', async () => {
+    clearRuntimeRehydrationMaps();
+    const result = await redactOutboundTurnInput(
+      { message: `task for ${PROBE_EMAIL}` },
+      { workspacePath: workspace(true), threadKey: 'pending-task-ci' },
+      { ...stubDeps, loadCustomInstructions: async () => 'Our client is jane@client.test' },
+    );
+    expect(result.customInstructions).not.toContain('jane@client.test');
+    const map = getRuntimeRehydrationMap('pending-task-ci');
+    expect(Object.values(map)).toEqual(expect.arrayContaining([PROBE_EMAIL, 'jane@client.test']));
+    // One map, distinct tokens: a reveal can never mix the two originals up.
+    expect(result.customInstructions).toMatch(/\[EMAIL_1\]/);
+    expect(result.message).toContain('[EMAIL_0]');
+  });
+
+  test('passes custom instructions through outside a safe workspace', async () => {
+    const result = await redactOutboundTurnInput(
+      { message: 'hi' },
+      { workspacePath: workspace(false), threadKey: 'pending-task-ci2' },
+      { ...stubDeps, loadCustomInstructions: async () => 'Our client is jane@client.test' },
+    );
+    expect(result.customInstructions).toBe('Our client is jane@client.test');
   });
 });
 
@@ -681,6 +706,29 @@ describe('cabinet mode', () => {
       ),
     ).rejects.toBeInstanceOf(DetectionUnavailableError);
     expect(getRuntimeRehydrationMap('thread-keep')).toEqual({ '[NAME_0]': 'Jane Doe' });
+  });
+
+  test('refuses the turn when only the custom instructions remain to check', async () => {
+    const ws = workspace(true);
+    let calls = 0;
+    const deps = {
+      ...cabinetDeps,
+      isNerReady: () => true,
+      detectNer: async () => {
+        calls += 1;
+        if (calls > 1) throw new Error('daemon died before the custom instructions');
+        return [];
+      },
+      loadCustomInstructions: async () => 'Always cc Jane Doe',
+    };
+    await expect(
+      redactOutboundTurnInput(
+        { message: `Mail ${PROBE_EMAIL}` },
+        { workspacePath: ws, threadKey: 'pending-turn-ci', provisionalKey: true },
+        deps,
+      ),
+    ).rejects.toBeInstanceOf(DetectionUnavailableError);
+    expect(getRuntimeRehydrationMap('pending-turn-ci')).toEqual({});
   });
 
   test('a failing audit write never unblocks', async () => {

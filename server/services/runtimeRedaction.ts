@@ -49,6 +49,7 @@ export interface RuntimeRedactionDeps {
   isFullDetectionReady?: () => boolean | Promise<boolean>;
   recordBlock?: (surface: 'outbound' | 'tool') => Promise<void>;
   blockedSendMessage?: () => Promise<string>;
+  loadCustomInstructions?: () => Promise<string | null>;
 }
 
 async function defaultDetectNer(text: string, options?: { requireNer?: boolean }): Promise<PiiDetection[]> {
@@ -84,6 +85,11 @@ async function defaultRecordBlock(surface: 'outbound' | 'tool'): Promise<void> {
   await appendCabinetAudit({ event: 'send_blocked', surface });
 }
 
+async function defaultLoadCustomInstructions(): Promise<string | null> {
+  const { getCustomInstructions } = await import('../configStore');
+  return getCustomInstructions();
+}
+
 async function defaultBlockedSendMessage(): Promise<string> {
   // ChatView surfaces send errors as raw err.message, so the sentence is
   // localized here (same rule as attachmentBlockedInSafe in routes/agent.ts).
@@ -104,6 +110,7 @@ function resolveDeps(deps: RuntimeRedactionDeps = {}): {
   isFullDetectionReady: () => boolean | Promise<boolean>;
   recordBlock: (surface: 'outbound' | 'tool') => Promise<void>;
   blockedSendMessage: () => Promise<string>;
+  loadCustomInstructions: () => Promise<string | null>;
 } {
   return {
     isNerReady: deps.isNerReady ?? defaultIsNerReady,
@@ -113,6 +120,7 @@ function resolveDeps(deps: RuntimeRedactionDeps = {}): {
     isFullDetectionReady: deps.isFullDetectionReady ?? defaultIsFullDetectionReady,
     recordBlock: deps.recordBlock ?? defaultRecordBlock,
     blockedSendMessage: deps.blockedSendMessage ?? defaultBlockedSendMessage,
+    loadCustomInstructions: deps.loadCustomInstructions ?? defaultLoadCustomInstructions,
   };
 }
 
@@ -453,9 +461,12 @@ export async function maybeRedactOutboundText(
 }
 
 /**
- * Message + system prompt of one outbound turn, redacted under the same
- * workspace safe/ gate as the chat send path (#19). Used by entry points that
- * start turns outside /chat/stream (headless tasks, subagents).
+ * Message, system prompt and saved custom instructions of one outbound turn,
+ * redacted under the same workspace safe/ gate (#19). /chat/stream calls it
+ * for Safe workspaces; headless tasks and subagents call it for every turn.
+ * The custom instructions are read here, not by the runtime, so every piece
+ * of free text the provider receives passes the one cabinet gate; the caller
+ * hands `customInstructions` to runCodexAgentTurn unchanged.
  */
 export async function redactOutboundTurnInput(
   input: { message: string; system?: string },
@@ -464,13 +475,17 @@ export async function redactOutboundTurnInput(
     provisionalKey?: boolean;
   },
   deps: RuntimeRedactionDeps = {},
-): Promise<{ message: string; system?: string }> {
+): Promise<{ message: string; system?: string; customInstructions: string | null }> {
   try {
     const message = (await maybeRedactOutboundText(input.message, options, deps)).text;
     const system = input.system
       ? (await maybeRedactOutboundText(input.system, options, deps)).text
       : input.system;
-    return { message, system };
+    const savedInstructions = await resolveDeps(deps).loadCustomInstructions();
+    const customInstructions = savedInstructions
+      ? (await maybeRedactOutboundText(savedInstructions, options, deps)).text
+      : null;
+    return { message, system, customInstructions };
   } catch (error) {
     // The message may already have stored originals under the provisional key
     // before the system prompt was refused; nothing will ever re-key them, so

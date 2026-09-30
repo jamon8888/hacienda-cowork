@@ -1031,6 +1031,8 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
     const outboundThreadKey = targetThreadId ?? `pending-${runningAgentId}`;
     let outboundMessage = rawMessage;
     let outboundSystem = request.system;
+    // Undefined outside Safe: the runtime reads the setting itself there.
+    let outboundCustomInstructions: string | null | undefined;
     const outboundArmed = existsSync(path.join(workspacePath, 'safe'));
     if (outboundArmed) {
       await assertNoAttachmentsInSafeWorkspace(attachments.length > 0);
@@ -1040,6 +1042,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
       );
       if (outboundMessage) outboundMessage = outbound.message;
       outboundSystem = outbound.system;
+      outboundCustomInstructions = outbound.customInstructions;
       if (targetThreadId) {
         // Existing thread: persist immediately. New threads re-key + persist
         // on the thread event below.
@@ -1058,6 +1061,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
       workspacePath,
       message: outboundMessage,
       system: outboundSystem,
+      customInstructions: outboundCustomInstructions,
       attachments,
       skills: explicitSkills,
       threadId: targetThreadId,
