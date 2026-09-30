@@ -568,6 +568,8 @@ export interface OutboundTextOptions {
  * results. threadKey may be a provisional key for a new thread; the caller
  * re-keys when the real thread id arrives.
  */
+const CABINET_PROBE_TEXT = 'Cabinet mode detection probe.';
+
 export async function maybeRedactOutboundText(
   text: string,
   options: OutboundTextOptions = {},
@@ -589,6 +591,12 @@ export async function maybeRedactOutboundText(
       },
       deps,
     );
+    // Unscannable text (binary, NUL bytes) is replaced by a marker without
+    // reaching the detector, so nothing has checked that detection can run;
+    // in cabinet mode the turn must not start without that check.
+    if (requireFullDetection && result.deferred) {
+      await redactFileReadOutputText(CABINET_PROBE_TEXT, { requireFullDetection }, deps);
+    }
     return { text: result.text, redacted: result.redacted || result.deferred };
   } catch (error) {
     if (!(error instanceof DetectionUnavailableError)) throw error;
@@ -596,8 +604,6 @@ export async function maybeRedactOutboundText(
     throw new DetectionUnavailableError(await resolved.blockedSendMessage());
   }
 }
-
-const CABINET_PROBE_TEXT = 'Cabinet mode detection probe.';
 
 /**
  * Turn-level cabinet check for input with no free text to scan (a

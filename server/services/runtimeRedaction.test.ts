@@ -19,6 +19,7 @@ import {
   mergeRuntimeRehydrationMap,
   redactOutboundTurnInput,
   rekeyRuntimeRehydrationMap,
+  RUNTIME_REDACTION_DEFERRED_MARKER,
   setActiveTurnWorkspace,
 } from './runtimeRedaction';
 import type { PiiDetection } from '../../src/lib/pii/regex-detector';
@@ -695,6 +696,28 @@ describe('cabinet mode', () => {
       maybeRedactOutboundText('x', { workspacePath: ws, threadKey: 't-c1' }, cabinetDeps),
     ).rejects.toThrow('Cabinet mode: nothing was sent.');
     expect(blocks).toEqual(['outbound', 'outbound']);
+  });
+
+  test('refuses unscannable outbound text too when detection is down', async () => {
+    // A NUL byte makes the text "binary": it is replaced by a marker and
+    // never reaches the detector, so nothing checked that detection could
+    // run and the turn started with NER down.
+    blocks.length = 0;
+    const ws = workspace(true);
+    await expect(
+      maybeRedactOutboundText('hello\0world', { workspacePath: ws, threadKey: 't-c-nul' }, cabinetDeps),
+    ).rejects.toBeInstanceOf(DetectionUnavailableError);
+    expect(blocks).toEqual(['outbound']);
+  });
+
+  test('lets unscannable outbound text through as a marker when detection runs', async () => {
+    const ws = workspace(true);
+    const { text } = await maybeRedactOutboundText('hello\0world', { workspacePath: ws }, {
+      ...cabinetDeps,
+      isNerReady: () => true,
+      detectNer: async () => [],
+    });
+    expect(text).toBe(RUNTIME_REDACTION_DEFERRED_MARKER);
   });
 
   test('refuses outbound text when NER throws', async () => {
