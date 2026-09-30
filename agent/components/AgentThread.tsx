@@ -553,7 +553,9 @@ function AgentThreadWithRuntime({
     },
   ) => {
     const { enabled, phrase } = voiceResetRef.current;
-    console.log('[VoiceReset] check:', { enabled, phrase, textSnippet: plainText.slice(0, 100), agentId });
+    // Length only: console output lands in the session log on disk, and this
+    // runs before Safe redaction, so the text itself would be written in clear.
+    console.log('[VoiceReset] check:', { enabled, phrase, textLength: plainText.length, agentId });
     if (enabled && phrase && plainText.toLowerCase().includes(phrase.toLowerCase())) {
       console.log('[VoiceReset] phrase matched — resetting agent tab', agentId);
       layoutRef.current?.resetAgentTab(agentId, { autoStartVoiceMode: true });

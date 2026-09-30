@@ -196,6 +196,42 @@ describe('AgentThread runtime sends', () => {
     });
   });
 
+  test('never writes the message text to the console (the session log keeps it on disk)', async () => {
+    // Console output is forwarded into logs/session-*.log. This runs before
+    // the Safe redaction, so a client name typed in a Safe folder landed on
+    // disk in clear on every send.
+    // An idle thread: a plain send, not a steer into a running turn.
+    useChatState.current = {
+      ...useChatState.current,
+      streamingMessage: { id: 'assistant-idle', role: 'assistant', serverMessageId: 'turn_idle', parts: [] },
+      isStreaming: false,
+      threadId: '',
+    };
+    const logged = vi.spyOn(console, 'log');
+    try {
+      render(
+        <AgentThread
+          agentId="agent-1"
+          callerToken="caller-token"
+          workspacePath="/workspace"
+          isVisible={true}
+          modelConfig={modelConfig}
+          onModelConfigUpdate={vi.fn()}
+        />,
+      );
+      await act(async () => {
+        window.dispatchEvent(new CustomEvent('agent-runtime:send', {
+          detail: { tabId: 'agent-1', text: 'Jean Dupont owes 125 000 EUR', workspacePath: '/workspace' },
+        }));
+      });
+      await waitFor(() => expect(rawSendMessage).toHaveBeenCalled());
+      const output = logged.mock.calls.map((args) => JSON.stringify(args)).join('\n');
+      expect(output).not.toContain('Jean Dupont');
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
   test('consumes backend-owned startup payloads and sends the startup message', async () => {
     useChatState.current = {
       ...useChatState.current,
