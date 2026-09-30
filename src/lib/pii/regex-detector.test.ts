@@ -52,6 +52,26 @@ describe('detectRegex', () => {
     expect(detectRegex('call 0612345678')[0].category).toBe('phone');
   });
 
+  test('detects French national numbers written in pairs', () => {
+    // The everyday French form. With NER down (or cabinet mode off) this
+    // pass is all that runs, and it let "06 12 34 56 78" reach the provider.
+    const phones = (text: string) => detectRegex(text)
+      .filter((d) => d.category === 'phone')
+      .map((d) => d.text);
+    expect(phones('Jean Dupont (Acme SAS) doit 125 000 € — 06 12 34 56 78. Résume en une phrase.'))
+      .toEqual(['06 12 34 56 78']);
+    expect(phones('tél. 06.12.34.56.78')).toEqual(['06.12.34.56.78']);
+    expect(phones('tél. 01-23-45-67-89')).toEqual(['01-23-45-67-89']);
+    expect(phones('standard : 09 70 80 90 00')).toEqual(['09 70 80 90 00']);
+  });
+
+  test('leaves amounts and dates alone', () => {
+    const phones = (text: string) => detectRegex(text).filter((d) => d.category === 'phone');
+    expect(phones('doit 125 000 € au 01.02.2024')).toEqual([]);
+    expect(phones('échéance le 05 12 2024, soit 1 250 000 €')).toEqual([]);
+    expect(phones('pièce 01/02/2024 n° 03 04 05')).toEqual([]);
+  });
+
   test('handles large input without quadratic slowdown', () => {
     // ~100k chars with 500 emails and many phone-number-like strings. The old
     // per-pattern + alreadyCovered.some() implementation is O(n * matches)
