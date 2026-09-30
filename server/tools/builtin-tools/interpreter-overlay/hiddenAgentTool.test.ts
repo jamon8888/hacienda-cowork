@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -20,6 +20,8 @@ import {
 import { prefixToolName } from '../../../../shared/utils/mcpToolName';
 import { approvalManager } from '../../../approvalManager';
 import { setConfigOverride } from '../../../configStore';
+import { setCabinetAuditFileForTests } from '../../../services/cabinetAudit';
+import { resources } from '../../../../shared/locales';
 import { agentTabManager } from '../../../agentTabManager';
 import {
   createCallHiddenAgentTool,
@@ -402,19 +404,42 @@ describe('callHiddenAgentTool', () => {
     });
 
     test('the default gate refuses a Safe workspace when detection is unavailable', async () => {
-      const workspace = mkdtempSync(join(tmpdir(), 'hidden-safe-'));
-      tempDirs.push(workspace);
-      mkdirSync(join(workspace, 'safe'));
-      const calls = { createSession: [] as unknown[], runSubagent: [] as any[] };
-      const tool = createCallHiddenAgentTool(makeDeps(calls));
+      // Real gate, isolated machine: no NER model in any hub dir the gate
+      // consults, and the block goes to a temp audit log, never the user's.
+      const scratch = mkdtempSync(join(tmpdir(), 'hidden-gate-'));
+      tempDirs.push(scratch);
+      const workspace = join(scratch, 'ws');
+      mkdirSync(join(workspace, 'safe'), { recursive: true });
+      const auditFile = join(scratch, 'audit.jsonl');
+      const saved = { home: process.env.HOME, hub: process.env.HF_HUB_CACHE, xdg: process.env.XDG_DATA_HOME };
+      process.env.HOME = scratch;
+      process.env.HF_HUB_CACHE = join(scratch, 'hub');
+      process.env.XDG_DATA_HOME = join(scratch, 'data');
+      setCabinetAuditFileForTests(auditFile);
+      try {
+        const calls = { createSession: [] as unknown[], runSubagent: [] as any[] };
+        const tool = createCallHiddenAgentTool(makeDeps(calls));
 
-      const result = await tool.handler(
-        { message: 'Jane Doe owes 10 000 EUR' },
-        { agentId: 'overlay-agent-1', modelConfig, workspace },
-      );
+        const result = await tool.handler(
+          { message: 'Jane Doe owes 10 000 EUR' },
+          { agentId: 'overlay-agent-1', modelConfig, workspace },
+        );
 
-      expect(result.isError).toBe(true);
-      expect(calls.runSubagent).toEqual([]);
+        expect(result).toEqual({
+          content: [{ type: 'text', text: resources.en.translation['basemind.cabinet.blockedSend'] }],
+          isError: true,
+        });
+        expect(calls.createSession).toEqual([]);
+        expect(calls.runSubagent).toEqual([]);
+        const lines = readFileSync(auditFile, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+        expect(lines.map((line) => [line.event, line.surface])).toEqual([['send_blocked', 'outbound']]);
+      } finally {
+        setCabinetAuditFileForTests(null);
+        for (const [key, value] of [['HOME', saved.home], ['HF_HUB_CACHE', saved.hub], ['XDG_DATA_HOME', saved.xdg]] as const) {
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        }
+      }
     });
   });
 });
