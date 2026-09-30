@@ -65,6 +65,17 @@ describe('CabinetModeSectionContent', () => {
     expect(screen.getByRole('switch')).toBeDisabled();
   });
 
+  test('says so when re-enabling could not be recorded in the audit log', async () => {
+    scanMocks.getCabinetMode.mockResolvedValueOnce({ enabled: false });
+    scanMocks.setCabinetMode.mockResolvedValueOnce({ enabled: true, auditRecorded: false } as never);
+    render(<CabinetModeSectionContent />);
+    const toggle = await findLoadedSwitch();
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
+    await userEvent.click(toggle);
+    expect(await screen.findByRole('status')).toHaveTextContent(/audit/i);
+    expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+  });
+
   test('surfaces a failed change and keeps the switch where it was', async () => {
     scanMocks.setCabinetMode.mockRejectedValueOnce(new Error('disk full'));
     render(<CabinetModeSectionContent />);

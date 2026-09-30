@@ -1816,6 +1816,7 @@
   "basemind.cabinet.disableConfirm": "Turn off — I take responsibility",
   "basemind.cabinet.blockedSend": "Cabinet mode: full detection is unavailable, so nothing was sent. Start the Safe engine and try again.",
   "basemind.cabinet.changeFailed": "Cabinet mode could not be read or changed. Nothing was modified; try again.",
+  "basemind.cabinet.auditNotRecorded": "Cabinet mode is back on, but this change could not be recorded in the audit log.",
   "basemind.indexing.progress_one": "Indexing {{count}} file…",
   "basemind.indexing.progress_other": "Indexing {{count}} files…",
   "basemind.indexing.ready": "Ready",

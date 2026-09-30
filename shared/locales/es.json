@@ -1816,6 +1816,7 @@
   "basemind.cabinet.disableConfirm": "Desactivar — asumo la responsabilidad",
   "basemind.cabinet.blockedSend": "Modo despacho: la detección completa no está disponible, no se ha enviado nada. Inicie el motor Safe e inténtelo de nuevo.",
   "basemind.cabinet.changeFailed": "No se pudo leer o cambiar el modo despacho. No se ha modificado nada; inténtelo de nuevo.",
+  "basemind.cabinet.auditNotRecorded": "El modo despacho vuelve a estar activado, pero este cambio no se pudo registrar en el registro de auditoría.",
   "basemind.indexing.progress_one": "Indexing {{count}} file…",
   "basemind.indexing.progress_other": "Indexing {{count}} files…",
   "basemind.indexing.ready": "Ready",

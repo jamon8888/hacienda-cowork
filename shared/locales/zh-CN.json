@@ -1816,6 +1816,7 @@
   "basemind.cabinet.disableConfirm": "关闭 — 我承担责任",
   "basemind.cabinet.blockedSend": "律所模式：完整检测不可用，未发送任何内容。请启动 Safe 引擎后重试。",
   "basemind.cabinet.changeFailed": "无法读取或更改律所模式。未做任何修改，请重试。",
+  "basemind.cabinet.auditNotRecorded": "律所模式已重新开启，但此更改未能记录到审计日志中。",
   "basemind.indexing.progress_one": "Indexing {{count}} file…",
   "basemind.indexing.progress_other": "Indexing {{count}} files…",
   "basemind.indexing.ready": "Ready",

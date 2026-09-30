@@ -47,7 +47,7 @@ describe('cabinet mode setting', () => {
 
   test('turns off with confirmation and records who and when', async () => {
     const result = await setCabinetMode(false, { confirmed: true });
-    expect(result).toEqual({ enabled: false });
+    expect(result).toEqual({ enabled: false, auditRecorded: true });
     expect(await getCabinetModeEnabled()).toBe(false);
     const [entry] = auditLines();
     expect(entry.event).toBe('cabinet_mode_disabled');
@@ -69,7 +69,7 @@ describe('cabinet mode setting', () => {
   test('turning back on needs no confirmation and is recorded', async () => {
     await setCabinetMode(false, { confirmed: true });
     const result = await setCabinetMode(true, {});
-    expect(result).toEqual({ enabled: true });
+    expect(result).toEqual({ enabled: true, auditRecorded: true });
     expect(auditLines().map((e) => e.event)).toEqual(['cabinet_mode_disabled', 'cabinet_mode_enabled']);
   });
 
@@ -78,8 +78,22 @@ describe('cabinet mode setting', () => {
     const result = await setCabinetMode(true, {}, {
       audit: async () => { throw new Error('disk full'); },
     });
-    expect(result).toEqual({ enabled: true });
+    // Protection comes back on, and the caller is told the log missed it.
+    expect(result).toEqual({ enabled: true, auditRecorded: false });
     expect(await getCabinetModeEnabled()).toBe(true);
+  });
+
+  test('a config write that fails after the audit leaves the log matching the real state', async () => {
+    const events: string[] = [];
+    await expect(
+      setCabinetMode(false, { confirmed: true }, {
+        audit: async (entry) => { events.push(entry.event); },
+        writeConfig: async () => { throw new Error('config locked'); },
+      }),
+    ).rejects.toThrow('config locked');
+    expect(await getCabinetModeEnabled()).toBe(true);
+    // The disable was recorded, then did not happen: the log says so.
+    expect(events).toEqual(['cabinet_mode_disabled', 'cabinet_mode_enabled']);
   });
 
   test('rejects non-boolean input without touching config or the log', async () => {

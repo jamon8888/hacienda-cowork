@@ -1816,6 +1816,7 @@
   "basemind.cabinet.disableConfirm": "Disattiva — me ne assumo la responsabilità",
   "basemind.cabinet.blockedSend": "Modalità studio legale: il rilevamento completo non è disponibile, non è stato inviato nulla. Avvia il motore Safe e riprova.",
   "basemind.cabinet.changeFailed": "Impossibile leggere o modificare la modalità studio legale. Nulla è stato modificato; riprova.",
+  "basemind.cabinet.auditNotRecorded": "La modalità studio legale è di nuovo attiva, ma questa modifica non è stata registrata nel registro di controllo.",
   "basemind.indexing.progress_one": "Indexing {{count}} file…",
   "basemind.indexing.progress_other": "Indexing {{count}} files…",
   "basemind.indexing.ready": "Ready",

@@ -671,7 +671,7 @@ interface WorkspaceScanIpc {
   setCodeIndexingEnabled(value: boolean): Promise<{ enabled: boolean }>;
   /** Cabinet mode (spec 2026-09-29): on by default; turning off needs confirmed=true. */
   getCabinetMode(): Promise<{ enabled: boolean }>;
-  setCabinetMode(value: boolean, confirmed: boolean): Promise<{ enabled: boolean }>;
+  setCabinetMode(value: boolean, confirmed: boolean): Promise<{ enabled: boolean; auditRecorded: boolean }>;
 }
 
 interface BasemindDownloadResult {

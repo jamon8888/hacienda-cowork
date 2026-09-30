@@ -1816,6 +1816,7 @@
   "basemind.cabinet.disableConfirm": "Отключить — беру ответственность на себя",
   "basemind.cabinet.blockedSend": "Режим юридической фирмы: полное обнаружение недоступно, ничего не отправлено. Запустите движок Safe и повторите попытку.",
   "basemind.cabinet.changeFailed": "Не удалось прочитать или изменить режим юридической фирмы. Ничего не изменено; повторите попытку.",
+  "basemind.cabinet.auditNotRecorded": "Режим юридической фирмы снова включён, но это изменение не удалось записать в журнал аудита.",
   "basemind.indexing.progress_one": "Indexing {{count}} file…",
   "basemind.indexing.progress_other": "Indexing {{count}} files…",
   "basemind.indexing.ready": "Ready",

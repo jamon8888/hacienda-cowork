@@ -1816,6 +1816,7 @@
   "basemind.cabinet.disableConfirm": "Désactiver — j'en prends la responsabilité",
   "basemind.cabinet.blockedSend": "Mode cabinet : la détection complète est indisponible, rien n'a été envoyé. Démarrez le moteur Safe et réessayez.",
   "basemind.cabinet.changeFailed": "Le mode cabinet n'a pas pu être lu ou modifié. Rien n'a été changé ; réessayez.",
+  "basemind.cabinet.auditNotRecorded": "Le mode cabinet est réactivé, mais ce changement n'a pas pu être enregistré dans le journal d'audit.",
   "basemind.indexing.progress_one": "Indexation de {{count}} fichier…",
   "basemind.indexing.progress_other": "Indexation de {{count}} fichiers…",
   "basemind.indexing.ready": "Prêt",

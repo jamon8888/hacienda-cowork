@@ -22,6 +22,7 @@ export function CabinetModeSectionContent() {
   // null = not read yet (or unreadable): never show "on" for a state we don't know.
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [failed, setFailed] = useState(false);
+  const [auditMissed, setAuditMissed] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
@@ -35,9 +36,11 @@ export function CabinetModeSectionContent() {
 
   async function apply(value: boolean, confirmed: boolean) {
     setFailed(false);
+    setAuditMissed(false);
     try {
       const response = await workspaceScan.setCabinetMode(value, confirmed);
       setEnabled(response.enabled);
+      setAuditMissed(response.auditRecorded === false);
     } catch (error) {
       console.error('Failed to change cabinet mode:', error);
       setFailed(true);
@@ -65,6 +68,11 @@ export function CabinetModeSectionContent() {
           onCheckedChange={handleChange}
         />
       </SettingsRow>
+      {auditMissed && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {t('basemind.cabinet.auditNotRecorded')}
+        </p>
+      )}
       {failed && (
         <p role="alert" className="text-sm text-destructive">
           {t('basemind.cabinet.changeFailed')}
