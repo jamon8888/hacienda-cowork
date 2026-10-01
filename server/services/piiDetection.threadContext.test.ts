@@ -152,11 +152,12 @@ describe('detectPii require_ner', () => {
     }
   });
 
-  test('an older daemon that omits ner_ran is not treated as a failure', async () => {
+  test('a daemon that omits ner_ran cannot vouch for NER, so requireNer refuses it', async () => {
     nextDetections = [];
     nextNerRan = undefined;
     const { piiDetectionService } = await import('./piiDetection');
-    await expect(piiDetectionService.detectPii('Jane Doe', { requireNer: true })).resolves.toEqual([]);
+    await expect(piiDetectionService.detectPii('Jane Doe')).resolves.toEqual([]);
+    await expect(piiDetectionService.detectPii('Jane Doe', { requireNer: true })).rejects.toThrow('NER did not run');
   });
 });
 

@@ -212,9 +212,9 @@ async function detectPii(
   // the Electron side passes detections through untouched.
   const parsed = parseRedactTextResult(raw);
   // basemind reports a silent degrade as ner_ran=false. Callers that asked
-  // for full detection must not read an empty list as "nothing found". An
-  // older daemon omits the field; it cannot say, so it is not blamed here.
-  if (options?.requireNer && parsed.ner_ran === false) {
+  // for full detection must not read an empty list as "nothing found", and a
+  // daemon that omits the field cannot vouch that NER ran either.
+  if (options?.requireNer && parsed.ner_ran !== true) {
     throw new Error('redact_text: NER did not run (pattern-only redaction)');
   }
   return toStringOffsets(text, parsed.detections);
