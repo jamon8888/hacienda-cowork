@@ -301,9 +301,11 @@ export async function ensureBasemindServerConfig(serverId: string): Promise<void
   }
 }
 
-export async function registerBasemindServer(): Promise<string> {
+export async function registerBasemindServer(
+  deps: { resolveBinary?: () => string } = {},
+): Promise<string> {
   const { getToolManager } = await import('../tools/toolManagerAccessor');
-  const binary = resolveBasemindBinary();
+  const binary = (deps.resolveBinary ?? resolveBasemindBinary)();
   if (!binary) return '';
   let serverId: string;
   try {
@@ -316,9 +318,15 @@ export async function registerBasemindServer(): Promise<string> {
       enabled: true,
     });
   } catch (err) {
-    if (!(err instanceof Error && err.message.includes('already exists'))) return '';
     // An existing registration still needs the normalized config applied: a
-    // server added before this ran has none of the ensure values on file.
+    // server added before this ran has none of the ensure values on file. At
+    // startup addServer can also time out reading runtime status (12 s) with
+    // the entry already on file; that entry gets the config too.
+    const configStore = await import('../configStore');
+    if (!(await configStore.getMcpServer('basemind'))) {
+      console.warn('[basemind] could not register the MCP server; the next workspace switch or "Make Safe" retries', err);
+      return '';
+    }
     serverId = 'basemind';
   }
   await ensureBasemindServerConfig(serverId);

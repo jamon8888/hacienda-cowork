@@ -1,8 +1,10 @@
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, test } from 'bun:test';
-import { adminRescanToolCall, ensureBasemindForWorkspace } from './basemindManager';
+import { afterEach, describe, expect, spyOn, test } from 'bun:test';
+import { setConfigOverride } from '../configStore';
+import { setToolManager } from '../tools/toolManagerAccessor';
+import { adminRescanToolCall, ensureBasemindForWorkspace, registerBasemindServer } from './basemindManager';
 
 describe('adminRescanToolCall (pinned admin rescan contract)', () => {
   test('incremental rescan sends admin mode=rescan with paths', () => {
@@ -69,5 +71,43 @@ describe('ensureBasemindForWorkspace', () => {
     const { calls, deps } = fakes();
     await ensureBasemindForWorkspace(null, deps);
     expect(calls).toEqual([]);
+  });
+});
+
+describe('registerBasemindServer when the runtime is slow', () => {
+  // At startup the MCP runtime can take longer than addServer's 12 s status
+  // read. Registration then gave up silently: the existing server never got
+  // its auto-approval and start-up timeout, or nothing was registered at all.
+  const timeout = new Error('MCP server status list timed out after 12000ms (requestId=1)');
+  const updates: Array<{ id: string; updates: Record<string, unknown> }> = [];
+
+  function fakeToolManager() {
+    updates.length = 0;
+    setToolManager({
+      addServer: async () => { throw timeout; },
+      updateServer: async (id: string, patch: Record<string, unknown>) => { updates.push({ id, updates: patch }); },
+    } as any);
+  }
+
+  afterEach(() => setConfigOverride(null));
+
+  test('still applies the config when the server is already on file', async () => {
+    setConfigOverride({ mcpServers: { basemind: { name: 'Basemind', transport: 'stdio', command: '/bin/basemind', args: [], tools: {} } } } as any);
+    fakeToolManager();
+    expect(await registerBasemindServer({ resolveBinary: () => '/bin/basemind' })).toBe('basemind');
+    const tools = updates.find((u) => u.id === 'basemind')?.updates.tools as Record<string, { approvalMode: string }>;
+    expect(tools.redact_text.approvalMode).toBe('auto');
+  });
+
+  test('says so when nothing could be registered', async () => {
+    setConfigOverride({ mcpServers: {} } as any);
+    fakeToolManager();
+    const warned = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await registerBasemindServer({ resolveBinary: () => '/bin/basemind' })).toBe('');
+      expect(warned.mock.calls.some((args) => String(args[0]).includes('basemind'))).toBe(true);
+    } finally {
+      warned.mockRestore();
+    }
   });
 });
