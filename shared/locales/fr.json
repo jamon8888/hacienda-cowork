@@ -1812,7 +1812,7 @@
   "basemind.cabinet.title": "Mode cabinet",
   "basemind.cabinet.description": "Dans un dossier Safe, si la détection complète ne peut pas tourner à l'envoi, rien n'est envoyé au fournisseur d'IA et les résultats des outils de l'app sont retenus (sauf les images). Limite : la sortie des commandes shell et fichiers de l'agent lui-même n'est jamais analysée.",
   "basemind.cabinet.disableTitle": "Désactiver le mode cabinet ?",
-  "basemind.cabinet.disableBody": "Quand la détection complète est indisponible, le texte partira avec un masquage par motifs seulement : noms, sociétés et montants pourront être envoyés en clair. Vous prenez la responsabilité de ce choix. Il est enregistré sur cet ordinateur.",
+  "basemind.cabinet.disableBody": "Quand la détection complète est indisponible, le texte partira avec un masquage par motifs seulement : noms, sociétés et adresses pourront être envoyés en clair. Vous prenez la responsabilité de ce choix. Il est enregistré sur cet ordinateur.",
   "basemind.cabinet.disableConfirm": "Désactiver — j'en prends la responsabilité",
   "basemind.cabinet.blockedSend": "Mode cabinet : la détection complète est indisponible, rien n'a été envoyé. Réessayez dans un instant ; si cela persiste, redémarrez Interpreter.",
   "basemind.cabinet.changeFailed": "Le mode cabinet n'a pas pu être lu ou modifié. Rien n'a été changé ; réessayez.",
