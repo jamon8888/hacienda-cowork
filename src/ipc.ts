@@ -543,13 +543,16 @@ function createElectronClient(): any {
           // Otherwise, use fallback that routes through apiRequest
           return createElectronFallbackProxy(namespace);
         }
-        return new Proxy(namespaceApi, {
-          get(target, method: string) {
-            const value = target[method];
+        // contextBridge exposes frozen objects, and a Proxy over a frozen
+        // target must return each property unchanged; target an empty object
+        // so methods can be bound and `on*` subscriptions fanned out.
+        return new Proxy({}, {
+          get(_target, method: string) {
+            const value = namespaceApi[method];
             if (typeof value === 'function' && /^on[A-Z]/.test(method)) {
               return (callback: EventCallback) => subscribeElectron(namespace, method, callback);
             }
-            return typeof value === 'function' ? value.bind(target) : value;
+            return typeof value === 'function' ? value.bind(namespaceApi) : value;
           },
         });
       },
