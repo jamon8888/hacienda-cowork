@@ -54,6 +54,10 @@ audit export or signing; anchoring the chain off the machine; retention policy; 
    the firm (or its DPO) sets a retention period; a purge or per-period
    archive, keeping the chain verifiable, is added then. The hash chain makes
    any manual deletion visible.
+4. **Tokens (2026-10-01):** one value keeps one token for the whole
+   conversation (messages and tool results), instead of a fresh token per
+   mention. A company named three times is one `[ORGANIZATION_n]`, as in the
+   `safe/` mirror. Different values never share a token.
 
 ## Open question
 
