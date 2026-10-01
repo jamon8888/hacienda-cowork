@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { detectRegex } from './regex-detector';
+import { PII_COLORS } from './colors';
 
 import {
   buildPiiLabelAttributes,
@@ -16,6 +17,45 @@ describe('normalizePiiCategory', () => {
     expect(normalizePiiCategory('person')).toBe('person_full_name');
     expect(normalizePiiCategory('Name')).toBe('person_full_name');
     expect(normalizePiiCategory('IBAN')).toBe('iban');
+  });
+
+  test('folds GLiNER2 synonyms onto their canonical category', () => {
+    expect(normalizePiiCategory('street_address')).toBe('address');
+    expect(normalizePiiCategory('payment_card')).toBe('credit_card');
+    expect(normalizePiiCategory('card_number')).toBe('credit_card');
+    expect(normalizePiiCategory('access_token')).toBe('bearer_token');
+  });
+});
+
+// Contract with basemind's `GLI_NER2_PII_LABELS` + `AI_ACT_NER_LABELS`
+// (submodules/basemind/src/mcp/tools_redact.rs). A label basemind sends that has
+// no entry here still redacts — it just renders grey and reads as the raw label,
+// so this fails before that ships.
+const ENGINE_LABELS = [
+  'person', 'full_name', 'first_name', 'middle_name', 'last_name', 'date_of_birth',
+  'email', 'phone_number', 'address', 'street_address', 'city', 'state_or_region',
+  'postal_code', 'country',
+  'government_id', 'national_id_number', 'passport_number', 'drivers_license_number',
+  'license_number', 'tax_id', 'tax_number',
+  'bank_account', 'account_number', 'routing_number', 'iban', 'payment_card',
+  'card_number', 'card_expiry', 'card_cvv',
+  'username', 'ip_address', 'account_id', 'sensitive_account_id',
+  'password', 'secret', 'api_key', 'access_token', 'recovery_code',
+  'sensitive_date', 'document_date', 'expiration_date', 'transaction_date',
+  'organization', 'location',
+  'ai_act_provider', 'ai_act_deployer', 'ai_act_importer', 'ai_act_distributor',
+  'ai_act_notified_body', 'ai_act_authorised_representative',
+  'high_risk_ai_system', 'gpai_model', 'ai_act_systemic_risk',
+  'ai_act_conformity_assessment', 'ai_act_technical_documentation',
+  'ai_act_market_surveillance', 'ai_act_penalty', 'ai_act_citation',
+];
+
+describe('engine label palette', () => {
+  test('every label basemind can send resolves to a palette colour', () => {
+    const uncoloured = ENGINE_LABELS.filter(
+      (label) => !Object.prototype.hasOwnProperty.call(PII_COLORS, normalizePiiCategory(label)),
+    );
+    expect(uncoloured).toEqual([]);
   });
 });
 

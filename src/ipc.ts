@@ -345,6 +345,39 @@ export function resolveSelect(value: string | null): void {
   }
 }
 
+// Store for pending prompt resolution
+let pendingPromptResolve: ((value: string | null) => void) | null = null;
+
+interface PromptDetail {
+  message: string;
+  defaultValue: string;
+}
+
+/**
+ * Modal text prompt resolved by the BrowserPrompt overlay.
+ *
+ * Electron does not implement `window.prompt` (it throws), so every mode goes
+ * through the shared overlay rather than a native dialog. Returns null when
+ * the user dismisses without submitting.
+ */
+export function showPrompt(message: string, defaultValue = ''): Promise<string | null> {
+  return new Promise((resolve) => {
+    // A second prompt supersedes an unanswered one.
+    pendingPromptResolve?.(null);
+    pendingPromptResolve = resolve;
+    window.dispatchEvent(
+      new CustomEvent<PromptDetail>('show-prompt', { detail: { message, defaultValue } })
+    );
+  });
+}
+
+// Called by BrowserPrompt when the user submits or dismisses
+export function resolvePrompt(value: string | null): void {
+  if (!pendingPromptResolve) return;
+  pendingPromptResolve(value);
+  pendingPromptResolve = null;
+}
+
 // ============================================================================
 // Proxy-based Client
 // ============================================================================
@@ -455,17 +488,70 @@ function createElectronFallbackProxy(namespace: string): any {
   );
 }
 
+// One underlying window.electron subscription per (namespace, method),
+// fanning out to every renderer callback. Without this each subscriber calls
+// `ipcRenderer.on` directly and Electron warns once the shared channels
+// (`workspace:files-changed`, `workspace:changed`) pass Node's default
+// listener cap of 10.
+const electronSubscriptions = new Map<
+  string,
+  { callbacks: Set<EventCallback>; unsubscribe?: () => void }
+>();
+
+function subscribeElectron(namespace: string, method: string, callback: EventCallback): () => void {
+  const key = `${namespace}.${method}`;
+  let entry = electronSubscriptions.get(key);
+  if (!entry) {
+    const created: { callbacks: Set<EventCallback>; unsubscribe?: () => void } = {
+      callbacks: new Set(),
+    };
+    electronSubscriptions.set(key, created);
+    const namespaceApi = (window.electron as any)[namespace];
+    created.unsubscribe = namespaceApi[method]((data: unknown) => {
+      created.callbacks.forEach((cb) => {
+        try {
+          cb(data);
+        } catch (error) {
+          console.error(`[IPC] Error in listener for ${key}:`, error);
+        }
+      });
+    });
+    entry = created;
+  }
+  entry.callbacks.add(callback);
+  return () => {
+    entry.callbacks.delete(callback);
+    if (entry.callbacks.size === 0) {
+      try {
+        entry.unsubscribe?.();
+      } catch (error) {
+        console.error(`[IPC] Failed to unsubscribe ${key}:`, error);
+      }
+      electronSubscriptions.delete(key);
+    }
+  };
+}
+
 function createElectronClient(): any {
   return new Proxy(
     {},
     {
       get(_, namespace: string) {
         // If namespace exists in window.electron, use it (proper IPC)
-        if (window.electron && (window.electron as any)[namespace]) {
-          return (window.electron as any)[namespace];
+        const namespaceApi = window.electron && (window.electron as any)[namespace];
+        if (!namespaceApi) {
+          // Otherwise, use fallback that routes through apiRequest
+          return createElectronFallbackProxy(namespace);
         }
-        // Otherwise, use fallback that routes through apiRequest
-        return createElectronFallbackProxy(namespace);
+        return new Proxy(namespaceApi, {
+          get(target, method: string) {
+            const value = target[method];
+            if (typeof value === 'function' && /^on[A-Z]/.test(method)) {
+              return (callback: EventCallback) => subscribeElectron(namespace, method, callback);
+            }
+            return typeof value === 'function' ? value.bind(target) : value;
+          },
+        });
       },
     }
   );

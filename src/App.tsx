@@ -20,6 +20,7 @@ import { windowingAPI } from "./api/windowingAPI";
 import { AuthCallback } from "./components/auth/AuthCallback";
 import { BrowserContextMenu } from "./components/BrowserContextMenu";
 import { BrowserSelect } from "./components/BrowserSelect";
+import { PromptDialog } from "./components/PromptDialog";
 import { ResizeHandle } from "./components/ui/resize-handle";
 import { ExtensionDownloadBar } from "./components/onboarding/ExtensionDownloadBar";
 import { OnboardingFeedbackToast } from "./components/onboarding/OnboardingFeedbackToast";
@@ -976,6 +977,7 @@ export default function App() {
                         <AppContent />
                         <BrowserContextMenu />
                         <BrowserSelect />
+                        <PromptDialog />
                       </CommandOverlayProvider>
                     </HelpProvider>
                   </LayoutProvider>
