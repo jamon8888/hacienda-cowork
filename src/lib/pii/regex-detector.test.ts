@@ -72,6 +72,34 @@ describe('detectRegex', () => {
     expect(phones('pièce 01/02/2024 n° 03 04 05')).toEqual([]);
   });
 
+  test('detects money amounts in French and English notation', () => {
+    // No NER label covers amounts, and "125 000 €" used to reach the provider.
+    const amounts = (text: string) => detectRegex(text)
+      .filter((d) => d.category === 'amount')
+      .map((d) => d.text);
+    expect(amounts('Dupont SARL doit 125 000 € à Maître Martin.')).toEqual(['125 000 €']);
+    expect(amounts('soit 125000 EUR ou 125.000,00 €')).toEqual(['125000 EUR', '125.000,00 €']);
+    expect(amounts('salaire de 48 500 euros brut')).toEqual(['48 500 euros']);
+    expect(amounts('prix $1,250.50 ou £300')).toEqual(['$1,250.50', '£300']);
+    expect(amounts('capital de 1,2 M€ et 800 k€')).toEqual(['1,2 M€', '800 k€']);
+    // The narrow no-break spaces that French locale formatting emits.
+    expect(amounts('total 1 250 000 €')).toEqual(['1 250 000 €']);
+  });
+
+  test('does not report bare numbers, dates or phone numbers as amounts', () => {
+    const found = detectRegex('art. 1240 du code civil, le 01.02.2024, tél. 06 12 34 56 78, lot 125 000');
+    expect(found.filter((d) => d.category === 'amount')).toEqual([]);
+    expect(found.filter((d) => d.category === 'phone').map((d) => d.text)).toEqual(['06 12 34 56 78']);
+  });
+
+  test('keeps an amount and a phone number apart', () => {
+    const found = detectRegex('Acme doit 125 000 € — 06 12 34 56 78');
+    expect(found.map((d) => [d.category, d.text])).toEqual([
+      ['amount', '125 000 €'],
+      ['phone', '06 12 34 56 78'],
+    ]);
+  });
+
   test('handles large input without quadratic slowdown', () => {
     // ~100k chars with 500 emails and many phone-number-like strings. The old
     // per-pattern + alreadyCovered.some() implementation is O(n * matches)

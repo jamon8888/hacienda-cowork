@@ -13,6 +13,7 @@ const PII_COLORS: Record<string, { light: string; dark: string; label: string }>
   ipv6:                { light: '#6366f1', dark: '#818cf8', label: 'IP' },
   credit_card:         { light: '#f59e0b', dark: '#fbbf24', label: 'Card' },
   iban:                { light: '#ef4444', dark: '#f87171', label: 'IBAN' },
+  amount:              { light: '#14b8a6', dark: '#2dd4bf', label: 'Amount' },
   bank_account:        { light: '#f59e0b', dark: '#fbbf24', label: 'Bank Account' },
   organization:        { light: '#06b6d4', dark: '#22d3ee', label: 'Org' },
   location:            { light: '#0891b2', dark: '#0891b2', label: 'Location' },

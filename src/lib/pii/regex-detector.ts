@@ -6,16 +6,29 @@ export interface PiiDetection {
   confidence: number;
 }
 
+// A number as written in French or English: groups of three digits split by a
+// space, no-break space, `.` or `,`, then optional decimals (125 000, 1.250,50,
+// $1,250.50), or plain digits with optional decimals (125000, 1,2).
+const AMOUNT_NUMBER = String.raw`\d{1,3}(?:[   .,]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?`;
+const AMOUNT_CURRENCY = String.raw`(?:€|EUR\b|USD\b|GBP\b|CHF\b|[Ee]uros?\b|[Dd]ollars?\b)`;
+const AMOUNT_MAGNITUDE = String.raw`(?:\s?(?:k|K|M|Md|mille|millions?|milliards?)(?:\s?d['’]\s?)?)?`;
+
 /**
  * Individual patterns — kept readable for maintenance. Combined into a single
  * alternation at module init so `detectRegex` makes one pass over the input.
  *
  * IBAN comes first: it matches the same digit runs as credit_card, and the
- * alternation order lets it win ties at the same position.
+ * alternation order lets it win ties at the same position. `amount` follows
+ * it, ahead of the digit-based patterns: no NER label covers money, and a
+ * number is only an amount next to a currency, so bare numbers stay alone.
  */
 const PATTERNS = {
   email: /[\w.+-]+@[\w-]+\.[\w.]+/g,
   iban: /\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,3})?\b/g,
+  amount: new RegExp(
+    String.raw`(?<![\d.,])(?:[$£€]\s?(?:${AMOUNT_NUMBER})|(?:${AMOUNT_NUMBER})${AMOUNT_MAGNITUDE}\s?${AMOUNT_CURRENCY})`,
+    'g',
+  ),
   // E.164 first (`+` + 8–15 digits, separators allowed): the international
   // form wins over the US-centric fallback below (+33 …, +1-800-…). Then the
   // French national form, ten digits in pairs (06 12 34 56 78, 01.23.45.67.89),
