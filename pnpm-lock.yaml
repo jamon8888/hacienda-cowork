@@ -10,9 +10,9 @@ overrides:
   node-abi: 4.31.0
   '@xmldom/xmldom@<0.8.15': 0.8.15
   adm-zip@<0.6.1: 0.6.1
-  brace-expansion@<2: 1.1.18
-  brace-expansion@>=2 <3: 2.1.4
-  brace-expansion@>=5 <6: 5.0.9
+  brace-expansion@<2: 1.1.20
+  brace-expansion@>=2 <3: 2.1.6
+  brace-expansion@>=5 <6: 5.0.11
   browserslist: 4.28.7
   exceljs>uuid: 11.1.1
   fast-uri@<3.1.7: 3.1.7
@@ -27,7 +27,7 @@ overrides:
   picomatch@>=4 <5: 4.0.4
   shell-quote: 1.10.0
   tmp@<0.2.7: 0.2.7
-  undici: 7.29.0
+  undici: 7.29.1
   ws: 8.21.3
   underscore@<1.13.8: 1.13.8
 
@@ -72,7 +72,7 @@ importers:
         version: 4.2.6(encoding@0.1.13)
       '@openai/agents':
         specifier: 0.18.0
-        version: 0.18.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.5)
+        version: 0.18.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5)
       '@parcel/watcher':
         specifier: 2.6.0
         version: 2.6.0
@@ -495,8 +495,8 @@ importers:
         specifier: 10.1.0
         version: 10.1.0
       electron:
-        specifier: 42.5.1
-        version: 42.5.1
+        specifier: 42.11.10
+        version: 42.11.10
       electron-builder:
         specifier: 26.15.0
         version: 26.15.0(electron-builder-squirrel-windows@26.15.0)
@@ -4779,14 +4779,14 @@ packages:
     resolution: {integrity: sha512-d0II/GO9uf9lfUHH2BQsjxzRJZBdsjgsBiW4BvhWk/3qoKwQFjIDVN19PfX8F2D/r9PCMTtLWjYVCFrpeYUzsw==}
     deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
 
-  brace-expansion@1.1.18:
-    resolution: {integrity: sha512-Edep/X9fGqVNmzKBVsDYIOtD+z1tuezV70LBjdCst9Tqu76lsnvRiZ6oTic1n+/BIwX6QDGAO94PN4N2SADvtw==}
+  brace-expansion@1.1.20:
+    resolution: {integrity: sha512-5/qk29RyvatwgzNMrvGjkIhKYzpJ0OUnPK+9TU+zS/CMJqzmb+UD0irWu42JfpUvO636fxd8IstgiydZRM/76A==}
 
-  brace-expansion@2.1.4:
-    resolution: {integrity: sha512-hGfVzPxthbf3+2yjg/RBs60cB0FhqBS/zvdV/4wn4/BmN0bNMMHPc4V/BbFieqf1TKAGGAHnY4eSjajCl0f2Xg==}
+  brace-expansion@2.1.6:
+    resolution: {integrity: sha512-pi/WFpBvCBmB/NsURt7hW5sDvuOqvJaDMDai7CrlT9xoehzWRzo/dhQRKqOhpPvlnicVaTzHCbzGnnTgpvMTFw==}
 
-  brace-expansion@5.0.9:
-    resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==}
+  brace-expansion@5.0.11:
+    resolution: {integrity: sha512-awigjhi6cLTh90bdw6+QJ9CtmJmyYhEIi70iCbc8Rozn04Fw9FeQIBjv/E22FFGuCGx1bLJyUfB64x/szUSXUg==}
     engines: {node: 20 || >=22}
 
   braces@3.0.3:
@@ -5422,8 +5422,8 @@ packages:
     resolution: {integrity: sha512-bO3y10YikuUwUuDUQRM4KfwNkKhnpVO7IPdbsrejwN9/AABJzzTQ4GeHwyzNSrVO+tEH3/Np255a3sVZpZDjvg==}
     engines: {node: '>=8.0.0'}
 
-  electron@42.5.1:
-    resolution: {integrity: sha512-2VFNJcHHbrhIpGsJHdkLoi/nWPZPxN3GHVPe+9At3Oz3/TJRwpr+7JL97ddBDbKyLmHGx3GfI2jvzcEQL28uFw==}
+  electron@42.11.10:
+    resolution: {integrity: sha512-dLf7r2yitgUxZDXSFBGttBfG5CqNDKM+A82Sh2pFighhwsfarWU6bBzXhF6ctsS0a8xhxfoBkMQ9xkCOP5sTWg==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -7399,7 +7399,7 @@ packages:
       '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
       '@smithy/hash-node': '>=4.3.0 <5'
       '@smithy/signature-v4': '>=5.4.0 <6'
-      undici: 7.29.0
+      undici: 7.29.1
       ws: 8.21.3
       zod: ^3.25 || ^4.0
     peerDependenciesMeta:
@@ -8728,8 +8728,8 @@ packages:
   undici-types@7.16.0:
     resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
 
-  undici@7.29.0:
-    resolution: {integrity: sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw==}
+  undici@7.29.1:
+    resolution: {integrity: sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q==}
     engines: {node: '>=20.18.1'}
 
   unicorn-magic@0.3.0:
@@ -9603,7 +9603,7 @@ snapshots:
       semver: 7.8.5
       sumchecker: 3.0.1
     optionalDependencies:
-      undici: 7.29.0
+      undici: 7.29.1
     transitivePeerDependencies:
       - supports-color
 
@@ -10788,11 +10788,11 @@ snapshots:
 
   '@open-draft/until@2.1.0': {}
 
-  '@openai/agents-core@0.18.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.5)':
+  '@openai/agents-core@0.18.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5)':
     dependencies:
       '@standard-schema/spec': 1.1.0
       debug: 4.4.3
-      openai: 7.21.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.5)
+      openai: 7.21.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5)
     optionalDependencies:
       '@modelcontextprotocol/client': 2.0.0
       zod: 4.6.5
@@ -10804,11 +10804,11 @@ snapshots:
       - undici
       - ws
 
-  '@openai/agents-openai@0.18.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.5)':
+  '@openai/agents-openai@0.18.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5)':
     dependencies:
-      '@openai/agents-core': 0.18.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.5)
+      '@openai/agents-core': 0.18.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5)
       debug: 4.4.3
-      openai: 7.21.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.5)
+      openai: 7.21.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5)
       zod: 4.6.5
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -10818,9 +10818,9 @@ snapshots:
       - undici
       - ws
 
-  '@openai/agents-realtime@0.18.0(undici@7.29.0)(zod@4.6.5)':
+  '@openai/agents-realtime@0.18.0(undici@7.29.1)(zod@4.6.5)':
     dependencies:
-      '@openai/agents-core': 0.18.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.5)
+      '@openai/agents-core': 0.18.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5)
       '@types/ws': 8.18.1
       debug: 4.4.3
       ws: 8.21.3
@@ -10834,13 +10834,13 @@ snapshots:
       - undici
       - utf-8-validate
 
-  '@openai/agents@0.18.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.5)':
+  '@openai/agents@0.18.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5)':
     dependencies:
-      '@openai/agents-core': 0.18.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.5)
-      '@openai/agents-openai': 0.18.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.5)
-      '@openai/agents-realtime': 0.18.0(undici@7.29.0)(zod@4.6.5)
+      '@openai/agents-core': 0.18.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5)
+      '@openai/agents-openai': 0.18.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5)
+      '@openai/agents-realtime': 0.18.0(undici@7.29.1)(zod@4.6.5)
       debug: 4.4.3
-      openai: 7.21.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.5)
+      openai: 7.21.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5)
       zod: 4.6.5
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -12259,7 +12259,7 @@ snapshots:
     dependencies:
       progress: 2.0.3
       proxy-from-env: 1.1.0
-      undici: 7.29.0
+      undici: 7.29.1
       which: 2.0.2
     optionalDependencies:
       '@sentry/cli-darwin': 3.2.0
@@ -13605,16 +13605,16 @@ snapshots:
 
   boolean@3.2.0: {}
 
-  brace-expansion@1.1.18:
+  brace-expansion@1.1.20:
     dependencies:
       balanced-match: 1.0.2
       concat-map: 0.0.1
 
-  brace-expansion@2.1.4:
+  brace-expansion@2.1.6:
     dependencies:
       balanced-match: 1.0.2
 
-  brace-expansion@5.0.9:
+  brace-expansion@5.0.11:
     dependencies:
       balanced-match: 4.0.4
 
@@ -14263,7 +14263,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@42.5.1:
+  electron@42.11.10:
     dependencies:
       '@electron-internal/extract-zip': 1.0.5
       '@electron/get': 5.0.0
@@ -15472,7 +15472,7 @@ snapshots:
       saxes: 6.0.0
       symbol-tree: 3.2.4
       tough-cookie: 6.0.1
-      undici: 7.29.0
+      undici: 7.29.1
       w3c-xmlserializer: 5.0.0
       webidl-conversions: 8.0.1
       whatwg-mimetype: 5.0.0
@@ -16253,19 +16253,19 @@ snapshots:
 
   minimatch@10.2.6:
     dependencies:
-      brace-expansion: 5.0.9
+      brace-expansion: 5.0.11
 
   minimatch@3.1.5:
     dependencies:
-      brace-expansion: 1.1.18
+      brace-expansion: 1.1.20
 
   minimatch@5.1.9:
     dependencies:
-      brace-expansion: 2.1.4
+      brace-expansion: 2.1.6
 
   minimatch@9.0.9:
     dependencies:
-      brace-expansion: 2.1.4
+      brace-expansion: 2.1.6
 
   minimist@1.2.6: {}
 
@@ -16477,7 +16477,7 @@ snapshots:
       semver: 7.8.5
       tar: 7.5.22
       tinyglobby: 0.2.17
-      undici: 7.29.0
+      undici: 7.29.1
       which: 6.0.1
 
   node-int64@0.4.0: {}
@@ -16601,9 +16601,9 @@ snapshots:
       ws: 8.21.3
       zod: 4.6.5
 
-  openai@7.21.0(undici@7.29.0)(ws@8.21.3)(zod@4.6.5):
+  openai@7.21.0(undici@7.29.1)(ws@8.21.3)(zod@4.6.5):
     optionalDependencies:
-      undici: 7.29.0
+      undici: 7.29.1
       ws: 8.21.3
       zod: 4.6.5
 
@@ -18143,7 +18143,7 @@ snapshots:
 
   undici-types@7.16.0: {}
 
-  undici@7.29.0: {}
+  undici@7.29.1: {}
 
   unicorn-magic@0.3.0: {}
 
