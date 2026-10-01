@@ -107,8 +107,9 @@ export function buildRedactedText(
   reservedTokens: ReadonlySet<string> = EMPTY_RESERVED_TOKENS,
   /**
    * Token → original pairs whose tokens may be emitted again for the same
-   * value and category. Only for text that is resent unchanged every turn
-   * (custom instructions); everything else keeps the fresh-token rule.
+   * value and category, so one value keeps one token. Passing it (even empty)
+   * also makes a value repeated within this call share its token; without it
+   * every detection gets a fresh token.
    */
   reusableTokens?: Readonly<Record<string, string>>,
 ): { redactedText: string; rehydrationMap: Record<string, string> } {
@@ -160,6 +161,8 @@ export function buildRedactedText(
     redactedText += text.slice(cursor, detection.start) + token;
     cursor = detection.end;
     rehydrationMap[token] = detection.text;
+    // With a reuse map, a value later in this same call gets this token too.
+    if (reusableTokens) reusable.set(`${label}\u0000${detection.text}`, token);
   }
   redactedText += text.slice(cursor);
   return { redactedText, rehydrationMap };

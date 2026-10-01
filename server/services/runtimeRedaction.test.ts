@@ -466,14 +466,35 @@ describe('redactOutboundTurnInput', () => {
     expect(Object.keys(getRuntimeRehydrationMap('t-ci-cache'))).toHaveLength(size);
   });
 
-  test('never reuses a token for a message value, only for custom instructions', async () => {
-    // The live-token rule for everything else stays: a repeated read gets a
-    // fresh token, so the reuse cannot leak into message redaction.
+  test('gives a value the same token across messages of a thread', async () => {
+    // One value, one token for the whole conversation: the model can follow the
+    // same company or person from message to message, and the map does not
+    // grow by one entry per mention.
     clearRuntimeRehydrationMaps();
     const ws = workspace(true);
     await redactOutboundTurnInput({ message: `ping ${PROBE_EMAIL}` }, { workspacePath: ws, threadKey: 't-ci-msg' }, stubDeps);
     const second = await redactOutboundTurnInput({ message: `ping ${PROBE_EMAIL}` }, { workspacePath: ws, threadKey: 't-ci-msg' }, stubDeps);
-    expect(second.message).toBe('ping [EMAIL_1]');
+    expect(second.message).toBe('ping [EMAIL_0]');
+    expect(Object.keys(getRuntimeRehydrationMap('t-ci-msg'))).toEqual(['[EMAIL_0]']);
+  });
+
+  test('gives a value the same token within one message, and a new value a new one', async () => {
+    clearRuntimeRehydrationMaps();
+    const result = await redactOutboundTurnInput(
+      { message: `${PROBE_EMAIL} then ${PROBE_EMAIL} then other@client.test` },
+      { workspacePath: workspace(true), threadKey: 't-ci-same' },
+      stubDeps,
+    );
+    expect(result.message).toBe('[EMAIL_0] then [EMAIL_0] then [EMAIL_1]');
+  });
+
+  test('gives a value the same token without a thread, within one call', async () => {
+    const result = await redactOutboundTurnInput(
+      { message: `${PROBE_EMAIL} and again ${PROBE_EMAIL}` },
+      { workspacePath: workspace(true) },
+      stubDeps,
+    );
+    expect(result.message).toBe('[EMAIL_0] and again [EMAIL_0]');
   });
 
   test('passes custom instructions through outside a safe workspace', async () => {
@@ -592,11 +613,11 @@ describe('one detector call per tool result', () => {
       content: Array<{ text?: string; resource?: { text: string } }>;
       structuredContent: { hits: Array<{ snippet: string }> };
     };
-    // Offsets land on each text; tokens accumulate across the result as before.
+    // Offsets land on each text, and one name keeps one token across the result.
     expect(r.content[0].text).toBe('[NAME_0] signed');
-    expect(r.content[1].text).toBe('Counsel for [NAME_1]');
-    expect(r.content[2].resource?.text).toBe('[NAME_2] again');
-    expect(r.structuredContent.hits.map((h) => h.snippet)).toEqual(['[NAME_3] owes', 'nothing here']);
+    expect(r.content[1].text).toBe('Counsel for [NAME_0]');
+    expect(r.content[2].resource?.text).toBe('[NAME_0] again');
+    expect(r.structuredContent.hits.map((h) => h.snippet)).toEqual(['[NAME_0] owes', 'nothing here']);
   });
 
   test('splits a batch that would exceed the detector input limit', async () => {

@@ -213,8 +213,6 @@ export interface RedactTextOptions {
   threadKey?: string;
   /** Cabinet mode: throw DetectionUnavailableError instead of the regex-only fallback. */
   requireFullDetection?: boolean;
-  /** Reuse the thread's token for a value it already maps (custom instructions). */
-  reuseThreadTokens?: boolean;
 }
 
 type RedactedText = { text: string; redacted: boolean; deferred: boolean };
@@ -322,7 +320,10 @@ async function redactTextBatch(
   }
   const threadMap = options.threadKey ? runtimeRehydrationMaps.get(options.threadKey) : undefined;
   const reserved = new Set(Object.keys(threadMap ?? {}));
-  const reusable = options.reuseThreadTokens ? threadMap : undefined;
+  // One value keeps one token across the conversation and across the texts of
+  // this batch, so the model can follow the same company or person. Different
+  // values never share a token: new ones skip every reserved (live) token.
+  const reusable: Record<string, string> = { ...threadMap };
   return entries.map((entry, index): RedactedText => {
     if (!scannable[index]) return { text: RUNTIME_REDACTION_DEFERRED_MARKER, redacted: false, deferred: true };
     // NER runs unconditionally when ready: regex covers patterns (email,
@@ -334,6 +335,7 @@ async function redactTextBatch(
     if (detections.length === 0) return { text: entry.text, redacted: false, deferred: false };
     const { redactedText, rehydrationMap } = buildRedactedText(entry.text, detections, reserved, reusable);
     for (const token of Object.keys(rehydrationMap)) reserved.add(token);
+    Object.assign(reusable, rehydrationMap);
     if (options.threadKey) storeRuntimeRehydrationMap(options.threadKey, rehydrationMap);
     return { text: redactedText, redacted: true, deferred: false };
   });
@@ -557,8 +559,6 @@ export interface OutboundTextOptions {
   /** Workspace root; redaction arms only when `<workspace>/safe/` exists (#19). */
   workspacePath?: string | null;
   threadKey?: string | null;
-  /** See RedactTextOptions.reuseThreadTokens. */
-  reuseThreadTokens?: boolean;
 }
 
 /**
@@ -586,7 +586,6 @@ export async function maybeRedactOutboundText(
       {
         ...(options.threadKey ? { threadKey: options.threadKey } : {}),
         requireFullDetection,
-        reuseThreadTokens: options.reuseThreadTokens,
       },
       deps,
     );
@@ -642,10 +641,10 @@ export async function redactOutboundTurnInput(
       ? (await maybeRedactOutboundText(input.system, options, deps)).text
       : input.system;
     const savedInstructions = await resolveDeps(deps).loadCustomInstructions();
-    // Resent unchanged every turn: the same values keep the same tokens, so the
-    // provider's prompt cache holds and the thread map stops growing.
+    // Resent unchanged every turn: values the thread already maps keep their
+    // tokens, so the provider's prompt cache holds and the thread map stops growing.
     const customInstructions = savedInstructions
-      ? (await maybeRedactOutboundText(savedInstructions, { ...options, reuseThreadTokens: true }, deps)).text
+      ? (await maybeRedactOutboundText(savedInstructions, options, deps)).text
       : null;
     // A skills-only turn has no text to scan, so nothing above reached the
     // detector; the turn itself still needs it (native tools read files).
