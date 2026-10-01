@@ -658,6 +658,20 @@ describe('one detector call per tool result', () => {
     expect(new Set(texts).size).toBe(2);
   });
 
+  test('redacts a structuredContent key that holds PII when detection runs', async () => {
+    const result = await maybeRedactToolResult({
+      serverId: 'basemind',
+      toolName: 'stats',
+      result: { content: [], structuredContent: { 'Jane Doe': { owed: 125000 }, total: 1 }, isError: false },
+      workspacePath: workspace(true),
+      threadKey: 't-batch-5',
+    }, { ...stubDeps, isNerReady: () => true, detectNer: namesDetector([]) });
+    const structured = (result as { structuredContent: Record<string, unknown> }).structuredContent;
+    expect(JSON.stringify(structured)).not.toContain('Jane Doe');
+    expect(Object.keys(structured)).toEqual([expect.stringMatching(/^\[NAME_\d+\]$/), 'total']);
+    expect(Object.values(structured)).toEqual([{ owed: 125000 }, 1]);
+  });
+
   test('checks structuredContent keys too, so a keys-only result is still gated', async () => {
     const blocks: string[] = [];
     const result = await maybeRedactToolResult({

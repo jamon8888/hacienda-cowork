@@ -219,11 +219,9 @@ export interface RedactTextOptions {
 
 type RedactedText = { text: string; redacted: boolean; deferred: boolean };
 
-/** One text of a batch. `scanOnly` texts (structuredContent keys) are sent to
- * the detector, so they count toward the gate, but are never rewritten. */
+/** One text of a batch: a content part, a resource text, or a structuredContent key or string. */
 interface BatchEntry {
   text: string;
-  scanOnly?: boolean;
 }
 
 /** A paragraph break keeps NER from reading two texts as one sentence; a span
@@ -327,7 +325,6 @@ async function redactTextBatch(
   const reusable = options.reuseThreadTokens ? threadMap : undefined;
   return entries.map((entry, index): RedactedText => {
     if (!scannable[index]) return { text: RUNTIME_REDACTION_DEFERRED_MARKER, redacted: false, deferred: true };
-    if (entry.scanOnly) return { text: entry.text, redacted: false, deferred: false };
     // NER runs unconditionally when ready: regex covers patterns (email,
     // phone, …) but NER-only categories (names, addresses) would pass raw.
     const detections = mergeDetections(
@@ -363,7 +360,8 @@ function isMcpContentResult(value: unknown): value is { content: McpContentPart[
   return Array.isArray(content);
 }
 
-/** Queue the strings of a JSON-like value in walk order; keys are scanned only. */
+/** Queue the strings of a JSON-like value in walk order, object keys included:
+ * a key can hold PII (`{ 'Acme SAS': 125000 }`) and reaches the model too. */
 function collectStructuredTexts(value: unknown, entries: BatchEntry[]): void {
   if (typeof value === 'string') {
     if (value !== '') entries.push({ text: value });
@@ -375,7 +373,7 @@ function collectStructuredTexts(value: unknown, entries: BatchEntry[]): void {
   }
   if (typeof value === 'object' && value !== null) {
     for (const [key, item] of Object.entries(value)) {
-      entries.push({ text: key, scanOnly: true });
+      entries.push({ text: key });
       collectStructuredTexts(item, entries);
     }
   }
@@ -406,10 +404,11 @@ function rebuildStructured(
     let changed = false;
     const out: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value)) {
-      cursor.at += 1; // the scan-only key
+      const keyResult = results[cursor.at++];
+      const keyChanged = keyResult.redacted || keyResult.deferred;
       const rebuilt = rebuildStructured(item, results, cursor);
-      out[key] = rebuilt.value;
-      changed ||= rebuilt.changed;
+      out[keyChanged ? keyResult.text : key] = rebuilt.value;
+      changed ||= keyChanged || rebuilt.changed;
     }
     return { value: changed ? out : value, changed };
   }
