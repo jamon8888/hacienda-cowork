@@ -344,6 +344,9 @@ export function createCallHiddenAgentTool(deps: CallHiddenAgentToolDeps = defaul
         const targetRefs = optionalStringArrayArg(args, 'target_refs');
         const timeoutMs = optionalPositiveIntegerArg(args, 'timeout_ms', 300000);
         const parentOwner = await buildParentOwner(context, deps.getAgentBindingForAgentId);
+        // The gate must judge the workspace the delegate runs in; the binding's
+        // can differ. Unknown workspace fails closed inside the gate.
+        const workspace = context.workspace ?? parentOwner.workspacePath ?? undefined;
         // The delegate starts a provider turn outside /chat/stream, so it goes
         // through the same outbound gate: the handoff (screen context
         // included), the system guidance and the saved custom instructions are
@@ -363,7 +366,7 @@ export function createCallHiddenAgentTool(deps: CallHiddenAgentToolDeps = defaul
             system: buildHiddenAgentSystem(system, deps.getOverlaySessionSnapshot(context.agentId) !== null),
           },
           {
-            workspacePath: parentOwner.workspacePath ?? null,
+            workspacePath: workspace ?? null,
             threadKey: parentOwner.threadId ?? provisionalThreadKey,
             provisionalKey: provisionalThreadKey !== null,
           },
@@ -385,7 +388,7 @@ export function createCallHiddenAgentTool(deps: CallHiddenAgentToolDeps = defaul
           customInstructions: outbound.customInstructions,
           modelConfig: context.modelConfig,
           timeoutMs,
-          workspace: context.workspace,
+          workspace,
           allowedToolNames: OVERLAY_HIDDEN_AGENT_ALLOWED_TOOL_NAMES,
           parentOwner,
           session,

@@ -306,6 +306,27 @@ describe('callHiddenAgentTool', () => {
       });
     });
 
+    test('gates the workspace the delegate runs in, not the binding one', async () => {
+      const calls = { createSession: [] as unknown[], runSubagent: [] as any[] };
+      const gated: Array<string | null | undefined> = [];
+      const tool = createCallHiddenAgentTool({
+        ...makeDeps(calls),
+        getAgentBindingForAgentId: () => ({ agentId: 'overlay-agent-1', workspacePath: '/other' }),
+        redactTurnInput: async (input, options) => {
+          gated.push(options.workspacePath);
+          return { message: input.message, system: input.system };
+        },
+      });
+
+      await tool.handler(
+        { message: 'Jane Doe owes 10 000 EUR' },
+        { agentId: 'overlay-agent-1', threadId: 'thread-x', modelConfig, workspace: '/workspace' },
+      );
+
+      expect(gated).toEqual(['/workspace']);
+      expect(calls.runSubagent[0].workspace).toBe('/workspace');
+    });
+
     test('a refused send starts no session and never reaches the runtime', async () => {
       const calls = { createSession: [] as unknown[], runSubagent: [] as any[] };
       const tool = createCallHiddenAgentTool({
