@@ -87,6 +87,25 @@ describe("mergeChatHistory", () => {
     assert.deepEqual(merged.map((entry) => entry.id), ["server-user"]);
   });
 
+  test("reconciles an optimistic row whose server echo was redacted", () => {
+    const optimistic: ChatMessage = {
+      id: "local-user",
+      role: "user",
+      parts: [{ kind: "text", content: "Jane Doe owes 10 000 EUR" }],
+      pendingServerEchoText: "Jane Doe owes 10 000 EUR",
+    };
+    const confirmed: ChatMessage = {
+      id: "server-user",
+      role: "user",
+      parts: [{ kind: "text", content: "[NAME_0] owes [AMOUNT_0]" }],
+    };
+
+    const merged = mergeChatHistory([optimistic], [confirmed], "newer");
+
+    assert.deepEqual(merged.map((entry) => entry.id), ["server-user"]);
+    assert.equal(merged[0]?.pendingServerEchoText, undefined);
+  });
+
   test("preserves a second intentional identical server message", () => {
     const optimistic: ChatMessage = {
       id: "local-user",

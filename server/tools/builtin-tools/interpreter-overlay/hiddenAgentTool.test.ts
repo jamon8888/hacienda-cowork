@@ -1,4 +1,8 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 import type { AgentModelConfig } from '../../../../shared/types/model';
 import {
@@ -15,6 +19,9 @@ import {
 } from '../../../../shared/types/overlayToolCatalog';
 import { prefixToolName } from '../../../../shared/utils/mcpToolName';
 import { approvalManager } from '../../../approvalManager';
+import { setConfigOverride } from '../../../configStore';
+import { setCabinetAuditFileForTests } from '../../../services/cabinetAudit';
+import { resources } from '../../../../shared/locales';
 import { agentTabManager } from '../../../agentTabManager';
 import {
   createCallHiddenAgentTool,
@@ -229,5 +236,231 @@ describe('callHiddenAgentTool', () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toBe('call_hidden_agent requires an overlay agent context.');
+  });
+
+  describe('outbound redaction gate', () => {
+    const tempDirs: string[] = [];
+    // Hermetic config: a fresh one has cabinet mode on and no custom instructions.
+    beforeEach(() => setConfigOverride({} as never));
+    afterEach(() => {
+      setConfigOverride(null);
+      while (tempDirs.length > 0) rmSync(tempDirs.pop()!, { recursive: true, force: true });
+    });
+
+    function makeDeps(calls: { createSession: unknown[]; runSubagent: any[] }): CallHiddenAgentToolDeps {
+      const session = {
+        service: {} as any,
+        profile: {} as any,
+        agentId: 'hidden-agent-1',
+        callerToken: 'agtok_hidden_secret',
+        allowedToolNames: [],
+        modelConfig,
+        dispose: () => {},
+      };
+      return {
+        createSession: async (options) => {
+          calls.createSession.push(options);
+          return session;
+        },
+        runSubagent: async (options) => {
+          calls.runSubagent.push(options);
+          return { agentId: 'hidden-agent-1', completed: true, messages: [] };
+        },
+        closeSession: () => {},
+        getOverlaySessionSnapshot: () => null,
+        attachToOverlaySession: () => {},
+        releaseOverlaySession: () => {},
+        getAgentBindingForAgentId: () => undefined,
+      };
+    }
+
+    test('sends the gated message, system prompt and custom instructions', async () => {
+      const calls = { createSession: [] as unknown[], runSubagent: [] as any[] };
+      const seen: Array<{ message: string; system?: string; workspacePath?: string | null }> = [];
+      const tool = createCallHiddenAgentTool({
+        ...makeDeps(calls),
+        redactTurnInput: async (input, options) => {
+          seen.push({ message: input.message, system: input.system, workspacePath: options.workspacePath });
+          return { message: 'GATED MESSAGE', system: 'GATED SYSTEM', customInstructions: 'GATED INSTRUCTIONS' };
+        },
+      });
+
+      const result = await tool.handler(
+        {
+          message: 'Jane Doe owes 10 000 EUR',
+          conversation_context: 'Jane Doe called',
+          selected_context: { note: 'Acme SAS' },
+        },
+        { agentId: 'overlay-agent-1', threadId: 'thread-x', modelConfig, workspace: '/workspace' },
+      );
+
+      expect(result.isError).toBe(false);
+      // What the gate saw is the fully built handoff, screen context included.
+      expect(seen[0].message).toContain('Jane Doe called');
+      expect(seen[0].message).toContain('Acme SAS');
+      expect(seen[0].workspacePath).toBe('/workspace');
+      expect(calls.runSubagent[0]).toMatchObject({
+        message: 'GATED MESSAGE',
+        system: 'GATED SYSTEM',
+        customInstructions: 'GATED INSTRUCTIONS',
+      });
+    });
+
+    test('gates the workspace the delegate runs in, not the binding one', async () => {
+      const calls = { createSession: [] as unknown[], runSubagent: [] as any[] };
+      const gated: Array<string | null | undefined> = [];
+      const tool = createCallHiddenAgentTool({
+        ...makeDeps(calls),
+        getAgentBindingForAgentId: () => ({ agentId: 'overlay-agent-1', workspacePath: '/other' }),
+        redactTurnInput: async (input, options) => {
+          gated.push(options.workspacePath);
+          return { message: input.message, system: input.system };
+        },
+      });
+
+      await tool.handler(
+        { message: 'Jane Doe owes 10 000 EUR' },
+        { agentId: 'overlay-agent-1', threadId: 'thread-x', modelConfig, workspace: '/workspace' },
+      );
+
+      expect(gated).toEqual(['/workspace']);
+      expect(calls.runSubagent[0].workspace).toBe('/workspace');
+    });
+
+    test('a refused send starts no session and never reaches the runtime', async () => {
+      const calls = { createSession: [] as unknown[], runSubagent: [] as any[] };
+      const tool = createCallHiddenAgentTool({
+        ...makeDeps(calls),
+        redactTurnInput: async () => {
+          throw new Error('Cabinet mode: nothing was sent.');
+        },
+      });
+
+      const result = await tool.handler(
+        { message: 'Jane Doe owes 10 000 EUR' },
+        { agentId: 'overlay-agent-1', modelConfig, workspace: '/workspace' },
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toBe('Cabinet mode: nothing was sent.');
+      expect(calls.createSession).toEqual([]);
+      expect(calls.runSubagent).toEqual([]);
+    });
+
+    describe('provisional rehydration map', () => {
+      const gate: NonNullable<CallHiddenAgentToolDeps['redactTurnInput']> = async (input) => ({
+        message: input.message,
+        system: input.system,
+        customInstructions: null,
+      });
+
+      function harness(runSubagent?: CallHiddenAgentToolDeps['runSubagent']) {
+        const calls = { createSession: [] as unknown[], runSubagent: [] as any[] };
+        const gateOptions: Array<{ threadKey?: string | null; provisionalKey?: boolean }> = [];
+        const deleted: string[] = [];
+        const base = makeDeps(calls);
+        const tool = createCallHiddenAgentTool({
+          ...base,
+          runSubagent: runSubagent ?? base.runSubagent,
+          redactTurnInput: async (input, options) => {
+            gateOptions.push(options);
+            return gate(input, options);
+          },
+          deleteRuntimeRehydrationMap: (key) => {
+            deleted.push(key);
+          },
+        });
+        return { tool, gateOptions, deleted };
+      }
+
+      test('drops the provisional map after a run with no parent thread', async () => {
+        const h = harness();
+
+        await h.tool.handler(
+          { message: 'Summarize.' },
+          { agentId: 'overlay-agent-1', modelConfig, workspace: '/workspace' },
+        );
+
+        expect(h.gateOptions[0].provisionalKey).toBe(true);
+        expect(h.deleted).toEqual([h.gateOptions[0].threadKey!]);
+      });
+
+      test('drops the provisional map when the run fails', async () => {
+        const h = harness(async () => {
+          throw new Error('runner exploded');
+        });
+
+        const result = await h.tool.handler(
+          { message: 'Summarize.' },
+          { agentId: 'overlay-agent-1', modelConfig, workspace: '/workspace' },
+        );
+
+        expect(result.isError).toBe(true);
+        expect(h.deleted).toEqual([h.gateOptions[0].threadKey!]);
+      });
+
+      test('gives concurrent calls from one agent separate provisional keys', async () => {
+        const h = harness();
+        const context = { agentId: 'overlay-agent-1', modelConfig, workspace: '/workspace' };
+
+        await Promise.all([
+          h.tool.handler({ message: 'One.' }, context),
+          h.tool.handler({ message: 'Two.' }, context),
+        ]);
+
+        expect(h.gateOptions[0].threadKey).not.toBe(h.gateOptions[1].threadKey);
+      });
+
+      test('leaves the map alone when the parent thread owns it', async () => {
+        const h = harness();
+
+        await h.tool.handler(
+          { message: 'Summarize.' },
+          { agentId: 'overlay-agent-1', threadId: 'thread-x', modelConfig, workspace: '/workspace' },
+        );
+
+        expect(h.gateOptions[0]).toMatchObject({ threadKey: 'thread-x', provisionalKey: false });
+        expect(h.deleted).toEqual([]);
+      });
+    });
+
+    test('the default gate refuses a Safe workspace when detection is unavailable', async () => {
+      // Real gate, isolated machine: no NER model in any hub dir the gate
+      // consults, and the block goes to a temp audit log, never the user's.
+      const scratch = mkdtempSync(join(tmpdir(), 'hidden-gate-'));
+      tempDirs.push(scratch);
+      const workspace = join(scratch, 'ws');
+      mkdirSync(join(workspace, 'safe'), { recursive: true });
+      const auditFile = join(scratch, 'audit.jsonl');
+      const saved = { home: process.env.HOME, hub: process.env.HF_HUB_CACHE, xdg: process.env.XDG_DATA_HOME };
+      process.env.HOME = scratch;
+      process.env.HF_HUB_CACHE = join(scratch, 'hub');
+      process.env.XDG_DATA_HOME = join(scratch, 'data');
+      setCabinetAuditFileForTests(auditFile);
+      try {
+        const calls = { createSession: [] as unknown[], runSubagent: [] as any[] };
+        const tool = createCallHiddenAgentTool(makeDeps(calls));
+
+        const result = await tool.handler(
+          { message: 'Jane Doe owes 10 000 EUR' },
+          { agentId: 'overlay-agent-1', modelConfig, workspace },
+        );
+
+        expect(result).toEqual({
+          content: [{ type: 'text', text: resources.en.translation['basemind.cabinet.blockedSend'] }],
+          isError: true,
+        });
+        expect(calls.createSession).toEqual([]);
+        expect(calls.runSubagent).toEqual([]);
+        const lines = readFileSync(auditFile, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+        expect(lines.map((line) => [line.event, line.surface])).toEqual([['send_blocked', 'outbound']]);
+      } finally {
+        setCabinetAuditFileForTests(null);
+        for (const [key, value] of [['HOME', saved.home], ['HF_HUB_CACHE', saved.hub], ['XDG_DATA_HOME', saved.xdg]] as const) {
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        }
+      }
+    });
   });
 });

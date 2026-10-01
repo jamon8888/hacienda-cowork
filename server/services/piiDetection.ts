@@ -9,7 +9,6 @@
 
 import path from 'node:path';
 import fs from 'node:fs';
-import { homedir } from 'node:os';
 
 import { ToolManager } from '../tools/toolManager';
 import { getAppMcpOwnerThreadId } from './appMcpThread';
@@ -31,6 +30,11 @@ export interface RedactTextResult {
   redacted_text: string;
   rehydration_map: Record<string, string>;
   detections: PiiDetectionResult[];
+  /**
+   * Whether basemind's NER actually ran. Absent from older daemons; `false`
+   * means it degraded to pattern-only redaction.
+   */
+  ner_ran?: boolean;
 }
 
 const MODEL_SEARCH_PATTERNS = [
@@ -45,14 +49,12 @@ function isWeightEntry(entry: string): boolean {
   return entry.endsWith('.onnx') || entry === 'model.safetensors';
 }
 
-export function resolvePiiModelBaseDir(homeDir = homedir()): string {
-  const override = process.env.INTERPRETER_USER_DATA_DIR?.trim();
-  if (override) return path.join(override, 'basemind-hub');
-  return path.join(homeDir, '.local', 'share', 'basemind', 'hub');
-}
-
-export function isPiiModelReady(baseDir = resolvePiiModelBaseDir()): boolean {
-  return MODEL_SEARCH_PATTERNS.some((pattern) => {
+/**
+ * True when NER weights (ONNX or candle) are cached in any hub candidate dir —
+ * the dirs basemind reads and the preseed writes, never a userData path.
+ */
+export function isPiiModelReady(baseDirs: string[] = resolveHubBaseDirs()): boolean {
+  return baseDirs.some((baseDir) => MODEL_SEARCH_PATTERNS.some((pattern) => {
     const dir = path.join(baseDir, pattern);
     if (!fs.existsSync(dir)) return false;
     try {
@@ -74,7 +76,22 @@ export function isPiiModelReady(baseDir = resolvePiiModelBaseDir()): boolean {
     } catch {
       return false;
     }
-  });
+  }));
+}
+
+/**
+ * The files `redact_text` reads from `ner_model_dir`. The preseed lands the
+ * weights first and the small configs after, so weights alone can be a
+ * download cut short; existsSync follows links, so a dangling one fails too.
+ */
+const CANDLE_ARTIFACTS = [
+  'model.safetensors',
+  'tokenizer.json',
+  path.join('encoder_config', 'config.json'),
+];
+
+function hasCandleArtifacts(dir: string): boolean {
+  return CANDLE_ARTIFACTS.every((file) => fs.existsSync(path.join(dir, file)));
 }
 
 /**
@@ -96,9 +113,7 @@ export function resolveNerModelDir(baseDirs: string[] = resolveHubBaseDirs()): s
       for (const revision of revisions) {
         const dir = path.join(snapshots, revision);
         try {
-          if (fs.statSync(dir).isDirectory() && fs.existsSync(path.join(dir, 'model.safetensors'))) {
-            return dir;
-          }
+          if (fs.statSync(dir).isDirectory() && hasCandleArtifacts(dir)) return dir;
         } catch {
           // unreadable revision dir — keep looking
         }
@@ -106,6 +121,16 @@ export function resolveNerModelDir(baseDirs: string[] = resolveHubBaseDirs()): s
     }
   }
   return null;
+}
+
+/**
+ * True when `redact_text` can actually load the NER model: the same candle
+ * criterion and the same hub directories the tool call passes as
+ * `ner_model_dir`. `isPiiModelReady` is looser (it also accepts ONNX-only
+ * caches), so it cannot vouch that detection will run.
+ */
+export function isFullDetectionReady(baseDirs?: string[]): boolean {
+  return resolveNerModelDir(baseDirs) !== null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -144,12 +169,22 @@ export function parseRedactTextResult(result: unknown): RedactTextResult {
     redacted_text: redactedText,
     rehydration_map: rehydrationMap,
     detections: asDetections(payload.detections),
+    ...(typeof payload.ner_ran === 'boolean' ? { ner_ran: payload.ner_ran } : {}),
   };
+}
+
+function errorPayloadText(raw: unknown): string {
+  const content = asRecord(raw)?.content;
+  if (Array.isArray(content)) {
+    const text = content.map((part) => asRecord(part)?.text).find((t) => typeof t === 'string');
+    if (typeof text === 'string' && text) return text;
+  }
+  return 'redact_text returned an error';
 }
 
 async function detectPii(
   text: string,
-  options?: { categories?: string[] },
+  options?: { categories?: string[]; requireNer?: boolean },
 ): Promise<PiiDetectionResult[]> {
   const manager = new ToolManager();
   const raw = await manager.callTool(
@@ -162,6 +197,7 @@ async function detectPii(
       // regex fallback); file redaction below fails closed instead.
       custom_terms: toRedactTextCustomTerms(await listCustomTerms().catch(() => [])),
       ner_model_dir: resolveNerModelDir() ?? undefined,
+      ...(options?.requireNer ? { require_ner: true } : {}),
     },
     undefined,
     undefined,
@@ -169,9 +205,46 @@ async function detectPii(
     // detection silently degraded to the regex fallback on every send.
     { threadId: await getAppMcpOwnerThreadId() },
   );
+  // An error payload parses to no detections, which is indistinguishable from
+  // "nothing found". Surface it so callers can fall back or, in cabinet mode, block.
+  if (asRecord(raw)?.isError === true) throw new Error(errorPayloadText(raw));
   // Confidence is filtered upstream by basemind (DEFAULT_MIN_CONFIDENCE);
   // the Electron side passes detections through untouched.
-  return parseRedactTextResult(raw).detections;
+  const parsed = parseRedactTextResult(raw);
+  // basemind reports a silent degrade as ner_ran=false. Callers that asked
+  // for full detection must not read an empty list as "nothing found", and a
+  // daemon that omits the field cannot vouch that NER ran either.
+  if (options?.requireNer && parsed.ner_ran !== true) {
+    throw new Error('redact_text: NER did not run (pattern-only redaction)');
+  }
+  return toStringOffsets(text, parsed.detections);
+}
+
+/**
+ * redact_text reports UTF-8 byte offsets (Rust slices the original by bytes);
+ * callers index JS strings in UTF-16 units. Any accent, symbol or emoji
+ * before a span would shift it and leave part of the value in clear, so the
+ * offsets are converted here and checked against the text basemind reports.
+ */
+function toStringOffsets(text: string, detections: PiiDetectionResult[]): PiiDetectionResult[] {
+  const indexAtByte = new Map<number, number>();
+  let byte = 0;
+  let index = 0;
+  for (const char of text) {
+    indexAtByte.set(byte, index);
+    const codePoint = char.codePointAt(0)!;
+    byte += codePoint < 0x80 ? 1 : codePoint < 0x800 ? 2 : codePoint < 0x10000 ? 3 : 4;
+    index += char.length;
+  }
+  indexAtByte.set(byte, index);
+  return detections.map((detection) => {
+    const start = indexAtByte.get(detection.start);
+    const end = indexAtByte.get(detection.end);
+    if (start === undefined || end === undefined || (detection.text && text.slice(start, end) !== detection.text)) {
+      throw new Error('redact_text returned offsets that do not match the detected text');
+    }
+    return { ...detection, start, end };
+  });
 }
 
 /**
@@ -234,6 +307,7 @@ export const piiDetectionService = {
   detectPii,
   redactFile,
   isPiiModelReady,
+  isFullDetectionReady,
   resolveNerModelDir,
   parseRedactTextResult,
 };

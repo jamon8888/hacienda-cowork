@@ -105,6 +105,13 @@ export function buildRedactedText(
   text: string,
   detections: PiiDetection[],
   reservedTokens: ReadonlySet<string> = EMPTY_RESERVED_TOKENS,
+  /**
+   * Token → original pairs whose tokens may be emitted again for the same
+   * value and category, so one value keeps one token. Passing it (even empty)
+   * also makes a value repeated within this call share its token; without it
+   * every detection gets a fresh token.
+   */
+  reusableTokens?: Readonly<Record<string, string>>,
 ): { redactedText: string; rehydrationMap: Record<string, string> } {
   const sorted = [...detections].sort((a, b) => a.start - b.start || b.end - a.end);
   const accepted: PiiDetection[] = [];
@@ -123,6 +130,12 @@ export function buildRedactedText(
   // way, so repeated redactions never re-emit a live token for new content.
   for (const reserved of reservedTokens) taken.add(reserved);
 
+  const reusable = new Map<string, string>();
+  for (const [token, original] of Object.entries(reusableTokens ?? {})) {
+    const label = /^\[([A-Z_]+)_\d+\]$/.exec(token)?.[1];
+    if (label) reusable.set(`${label}\u0000${original}`, token);
+  }
+
   const counters = new Map<string, number>();
   const rehydrationMap: Record<string, string> = {};
   let redactedText = '';
@@ -130,6 +143,13 @@ export function buildRedactedText(
   for (const detection of accepted) {
     const category = normalizePiiCategory(detection.category);
     const label = tokenLabelForCategory(category);
+    const known = reusable.get(`${label}\u0000${detection.text}`);
+    if (known) {
+      redactedText += text.slice(cursor, detection.start) + known;
+      cursor = detection.end;
+      rehydrationMap[known] = detection.text;
+      continue;
+    }
     let index = counters.get(category) ?? 0;
     let token = `[${label}_${index}]`;
     while (taken.has(token)) {
@@ -141,6 +161,8 @@ export function buildRedactedText(
     redactedText += text.slice(cursor, detection.start) + token;
     cursor = detection.end;
     rehydrationMap[token] = detection.text;
+    // With a reuse map, a value later in this same call gets this token too.
+    if (reusableTokens) reusable.set(`${label}\u0000${detection.text}`, token);
   }
   redactedText += text.slice(cursor);
   return { redactedText, rehydrationMap };

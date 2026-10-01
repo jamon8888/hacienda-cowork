@@ -17,7 +17,7 @@ import { enforceFilesystemBoundary } from './filesystemBoundary';
 import { getToolCallMetadata } from '../utils/codexMcpBridge';
 import { getCurrentTurnMessageId } from '../utils/turnMessageIdRegistry';
 import { runWithWorkspaceOverride } from '../utils/workspace';
-import { maybeRedactToolResult } from '../services/runtimeRedaction';
+import { maybeRedactToolError, maybeRedactToolResult } from '../services/runtimeRedaction';
 import type { McpServerEntry } from '../../src/lib/codex/protocol';
 import type { ToolServerInfo } from '../../electron/ipc/registry';
 import type { McpServerConfig } from './mcpTypes';
@@ -995,6 +995,13 @@ export class ToolManager {
     externalToolCallId?: string,
     options?: {
       includeHiddenBuiltins?: boolean;
+      /**
+       * The result goes back to app code (UI handlers, basemind plumbing),
+       * never into model context, so it skips the redaction gate: redacting
+       * it would corrupt paths the app acts on and log false cabinet blocks.
+       * A builtin that forwards such a result to the model is itself gated.
+       */
+      appInternal?: boolean;
     },
   ): Promise<any> {
     // Check if it's a built-in tool
@@ -1055,20 +1062,35 @@ export class ToolManager {
       if (denial) return denial;
 
       return await runWithWorkspaceOverride(workspace, async () => {
-        const rawResult = await builtinTool.handler(args, {
-          workspace: workspace || undefined,
-          callerTabId,
-          threadId: toolContext?.threadId ?? getToolCallMetadata(externalToolCallId)?.threadId,
-          modelConfig,
-          agentId: effectiveAgentId,
-          toolCallId,
-          reportProgress: toolContext?.progressReporter,
-          saveToDiskPath: toolContext?.saveToDiskPath,
-          overlayReviewedAction: toolContext?.overlayReviewedAction,
-          toolCallPath,
-          maxDepth,
-          messageId,
-        });
+        const threadKey = toolContext?.threadId
+          ?? getToolCallMetadata(externalToolCallId)?.threadId;
+        let rawResult: unknown;
+        try {
+          rawResult = await builtinTool.handler(args, {
+            workspace: workspace || undefined,
+            callerTabId,
+            threadId: threadKey,
+            modelConfig,
+            agentId: effectiveAgentId,
+            toolCallId,
+            reportProgress: toolContext?.progressReporter,
+            saveToDiskPath: toolContext?.saveToDiskPath,
+            overlayReviewedAction: toolContext?.overlayReviewedAction,
+            toolCallPath,
+            maxDepth,
+            messageId,
+          });
+        } catch (error) {
+          // NOTE(linked-file-redaction): a thrown error is model-visible text
+          // too; under safe/ it comes back as a redacted error result.
+          if (options?.appInternal) throw error;
+          const gated = await maybeRedactToolError({
+            serverId, toolName, error, workspacePath: workspace || null, threadKey,
+          });
+          if (gated === null) throw error;
+          return gated;
+        }
+        if (options?.appInternal) return rawResult;
         // NOTE(linked-file-redaction): every tool result is redacted before it
         // reaches model context (#19, workspace safe/-gated, spec §7). threadKey
         // is a real thread id only; without one the output still redacts but
@@ -1078,8 +1100,7 @@ export class ToolManager {
           toolName,
           result: rawResult,
           workspacePath: workspace || null,
-          threadKey: toolContext?.threadId
-            ?? getToolCallMetadata(externalToolCallId)?.threadId,
+          threadKey,
         });
       });
     }
@@ -1158,23 +1179,35 @@ export class ToolManager {
       }
     }
 
-    const mcpResult = await getMcpService().callTool(
-      threadId,
-      serverId,
-      toolName,
-      args as Record<string, unknown>,
-      {
-        model: toolContext?.modelConfig?.modelId,
-        cwd: toolContext?.workspace,
-      },
-    );
+    const mcpWorkspace = toolContext?.workspace ?? getCurrentWorkspace() ?? null;
+    let mcpResult: unknown;
+    try {
+      mcpResult = await getMcpService().callTool(
+        threadId,
+        serverId,
+        toolName,
+        args as Record<string, unknown>,
+        {
+          model: toolContext?.modelConfig?.modelId,
+          cwd: toolContext?.workspace,
+        },
+      );
+    } catch (error) {
+      if (options?.appInternal) throw error;
+      const gated = await maybeRedactToolError({
+        serverId, toolName, error, workspacePath: mcpWorkspace, threadKey: threadId,
+      });
+      if (gated === null) throw error;
+      return gated;
+    }
+    if (options?.appInternal) return mcpResult;
     // NOTE(linked-file-redaction): same post-execution redaction as the
     // builtin path above — all MCP tool results redact under safe/ too.
     return await maybeRedactToolResult({
       serverId,
       toolName,
       result: mcpResult,
-      workspacePath: toolContext?.workspace ?? getCurrentWorkspace() ?? null,
+      workspacePath: mcpWorkspace,
       threadKey: threadId,
     });
   }

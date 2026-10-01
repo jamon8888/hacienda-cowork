@@ -40,7 +40,7 @@ Intégrer basemind à Workstation de façon simple, transparente et découplée 
 | 11 | Ajout PII manuel | Sélection Tiptap → catégorie (`NerConfig.categories`) **ou terme custom libre** → token coloré + règle ; **pas de champ regex en v1** (#19) |
 | 12 | Onboarding | **Bannière workspace-open uniquement** (pas d'étape onboarding) ; opt-in explicite, coût annoncé (#20) |
 | 13 | Indexation code | **Présente mais OFF par défaut**, opt-in explicite seulement ; lanes sémantiques code inactives tant que non activées (#18) |
-| 14 | Pin basemind | **`v0.32.1`** (`8b08eed`) pour le sous-module comme pour le binaire téléchargé : `redact_text {file_path}` et GLiNER2 (basemind #24/#26), défauts 8 Go, motifs téléphone internationaux/FR (basemind #27) ; remplace `10cc546`/`v0.31.0` |
+| 14 | Pin basemind | **`v0.32.2`** (`acd7f2d`) pour le sous-module comme pour le binaire téléchargé : `redact_text {file_path}` et GLiNER2 (basemind #24/#26), défauts 8 Go, motifs téléphone internationaux/FR (basemind #27), `ner_ran` + `require_ner` et les 42 labels GLiNER2 (basemind #28) ; remplace `8b08eed`/`v0.32.1` |
 | 15 | Search + reranker | Porter **`search.ts` + `rerankerPreference.ts` ensemble** (état final) (#23) |
 | 16 | workspaceScan | **Réintégré au port** (#20 amende #23) : handler + IPC statut pour le compteur « N fichiers » |
 | 17 | Compteur bannière | **En v1** : « Safe ✓ · N fichiers cherchables » ; clé locale dès J1 (#20) |
@@ -53,7 +53,7 @@ Intégrer basemind à Workstation de façon simple, transparente et découplée 
 | 24 | Split search | RAG/conversation → `safe/` strictement ; **exact/filename search inchangé sur les originaux** (code trouvable, jamais embed) (#18) |
 | 25 | `.redacted/` | **Mort** — remplacé par `safe/` ; pas de migration, pas de lecture, pas d'affichage (#18) |
 | 26 | Préseed | **Porter la chaîne fork sha256** en phase-2 après #23 ; sur clic opt-in + **resume** ; set complet (#22) |
-| 27 | Modèles | Préseed pinné : NER `knowledgator/gliner-pii-edge-v1.0` (~185 Mo) + reranker `onnx-community/gte-multilingual-reranker-base` (~358 Mo) = **~543 Mo** ; embeddings via MCP `memory documents` (warmup basemind, non pinné) ; legacy gliner_small (673 Mo) non téléchargé ; reranker y compris toggle OFF (#22) |
+| 27 | Modèles | Préseed pinné : NER `fastino/gliner2-privacy-filter-PII-multi` (~1,24 Go) + reranker `onnx-community/gte-multilingual-reranker-base` (~358 Mo) = **~1,6 Go** ; embeddings via MCP `memory documents` (warmup basemind, non pinné) ; legacy gliner_small (673 Mo) non téléchargé ; reranker y compris toggle OFF (#22) |
 | 28 | Copy bannière | Annoncer **~543 Mo pinnés + embeddings** (pas le ~250 Mo périmé), deadline 300 s (`XBERG_MODEL_DOWNLOAD_TIMEOUT_SECS`), retry, offline une fois caché ; 8 locales avant merge (#22/#20) |
 | 29 | Locale `fr` | **Créer à fresque depuis `en.json` courant** ; fork `fr.json` = mémoire de traduction seulement (snapshot périmé 1829 l. vs en 2294 l.) (#20) |
 | 30 | Bugfix séparé | `233b2f8` (AppUpdateDialog boucle infinie) = **commit à part**, session au plus, jamais mélangé au port (#23) |
@@ -133,12 +133,12 @@ Intégrer basemind à Workstation de façon simple, transparente et découplée 
 
 - **Port phase-2** (après canal #23) : `basemindPreseed.ts`, `basemindDownload.ts`, `scripts/download-basemind.mjs`, manifestes sha256+size, reprise Range + `.incomplete`, rejet mismatch sha256.
 - **Déclenchement** : sur clic « Rendre Safe » (pas de pull proactif), ordre : preseed → warmup embeddings (`memory documents`) → safe-sync → rescan → badge.
-- **Pins** : NER edge `knowledgator/gliner-pii-edge-v1.0` rev `main` ; GTE `onnx-community/gte-multilingual-reranker-base` rev `main` ; GLINER legacy non utilisé.
+- **Pins** : NER `fastino/gliner2-privacy-filter-PII-multi` rev `36126f6` ; GTE `onnx-community/gte-multilingual-reranker-base` rev `main` ; GLINER legacy non utilisé.
 - **Offline** : cache HF standard partageable ; mode `HF_HUB_OFFLINE` supporté une fois rempli.
 
 ## 10. Hors périmètre (non-goals)
 
-- Embeddings/reranker **cloud** ; édition originel depuis `safe/` ; toute migration/lecture `.redacted/` ; modification des handlers fichiers existants ; triage content custom côté Workstation ; pre-filter extension sur le watcher ; audit reveal ; vault/rules per-agent ; champ regex dans le geste PII ; étape onboarding basemind ; progress events live (v1) ; cherry-pick de l'historique fork ; tout bump de pin basemind au-delà de `v0.32.1` ; website source dans ce repo.
+- Embeddings/reranker **cloud** ; édition originel depuis `safe/` ; toute migration/lecture `.redacted/` ; modification des handlers fichiers existants ; triage content custom côté Workstation ; pre-filter extension sur le watcher ; audit reveal ; vault/rules per-agent ; champ regex dans le geste PII ; étape onboarding basemind ; progress events live (v1) ; cherry-pick de l'historique fork ; tout bump de pin basemind au-delà de `v0.32.2` ; website source dans ce repo.
 
 ## 11. Critères d'acceptation
 

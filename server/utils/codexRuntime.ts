@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { nanoid } from 'nanoid';
 import type { v2 } from '../handlers/codex-generated-types/index';
 import type { ServerNotification } from '../handlers/codex-generated-types/index';
@@ -375,6 +378,12 @@ export interface RunCodexAgentTurnOptions {
   reasoningEffort?: ReasoningEffort | null;
   reasoningSummary?: CodexReasoningSummary | null;
   system?: string;
+  /**
+   * Custom instructions already passed through the outbound gate
+   * (redactOutboundTurnInput). Undefined means "read the setting", which a
+   * Safe workspace refuses: ungated instructions are then left out.
+   */
+  customInstructions?: string | null;
   config?: Record<string, JsonValue> | null;
   idleTimeoutMs?: number | null;
   signal?: AbortSignal;
@@ -817,12 +826,31 @@ function appendTaskSpecificInstructions(
   return `${developerInstructions}\n\n## Task-Specific Instructions\n${system.trim()}`;
 }
 
+/**
+ * Cabinet mode (#19): in a Safe workspace the provider only receives custom
+ * instructions that went through the outbound gate with the turn's thread
+ * key. A caller that did not gate them (or an unknown workspace) gets none,
+ * so the raw setting can never bypass redaction or a cabinet refusal.
+ */
+async function resolveCustomInstructionsForTurn(
+  gated: string | null | undefined,
+  workspacePath: string | undefined,
+): Promise<string | null> {
+  if (gated !== undefined) return gated;
+  if (!workspacePath || existsSync(join(workspacePath, 'safe'))) {
+    console.warn('[Agent Runtime] Safe workspace turn without gated custom instructions; leaving them out.');
+    return null;
+  }
+  return getCustomInstructions();
+}
+
 export async function buildCodexDeveloperInstructions(options: {
   modelId: string;
   interpreterCliAvailable: boolean;
   interpreterCliPath?: string;
   workspacePath?: string;
   system?: string;
+  customInstructions?: string | null;
   runtimeSkills?: RuntimeSkillMetadata[];
 }): Promise<string> {
   const [networkAccessEnabled, sandboxMode, readAccessMode, runtimeSkills] = await Promise.all([
@@ -850,7 +878,10 @@ export async function buildCodexDeveloperInstructions(options: {
   if (process.env.DEMO_PROMPT) {
     developerInstructions += `\n\n${process.env.DEMO_PROMPT}`;
   }
-  const customInstructions = await getCustomInstructions();
+  const customInstructions = await resolveCustomInstructionsForTurn(
+    options.customInstructions,
+    options.workspacePath,
+  );
   developerInstructions = appendCustomInstructionsToPrompt(
     developerInstructions,
     customInstructions,
@@ -2093,6 +2124,7 @@ export async function runCodexAgentTurn(
     interpreterCliPath,
     workspacePath: options.workspacePath,
     system: options.system,
+    customInstructions: options.customInstructions,
     runtimeSkills,
   });
   const systemMessage = [

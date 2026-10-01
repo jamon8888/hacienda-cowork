@@ -59,6 +59,9 @@ describe('ToolManager interpreter CLI approval ownership', () => {
     agentTabManager.clearAll();
     setConfigOverride({
       agents: {},
+      // Approval ownership, not redaction: cabinet mode (on by default) would
+      // withhold the output of these workspace-less calls when NER is down.
+      cabinetModeEnabled: false,
       codexSandboxMode: 'workspace-write',
       codexReadAccessMode: 'workspace-only',
       codexApprovalPolicy: 'on-request',

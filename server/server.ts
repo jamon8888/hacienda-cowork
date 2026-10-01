@@ -304,6 +304,13 @@ void refreshImportedAiSetup().catch((error) => {
 });
 
 onWorkspaceInitialized((workspacePath) => {
+  // A workspace restored at startup may already be Safe: basemind must be
+  // registered before the first send reaches the redaction gate.
+  void import('./utils/basemindManager')
+    .then((m) => m.ensureBasemindForWorkspace(workspacePath))
+    .catch((error: unknown) => {
+      console.error('[Server] Failed to set up basemind for the initial workspace:', error);
+    });
   if (FILE_WATCHER_DISABLED_FOR_RUNTIME) {
     return;
   }

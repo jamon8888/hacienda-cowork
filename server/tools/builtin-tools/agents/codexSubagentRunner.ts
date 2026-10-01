@@ -18,6 +18,8 @@ import type { StreamSkillReference } from '../../../../src/lib/codex/api-types';
 export interface RunCodexSubagentOptions {
   message: string;
   system?: string;
+  /** Gated by redactOutboundTurnInput; see RunCodexAgentTurnOptions. */
+  customInstructions?: string | null;
   modelConfig: AgentModelConfig;
   skills?: StreamSkillReference[];
   threadId?: string;
@@ -203,6 +205,7 @@ export async function runCodexSubagent(options: RunCodexSubagentOptions): Promis
       reasoningEffort: normalizedReasoningEffort,
       reasoningSummary: options.reasoningSummary ?? 'none',
       system: options.system,
+      customInstructions: options.customInstructions,
       config: (options.threadConfig ?? {}) as Record<string, any>,
       idleTimeoutMs: options.idleTimeoutMs,
       signal: runAbortController.signal,

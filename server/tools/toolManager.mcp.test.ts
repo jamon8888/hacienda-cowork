@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 function createRuntimeServer(name: string, overrides: Record<string, any> = {}) {
@@ -130,6 +134,7 @@ import { refreshMcpToolsTool } from './builtin-tools/mcp-management/refreshMcpTo
 import { toggleMcpServerTool } from './builtin-tools/mcp-management/toggleMcpServerTool';
 import { updateMcpServerTool } from './builtin-tools/mcp-management/updateMcpServerTool';
 import { approvalManager } from '../approvalManager';
+import { setCabinetAuditFileForTests } from '../services/cabinetAudit';
 import { clearConfigCache, getMcpServer, setConfigOverride } from '../configStore';
 import { rememberToolCallMetadata } from '../utils/codexMcpBridge';
 import { getLatestToolServersChangedEvent } from '../utils/ipcBridge';
@@ -143,7 +148,10 @@ describe('ToolManager MCP integration', () => {
     approvalManager.setAutoApprove(false);
     approvalManager.clearAll();
     clearConfigCache();
-    setConfigOverride({ agents: {}, mcpServers: {} } as any);
+    // Approval and runtime routing, not redaction: cabinet mode (on by default)
+    // would withhold the output of these workspace-less calls when NER is down.
+    // The redaction tests below set their own config.
+    setConfigOverride({ agents: {}, mcpServers: {}, cabinetModeEnabled: false } as any);
     setToolManager(new ToolManager());
     resetRuntimeServers();
     mockCreateServer.mockClear();
@@ -236,6 +244,7 @@ describe('ToolManager MCP integration', () => {
   test('addServer repairs a persisted server when runtime state is missing', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'github-copilot-mcp': {
           id: 'github-copilot-mcp',
@@ -266,6 +275,7 @@ describe('ToolManager MCP integration', () => {
     runtimeServers.set('github-copilot-mcp', createRuntimeServer('github-copilot-mcp'));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'github-copilot-mcp': {
           id: 'github-copilot-mcp',
@@ -344,6 +354,7 @@ describe('ToolManager MCP integration', () => {
   test('updateServer calls McpService.updateServer with merged entry', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': { id: 'test-mcp', name: 'test-mcp', transport: 'http', url: 'https://old-url.example.com', enabled: true, createdAt: 1 },
       },
@@ -361,6 +372,7 @@ describe('ToolManager MCP integration', () => {
   test('updateServer uses persisted config as the source of truth', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': { id: 'test-mcp', name: 'test-mcp', transport: 'http', url: 'https://old-url.example.com', enabled: true, createdAt: 1 },
       },
@@ -376,6 +388,7 @@ describe('ToolManager MCP integration', () => {
   test('updateServer rejects command when transport remains remote', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': { id: 'test-mcp', name: 'test-mcp', transport: 'http', url: 'https://old-url.example.com', enabled: true, createdAt: 1 },
       },
@@ -398,6 +411,7 @@ describe('ToolManager MCP integration', () => {
   test('startServer calls McpService.enableServer', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -420,6 +434,7 @@ describe('ToolManager MCP integration', () => {
   test('startServer does not block on runtime status reads', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -441,6 +456,7 @@ describe('ToolManager MCP integration', () => {
   test('startOAuthLogin calls McpService.initiateOAuthLogin for configured MCP servers', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -464,6 +480,7 @@ describe('ToolManager MCP integration', () => {
   test('startOAuthLogin does not read runtime status when config exists', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -485,6 +502,7 @@ describe('ToolManager MCP integration', () => {
   test('initialize does not eagerly query Codex MCP runtime status', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -506,6 +524,7 @@ describe('ToolManager MCP integration', () => {
   test('stopServer calls McpService.disableServer', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -528,6 +547,7 @@ describe('ToolManager MCP integration', () => {
   test('stopServer does not block on runtime status reads', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -588,6 +608,7 @@ describe('ToolManager MCP integration', () => {
   test('listAllToolServers preserves persisted MCP config for UI metadata', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -631,6 +652,7 @@ describe('ToolManager MCP integration', () => {
   test('getToolServer preserves persisted MCP config', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -666,6 +688,7 @@ describe('ToolManager MCP integration', () => {
     }));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -698,6 +721,7 @@ describe('ToolManager MCP integration', () => {
     }));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -735,6 +759,7 @@ describe('ToolManager MCP integration', () => {
     ]));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -771,6 +796,7 @@ describe('ToolManager MCP integration', () => {
     ]));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -803,6 +829,7 @@ describe('ToolManager MCP integration', () => {
     ]));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -955,6 +982,147 @@ describe('ToolManager MCP integration', () => {
       .rejects.toThrow('MCP tool calls require a Codex thread context');
   });
 
+  describe('app-internal calls in a Safe workspace', () => {
+    // A search payload whose path looks like a phone number to the regex.
+    const payload = {
+      content: [{ type: 'text', text: '{"hits":[{"path":"docs/call-0612345678.txt"}]}' }],
+      structuredContent: { hits: [{ path: 'docs/call-0612345678.txt' }] },
+      isError: false,
+    };
+    let root: string;
+    let auditFile: string;
+
+    beforeEach(() => {
+      root = mkdtempSync(path.join(tmpdir(), 'tm-internal-'));
+      mkdirSync(path.join(root, 'safe'));
+      auditFile = path.join(root, 'audit.jsonl');
+      setCabinetAuditFileForTests(auditFile);
+      approvalManager.setAutoApprove(true);
+      mockCallTool.mockImplementation(async () => structuredClone(payload) as any);
+    });
+
+    afterEach(() => {
+      setCabinetAuditFileForTests(null);
+      mockCallTool.mockImplementation(async () => ({
+        content: [{ type: 'text', text: 'runtime tool result' }],
+        isError: false,
+      }));
+      rmSync(root, { recursive: true, force: true });
+    });
+
+    const callInternal = () => new ToolManager().callTool(
+      'test-mcp', 'do_thing', {}, undefined, undefined,
+      { threadId: 'thr-app-owner', workspace: root },
+      undefined,
+      { appInternal: true },
+    );
+
+    test('hand the raw result back to app code (cabinet off)', async () => {
+      setConfigOverride({ agents: {}, mcpServers: {}, cabinetModeEnabled: false } as any);
+      expect(await callInternal()).toEqual(payload);
+    });
+
+    test('neither withhold the result nor log a blocked send (cabinet on, NER down)', async () => {
+      setConfigOverride({ agents: {}, mcpServers: {} } as any);
+      expect(await callInternal()).toEqual(payload);
+      expect(() => readFileSync(auditFile, 'utf8')).toThrow();
+    });
+  });
+
+  describe('thrown tool errors in a Safe workspace', () => {
+    // The error text is model-visible once the bridge turns it into a result,
+    // and it can carry what the tool choked on (a path, an address).
+    const failure = () => new Error('upstream refused john@example.com');
+    const saved = { home: process.env.HOME, hub: process.env.HF_HUB_CACHE };
+    let root: string;
+    let auditFile: string;
+    let threadId: string;
+    let threadCount = 0;
+
+    beforeEach(() => {
+      // A live thread keeps its tokens reserved, so each test gets its own.
+      threadId = `thr-err-${threadCount += 1}`;
+      root = mkdtempSync(path.join(tmpdir(), 'tm-errors-'));
+      mkdirSync(path.join(root, 'safe'));
+      auditFile = path.join(root, 'audit.jsonl');
+      setCabinetAuditFileForTests(auditFile);
+      // No NER model anywhere: cabinet mode sees full detection as down.
+      process.env.HOME = root;
+      process.env.HF_HUB_CACHE = path.join(root, 'no-hub');
+      approvalManager.setAutoApprove(true);
+      mockCallTool.mockImplementation(async () => { throw failure(); });
+    });
+
+    afterEach(() => {
+      setCabinetAuditFileForTests(null);
+      if (saved.home === undefined) delete process.env.HOME; else process.env.HOME = saved.home;
+      if (saved.hub === undefined) delete process.env.HF_HUB_CACHE; else process.env.HF_HUB_CACHE = saved.hub;
+      mockCallTool.mockImplementation(async () => ({
+        content: [{ type: 'text', text: 'runtime tool result' }],
+        isError: false,
+      }));
+      rmSync(root, { recursive: true, force: true });
+    });
+
+    const callMcp = (workspace: string, options?: { appInternal?: boolean }) => new ToolManager().callTool(
+      'test-mcp', 'do_thing', {}, undefined, undefined,
+      { threadId, workspace },
+      undefined,
+      options,
+    );
+
+    test('come back as a redacted error result instead of raw text (cabinet off)', async () => {
+      setConfigOverride({ agents: {}, mcpServers: {}, cabinetModeEnabled: false } as any);
+      expect(await callMcp(root)).toEqual({
+        content: [{ type: 'text', text: 'upstream refused [EMAIL_0]' }],
+        isError: true,
+      });
+    });
+
+    test('are withheld and logged when cabinet mode cannot run NER', async () => {
+      setConfigOverride({ agents: {}, mcpServers: {} } as any);
+      const result = await callMcp(root) as { content: Array<{ text: string }>; isError: boolean };
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result)).not.toContain('john@example.com');
+      expect(result.content[0].text).toContain('withheld');
+      const lines = readFileSync(auditFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+      expect(lines.map((l) => [l.event, l.surface])).toEqual([['send_blocked', 'tool']]);
+    });
+
+    test('keep throwing outside a Safe workspace', async () => {
+      const open = mkdtempSync(path.join(tmpdir(), 'tm-open-'));
+      try {
+        await expect(callMcp(open)).rejects.toThrow('upstream refused john@example.com');
+      } finally {
+        rmSync(open, { recursive: true, force: true });
+      }
+    });
+
+    test('keep throwing to app-internal callers', async () => {
+      await expect(callMcp(root, { appInternal: true })).rejects.toThrow('upstream refused john@example.com');
+    });
+
+    test('are redacted on the built-in path too', async () => {
+      setConfigOverride({ agents: {}, mcpServers: {}, cabinetModeEnabled: false } as any);
+      const { getBuiltinToolHandler } = await import('./builtinTools');
+      const tool = getBuiltinToolHandler('builtin-utility', 'calculate')!;
+      const original = tool.handler;
+      tool.handler = async () => { throw failure(); };
+      try {
+        const result = await new ToolManager().callTool(
+          'builtin-utility', 'calculate', { expression: '1' }, undefined, undefined,
+          { threadId, workspace: root },
+        );
+        expect(result).toEqual({
+          content: [{ type: 'text', text: 'upstream refused [EMAIL_0]' }],
+          isError: true,
+        });
+      } finally {
+        tool.handler = original;
+      }
+    });
+  });
+
   test('callTool gates MCP runtime calls through approval manager at the shared CLI and chat convergence point', async () => {
     const manager = new ToolManager();
     rememberToolCallMetadata('item_mcp_approval_1', { threadId: 'thr-mcp-approval-1' });
@@ -1000,6 +1168,7 @@ describe('ToolManager MCP integration', () => {
   test('callTool honors MCP auto approval mode without prompting', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -1034,6 +1203,7 @@ describe('ToolManager MCP integration', () => {
   test('callTool honors per-tool MCP approval overrides', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -1309,6 +1479,7 @@ describe('ToolManager MCP integration', () => {
   test('listAllToolServers marks globally disabled MCP servers', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {},
       builtinToolsEnabled: { 'test-mcp': false },
     } as any);
@@ -1349,6 +1520,7 @@ describe('ToolManager MCP integration', () => {
     runtimeServers.delete('test-mcp');
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -1387,6 +1559,7 @@ describe('ToolManager MCP integration', () => {
     }));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -1441,6 +1614,7 @@ describe('ToolManager MCP integration', () => {
     });
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -1486,6 +1660,7 @@ describe('ToolManager MCP integration', () => {
     });
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -1543,6 +1718,7 @@ describe('ToolManager MCP integration', () => {
   test('mcp_add_server does not block local stdio installs on runtime status', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {},
       allowLocalMcpServers: true,
     } as any);
@@ -1634,6 +1810,7 @@ describe('ToolManager MCP integration', () => {
   test('mcp_add_server rejects command on remote transport before runtime creation', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {},
       allowAgentAddTools: true,
       allowLocalMcpServers: false,
@@ -1655,6 +1832,7 @@ describe('ToolManager MCP integration', () => {
   test('mcp_update_server preserves existing config on partial update', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         pubmed: {
           id: 'pubmed',
@@ -1705,6 +1883,7 @@ describe('ToolManager MCP integration', () => {
   test('mcp_update_server maps timeout fields to runtime config', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         pubmed: {
           id: 'pubmed',
@@ -1744,6 +1923,7 @@ describe('ToolManager MCP integration', () => {
     }));
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         pubmed: {
           id: 'pubmed',
@@ -1795,6 +1975,7 @@ describe('ToolManager MCP integration', () => {
   test('mcp_toggle_server persists disabled state through the shared path', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',
@@ -1820,6 +2001,7 @@ describe('ToolManager MCP integration', () => {
   test('mcp_remove_server removes persisted config through the shared path', async () => {
     setConfigOverride({
       agents: {},
+      cabinetModeEnabled: false,
       mcpServers: {
         'test-mcp': {
           id: 'test-mcp',

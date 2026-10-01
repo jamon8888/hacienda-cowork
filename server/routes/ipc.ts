@@ -206,6 +206,14 @@ const handlers: Record<string, Record<string, HandlerFn>> = {
       await setCodeIndexingEnabled(value);
       return { enabled: value };
     },
+    getCabinetMode: async () => {
+      const { getCabinetModeEnabled } = await import('../configStore');
+      return { enabled: await getCabinetModeEnabled() };
+    },
+    setCabinetMode: async ([value, confirmed]: [boolean, boolean]) => {
+      const { setCabinetMode } = await import('../services/cabinetMode');
+      return setCabinetMode(value, { confirmed });
+    },
   },
 
   // ========== Search (basemind code/document search) ==========

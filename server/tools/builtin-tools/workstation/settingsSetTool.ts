@@ -68,6 +68,9 @@ function formatApprovalValue(value: unknown): string {
   }
 }
 
+const CABINET_READ_ONLY_TEXT =
+  'The cabinetModeEnabled setting is read-only for agents. You can read it with interpreter_settings_get, but only the user can change it in Settings > General > Privacy.';
+
 function getApprovalRequirement(path: string): ApprovalRequirement | null {
   const normalizedPath = path.trim();
 
@@ -358,6 +361,12 @@ export const settingsSetTool: BuiltinToolDefinition = {
         };
       }
 
+      // Cabinet mode is turned off only through services/cabinetMode (confirmed
+      // and audited); a raw config write would skip both.
+      if (path === 'cabinetModeEnabled' || path.startsWith('cabinetModeEnabled.')) {
+        return { content: [{ type: 'text', text: CABINET_READ_ONLY_TEXT }], isError: true };
+      }
+
       const approvalRequirement = getApprovalRequirement(path);
       const effect = getSettingEffect(path);
 
@@ -437,6 +446,10 @@ export const settingsSetTool: BuiltinToolDefinition = {
           ],
           isError: true,
         };
+      }
+
+      if (!isEqual(get(modifiedConfig, 'cabinetModeEnabled'), get(config, 'cabinetModeEnabled'))) {
+        return { content: [{ type: 'text', text: CABINET_READ_ONLY_TEXT }], isError: true };
       }
 
       // Validate the ENTIRE config against schema

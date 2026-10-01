@@ -1,6 +1,8 @@
 import { Router, Request, Response, raw } from 'express';
 import {
+  assertCabinetTurnAllowed,
   maybeRedactOutboundText,
+  redactOutboundTurnInput,
   mergeRuntimeRehydrationMap,
   getRuntimeRehydrationMap,
   deleteRuntimeRehydrationMap,
@@ -1030,21 +1032,18 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
     const outboundThreadKey = targetThreadId ?? `pending-${runningAgentId}`;
     let outboundMessage = rawMessage;
     let outboundSystem = request.system;
+    // Undefined outside Safe: the runtime reads the setting itself there.
+    let outboundCustomInstructions: string | null | undefined;
     const outboundArmed = existsSync(path.join(workspacePath, 'safe'));
     if (outboundArmed) {
       await assertNoAttachmentsInSafeWorkspace(attachments.length > 0);
-      if (outboundMessage) {
-        outboundMessage = (await maybeRedactOutboundText(outboundMessage, {
-          workspacePath,
-          threadKey: outboundThreadKey,
-        })).text;
-      }
-      if (outboundSystem) {
-        outboundSystem = (await maybeRedactOutboundText(outboundSystem, {
-          workspacePath,
-          threadKey: outboundThreadKey,
-        })).text;
-      }
+      const outbound = await redactOutboundTurnInput(
+        { message: outboundMessage ?? '', system: outboundSystem },
+        { workspacePath, threadKey: outboundThreadKey, provisionalKey: !targetThreadId },
+      );
+      if (outboundMessage) outboundMessage = outbound.message;
+      outboundSystem = outbound.system;
+      outboundCustomInstructions = outbound.customInstructions;
       if (targetThreadId) {
         // Existing thread: persist immediately. New threads re-key + persist
         // on the thread event below.
@@ -1063,6 +1062,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
       workspacePath,
       message: outboundMessage,
       system: outboundSystem,
+      customInstructions: outboundCustomInstructions,
       attachments,
       skills: explicitSkills,
       threadId: targetThreadId,
@@ -1217,6 +1217,10 @@ router.post('/chat/steer', async (req: Request, res: Response) => {
           threadKey: threadId,
         })).text;
         void persistThreadRehydrationMap(threadId, getRuntimeRehydrationMap(threadId));
+      } else {
+        // Skills-only steer: no text reached the detector, so re-check that
+        // cabinet mode can still run full detection before the turn goes on.
+        await assertCabinetTurnAllowed({ workspacePath: steerWorkspace });
       }
     }
     const turnId = await getCodexService().steer(threadId, {

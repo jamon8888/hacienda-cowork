@@ -165,21 +165,34 @@ function reconcileCommittedUserMessage(
     return messages;
   }
 
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const candidate = messages[index];
-    if (!candidate || candidate.role !== "user") {
-      break;
-    }
-    if (candidate.pendingServerEchoText !== echoedText) {
-      continue;
-    }
-
+  const replaceAt = (index: number, candidate: ChatMessage): ChatMessage[] => {
     const next = [...messages];
     next[index] = {
       ...incoming,
       ...(candidate.attachments ? { attachments: candidate.attachments } : {}),
     };
     return next;
+  };
+
+  // Oldest awaiting row of the trailing run of user messages. A Safe
+  // workspace redacts the text server-side, so the echo may not equal what
+  // was typed; echoes arrive in send order, so the oldest one is its row.
+  let oldestPending: number | null = null;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const candidate = messages[index];
+    if (!candidate || candidate.role !== "user") {
+      break;
+    }
+    if (candidate.pendingServerEchoText === undefined) {
+      continue;
+    }
+    if (candidate.pendingServerEchoText === echoedText) {
+      return replaceAt(index, candidate);
+    }
+    oldestPending = index;
+  }
+  if (oldestPending !== null) {
+    return replaceAt(oldestPending, messages[oldestPending]!);
   }
 
   return [...messages, incoming];

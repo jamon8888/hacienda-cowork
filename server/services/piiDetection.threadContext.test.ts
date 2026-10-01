@@ -26,6 +26,12 @@ let nextDetections: Array<{ category: string; start: number; end: number; text: 
   { category: 'email', start: 5, end: 21, text: 'john@example.com', confidence: 0.9 },
 ];
 
+// Value of `ner_ran` in the mocked payload; undefined omits it (older daemon).
+let nextNerRan: boolean | undefined;
+
+// When set, the mocked tool answers with an error payload instead of throwing.
+let nextIsError = false;
+
 mock.module('../tools/toolManager', () => ({
   ToolManager: class {
     async callTool(
@@ -37,12 +43,14 @@ mock.module('../tools/toolManager', () => ({
       toolContext?: { threadId?: string },
     ) {
       callToolCalls.push({ serverId, toolName, args, toolContext });
+      if (nextIsError) return { isError: true, content: [{ type: 'text', text: 'redact_text failed' }] };
       return {
         structuredContent: {
           result: {
             redacted_text: 'Call [EMAIL_0]',
             rehydration_map: { '[EMAIL_0]': 'john@example.com' },
             detections: nextDetections,
+            ...(nextNerRan === undefined ? {} : { ner_ran: nextNerRan }),
           },
         },
       };
@@ -80,6 +88,79 @@ describe('detectPii thread context', () => {
   });
 });
 
+describe('detectPii error payloads', () => {
+  test('throws on an isError result instead of reporting no detections', async () => {
+    nextIsError = true;
+    try {
+      const { piiDetectionService } = await import('./piiDetection');
+      await expect(piiDetectionService.detectPii('Jane Doe')).rejects.toThrow('redact_text failed');
+    } finally {
+      nextIsError = false;
+    }
+  });
+});
+
+describe('detectPii offsets', () => {
+  // Captured from the pinned basemind binary (`basemind redact --json`):
+  // redact_text reports UTF-8 byte offsets. "é", "€" and "—" take several
+  // bytes and the emoji four (two UTF-16 units), so used as JS string
+  // indices these would cut the phone number and leave digits in clear.
+  const text = 'Réf. 👤 125 000 € — appeler 06 12 34 56 78 ou jean@example.com';
+  const basemindDetections = [
+    { category: 'phone', start: 35, end: 49, text: '06 12 34 56 78', confidence: 0.9 },
+    { category: 'email', start: 53, end: 69, text: 'jean@example.com', confidence: 0.9 },
+  ];
+
+  test('come back as indices into the JS string, so each span is the detected text', async () => {
+    nextDetections = basemindDetections;
+    const { piiDetectionService } = await import('./piiDetection');
+    const detections = await piiDetectionService.detectPii(text);
+    expect(detections.map((d) => text.slice(d.start, d.end))).toEqual(['06 12 34 56 78', 'jean@example.com']);
+    const { buildRedactedText } = await import('../../src/lib/pii/labels');
+    expect(buildRedactedText(text, detections).redactedText)
+      .toBe('Réf. 👤 125 000 € — appeler [PHONE_0] ou [EMAIL_0]');
+  });
+
+  test('refuse offsets that do not land on the detected text', async () => {
+    nextDetections = [{ category: 'phone', start: 35, end: 49, text: '06 99 99 99 99', confidence: 0.9 }];
+    const { piiDetectionService } = await import('./piiDetection');
+    await expect(piiDetectionService.detectPii(text)).rejects.toThrow('offsets');
+  });
+});
+
+describe('detectPii require_ner', () => {
+  test('asks basemind to fail rather than degrade, only when requested', async () => {
+    nextDetections = [];
+    nextNerRan = true;
+    const { piiDetectionService } = await import('./piiDetection');
+    await piiDetectionService.detectPii('text');
+    expect(callToolCalls.at(-1)?.args.require_ner).toBeUndefined();
+    await piiDetectionService.detectPii('text', { requireNer: true });
+    expect(callToolCalls.at(-1)?.args.require_ner).toBe(true);
+  });
+
+  test('throws when basemind reports that NER did not run', async () => {
+    nextDetections = [];
+    nextNerRan = false;
+    try {
+      const { piiDetectionService } = await import('./piiDetection');
+      // Without the flag the degrade-to-pattern policy is unchanged.
+      await expect(piiDetectionService.detectPii('Jane Doe')).resolves.toEqual([]);
+      await expect(piiDetectionService.detectPii('Jane Doe', { requireNer: true })).rejects.toThrow('NER did not run');
+    } finally {
+      nextNerRan = undefined;
+    }
+  });
+
+  test('a daemon that omits ner_ran cannot vouch for NER, so requireNer refuses it', async () => {
+    nextDetections = [];
+    nextNerRan = undefined;
+    const { piiDetectionService } = await import('./piiDetection');
+    await expect(piiDetectionService.detectPii('Jane Doe')).resolves.toEqual([]);
+    await expect(piiDetectionService.detectPii('Jane Doe', { requireNer: true })).rejects.toThrow('NER did not run');
+  });
+});
+
 describe('ner_model_dir wiring (GLiNER2 spec #37)', () => {
   test('detectPii and redactFile pass the candle-ready snapshot dir', async () => {
     const { mkdtempSync, mkdirSync, rmSync, writeFileSync } = await import('node:fs');
@@ -93,8 +174,10 @@ describe('ner_model_dir wiring (GLiNER2 spec #37)', () => {
       'snapshots',
       '36126f612f1f9e376dc2c25b297d827912effef4',
     );
-    mkdirSync(snapshot, { recursive: true });
+    mkdirSync(path.join(snapshot, 'encoder_config'), { recursive: true });
     writeFileSync(path.join(snapshot, 'model.safetensors'), 'weights');
+    writeFileSync(path.join(snapshot, 'tokenizer.json'), '{}');
+    writeFileSync(path.join(snapshot, 'encoder_config', 'config.json'), '{}');
     const previous = process.env.HF_HUB_CACHE;
     process.env.HF_HUB_CACHE = base;
     try {
@@ -108,5 +191,26 @@ describe('ner_model_dir wiring (GLiNER2 spec #37)', () => {
       else process.env.HF_HUB_CACHE = previous;
       rmSync(base, { recursive: true, force: true });
     }
+  });
+});
+
+describe('basemind mcpRequest', () => {
+  test('marks its calls app-internal so ToolManager hands back the raw result', async () => {
+    const { setToolManager } = await import('../tools/toolManagerAccessor');
+    const seen: unknown[][] = [];
+    setToolManager({
+      callTool: async (...args: unknown[]) => {
+        seen.push(args);
+        return { structuredContent: { hits: [] } };
+      },
+    } as any);
+    const { mcpRequest } = await import('../utils/basemindManager');
+    await mcpRequest('tools/call', { name: 'code', arguments: { mode: 'semantic' } });
+
+    expect(seen).toHaveLength(1);
+    const [serverId, toolName, , , , toolContext, , options] = seen[0];
+    expect([serverId, toolName]).toEqual(['basemind', 'code']);
+    expect(toolContext).toEqual({ threadId: 'mcp-owner-thread-1' });
+    expect(options).toEqual({ appInternal: true });
   });
 });

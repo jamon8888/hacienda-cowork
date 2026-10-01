@@ -185,3 +185,33 @@ describe('buildPiiLabelAttributes', () => {
     expect(attributes['aria-label']).toBe('Localized Email');
   });
 });
+
+describe('buildRedactedText token reuse', () => {
+  const text = 'Dupont SARL doit 5 € à Dupont SARL, pas à Acme SAS';
+  const detections = [
+    { category: 'organization', start: 0, end: 11, text: 'Dupont SARL', confidence: 1 },
+    { category: 'organization', start: 23, end: 34, text: 'Dupont SARL', confidence: 1 },
+    { category: 'organization', start: 42, end: 50, text: 'Acme SAS', confidence: 1 },
+  ];
+
+  test('gives every detection a fresh token when no reuse map is passed', () => {
+    const { redactedText } = buildRedactedText(text, detections);
+    expect(redactedText).toBe('[ORGANIZATION_0] doit 5 € à [ORGANIZATION_1], pas à [ORGANIZATION_2]');
+  });
+
+  test('keeps one token per value within a call when a reuse map is passed', () => {
+    const { redactedText, rehydrationMap } = buildRedactedText(text, detections, new Set(), {});
+    expect(redactedText).toBe('[ORGANIZATION_0] doit 5 € à [ORGANIZATION_0], pas à [ORGANIZATION_1]');
+    expect(rehydrationMap).toEqual({ '[ORGANIZATION_0]': 'Dupont SARL', '[ORGANIZATION_1]': 'Acme SAS' });
+  });
+
+  test('reuses a token the reuse map already holds and skips live ones for new values', () => {
+    const { redactedText } = buildRedactedText(
+      text,
+      detections,
+      new Set(['[ORGANIZATION_0]', '[ORGANIZATION_1]']),
+      { '[ORGANIZATION_1]': 'Dupont SARL' },
+    );
+    expect(redactedText).toBe('[ORGANIZATION_1] doit 5 € à [ORGANIZATION_1], pas à [ORGANIZATION_2]');
+  });
+});
