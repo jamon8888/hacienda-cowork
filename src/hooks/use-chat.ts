@@ -890,6 +890,27 @@ export function mergeChatHistory(
     return message;
   });
   const currentIds = new Set(current.map((message) => message.id));
+  // A Safe workspace redacts the outbound text server-side, so a row can still
+  // be waiting for an echo that never equals what was typed. Echoes come back
+  // in send order: hand each such row the oldest new user message left.
+  if (direction === 'newer') {
+    const spare = incoming.filter(
+      (message) =>
+        message.role === 'user'
+        && !currentIds.has(message.id)
+        && !consumedIncomingIds.has(message.id),
+    );
+    for (let index = 0; index < updatedCurrent.length && spare.length > 0; index += 1) {
+      const row = updatedCurrent[index]!;
+      if (row.role !== 'user' || !row.pendingServerEchoText) continue;
+      const echo = spare.shift()!;
+      consumedIncomingIds.add(echo.id);
+      updatedCurrent[index] = {
+        ...echo,
+        ...(row.attachments ? { attachments: row.attachments } : {}),
+      };
+    }
+  }
   const additions = incoming.filter(
     (message) => !currentIds.has(message.id) && !consumedIncomingIds.has(message.id),
   );

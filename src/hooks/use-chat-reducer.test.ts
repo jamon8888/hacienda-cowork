@@ -513,6 +513,53 @@ describe("applyChatEvent", () => {
       assert.deepEqual(next.messages[0]?.attachments, [attachment]);
     });
 
+    test("should_replace_the_optimistic_row_when_the_server_echoes_the_redacted_text", () => {
+      // A Safe workspace redacts the outbound text server-side, so the echo no
+      // longer equals what the user typed.
+      const state: ChatState = {
+        ...createInitialChatState(),
+        messages: [{
+          id: "optimistic-user",
+          role: "user",
+          parts: [{ kind: "text", content: "Maître Julie Martin à Lyon" }],
+          pendingServerEchoText: "Maître Julie Martin à Lyon",
+        }],
+      };
+
+      const next = apply(state, userMessageEvent("Maître [NAME_0] à [CITY_0]", "server-user-1")).state;
+
+      assert.equal(next.messages.length, 1);
+      assert.equal(next.messages[0]?.id, "server-user-1");
+      assert.equal(textContent(next.messages[0]!), "Maître [NAME_0] à [CITY_0]");
+      assert.equal(next.messages[0]?.pendingServerEchoText, undefined);
+    });
+
+    test("should_match_redacted_echoes_to_pending_rows_in_send_order", () => {
+      let state: ChatState = {
+        ...createInitialChatState(),
+        messages: [
+          {
+            id: "optimistic-1",
+            role: "user",
+            parts: [{ kind: "text", content: "Jane Doe first" }],
+            pendingServerEchoText: "Jane Doe first",
+          },
+          {
+            id: "optimistic-2",
+            role: "user",
+            parts: [{ kind: "text", content: "Jane Doe second" }],
+            pendingServerEchoText: "Jane Doe second",
+          },
+        ],
+      };
+
+      state = apply(state, userMessageEvent("[NAME_0] first", "server-1")).state;
+      state = apply(state, userMessageEvent("[NAME_0] second", "server-2")).state;
+
+      assert.deepEqual(state.messages.map((m) => m.id), ["server-1", "server-2"]);
+      assert.deepEqual(state.messages.map((m) => textContent(m)), ["[NAME_0] first", "[NAME_0] second"]);
+    });
+
     test("should_not_append_the_same_server_user_message_twice", () => {
       let state = createInitialChatState();
       state = apply(state, userMessageEvent("Create the brief", "server-user-1")).state;
