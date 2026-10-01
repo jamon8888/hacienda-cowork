@@ -100,6 +100,24 @@ describe('detectRegex', () => {
     ]);
   });
 
+  test('scans a long run of numbers in linear time', () => {
+    // A run of space-separated 3-digit groups with no currency used to be
+    // rescanned from every group start (quadratic): 5 000 groups took seconds,
+    // and detectRegex runs on every message, tool result and file.
+    for (const text of ['123 '.repeat(8000) + 'fin', '1 234 '.repeat(5000), '12,345.'.repeat(5000)]) {
+      const start = performance.now();
+      const found = detectRegex(text);
+      const elapsed = performance.now() - start;
+      expect(found.filter((d) => d.category === 'amount')).toEqual([]);
+      expect(elapsed).toBeLessThan(500);
+    }
+  });
+
+  test('still detects an amount that closes a long run of numbers', () => {
+    const found = detectRegex(`${'123 '.repeat(2000)}1 250 000 €`);
+    expect(found.filter((d) => d.category === 'amount').map((d) => d.text)).toEqual(['1 250 000 €']);
+  });
+
   test('handles large input without quadratic slowdown', () => {
     // ~100k chars with 500 emails and many phone-number-like strings. The old
     // per-pattern + alreadyCovered.some() implementation is O(n * matches)

@@ -8,8 +8,10 @@ export interface PiiDetection {
 
 // A number as written in French or English: groups of three digits split by a
 // space, no-break space, `.` or `,`, then optional decimals (125 000, 1.250,50,
-// $1,250.50), or plain digits with optional decimals (125000, 1,2).
-const AMOUNT_NUMBER = String.raw`\d{1,3}(?:[   .,]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?`;
+// $1,250.50), or plain digits with optional decimals (125000, 1,2). The groups
+// are capped at six (up to 10^18): unbounded, a long run of numbers with no
+// currency was rescanned from every group start, quadratic time on any text.
+const AMOUNT_NUMBER = String.raw`\d{1,3}(?:[ \u00a0\u202f.,]\d{3}){1,6}(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?`;
 const AMOUNT_CURRENCY = String.raw`(?:€|EUR\b|USD\b|GBP\b|CHF\b|[Ee]uros?\b|[Dd]ollars?\b)`;
 const AMOUNT_MAGNITUDE = String.raw`(?:\s?(?:k|K|M|Md|mille|millions?|milliards?)(?:\s?d['’]\s?)?)?`;
 
