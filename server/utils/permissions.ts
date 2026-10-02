@@ -8,6 +8,7 @@ import { FileAccessPolicy, toRuntimeFileAccessPolicy } from '../../shared/types/
 import { resolveUnicodePath } from './unicodePath';
 import { shouldPromptForWorkspaceWriteSync } from './agentFilePermissions';
 import { normalizeFileUrlPathname } from './fileUrlPathname';
+import { findSafeWorkspaceForCwd, getSafeRoots } from './safeWorkspace';
 
 export type { FileAccessPolicy };
 
@@ -397,6 +398,40 @@ export async function canAccessAsync(
 }
 
 /**
+ * In a Safe workspace an agent sees the redacted mirror, never the originals
+ * (spec 2026-09-22 §7): reads stop at `safe/`, writes at `safe/_drafts/`, and
+ * nothing outside the workspace is reachable. The agent's own workspace level
+ * still caps both, so a read-only agent stays read-only. The user's custom
+ * paths are replaced, not merged: `canAccessSync` takes the first matching
+ * custom path, so drafts must come first and nothing broader may precede it.
+ */
+export function applySafeWorkspaceScope(
+  policy: FileAccessPolicy,
+  workspacePath: string | null,
+): FileAccessPolicy {
+  const safeWorkspace = findSafeWorkspaceForCwd(workspacePath);
+  if (!safeWorkspace) return policy;
+  const { safeRoot, draftsRoot } = getSafeRoots(safeWorkspace);
+  const mirrorAccess = policy.workspace === 'none' ? 'none' : 'read';
+  return {
+    system: 'none',
+    workspace: 'none',
+    customPaths: new Map([
+      [draftsRoot, policy.workspace],
+      [safeRoot, mirrorAccess],
+    ]),
+  };
+}
+
+function resolveEffectiveFileAccessPolicy(
+  requesterId: string,
+  workspacePath: string | null,
+): FileAccessPolicy {
+  const permissionsData = globalFileAccessResolver.resolveForRequester(requesterId);
+  return applySafeWorkspaceScope(toRuntimeFileAccessPolicy(permissionsData), workspacePath);
+}
+
+/**
  * Simple helper to check whether a requester is allowed to access a path.
  * Abstracts away all the complexity of resolving the current global
  * file-access policy and workspace.
@@ -410,11 +445,8 @@ export function checkFileAccessPermission(
   mode: 'read' | 'write',
   workspaceOverride?: string | null
 ): boolean {
-  const permissionsData = globalFileAccessResolver.resolveForRequester(requesterId);
   const workspace = workspaceOverride ?? getCurrentWorkspace();
-
-  // Convert storage format (Record) to runtime format (Map)
-  const permissions = toRuntimeFileAccessPolicy(permissionsData);
+  const permissions = resolveEffectiveFileAccessPolicy(requesterId, workspace);
 
   return canAccess(path, mode, permissions, workspace);
 }
@@ -429,9 +461,12 @@ export function getFileAccessDeniedMessage(
   mode: 'read' | 'write',
   workspaceOverride?: string | null
 ): string {
-  const permissionsData = globalFileAccessResolver.resolveForRequester(requesterId);
-  const permissions = toRuntimeFileAccessPolicy(permissionsData);
   const workspace = workspaceOverride ?? getCurrentWorkspace();
+  const permissions = resolveEffectiveFileAccessPolicy(requesterId, workspace);
+
+  if (findSafeWorkspaceForCwd(workspace)) {
+    return `Permission denied: in a Safe workspace this agent works on the redacted copy only. It can read safe/ and write safe/_drafts/; originals are not available to it.\n\nWorkspace: ${workspace}\nPath: ${inputPath}`;
+  }
 
   let resolvedPath = inputPath;
   try {
@@ -475,11 +510,8 @@ export async function checkFileAccessPermissionAsync(
   mode: 'read' | 'write',
   workspaceOverride?: string | null
 ): Promise<boolean> {
-  const permissionsData = globalFileAccessResolver.resolveForRequester(requesterId);
   const workspace = workspaceOverride ?? getCurrentWorkspace();
-
-  // Convert storage format (Record) to runtime format (Map)
-  const permissions = toRuntimeFileAccessPolicy(permissionsData);
+  const permissions = resolveEffectiveFileAccessPolicy(requesterId, workspace);
 
   return canAccessAsync(filePath, mode, permissions, workspace);
 }
@@ -493,8 +525,8 @@ export function getAllowedFileAccessDirectories(
   systemAccess: 'none' | 'read' | 'write';
   directories: Array<{ path: string; access: 'read' | 'write' }>;
 } {
-  const permissions = globalFileAccessResolver.resolveForRequester(requesterId);
   const workspacePath = getCurrentWorkspace();
+  const permissions = resolveEffectiveFileAccessPolicy(requesterId, workspacePath);
   const directories: Array<{ path: string; access: 'read' | 'write' }> = [];
 
   // Add workspace if allowed
@@ -506,7 +538,7 @@ export function getAllowedFileAccessDirectories(
   }
 
   // Add custom paths if allowed
-  for (const [customPath, access] of Object.entries(permissions.customPaths)) {
+  for (const [customPath, access] of permissions.customPaths.entries()) {
     if (access !== 'none') {
       directories.push({
         path: normalizePath(customPath),

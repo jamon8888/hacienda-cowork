@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getSafeRoots, isSafeWorkspace } from './safeWorkspace';
+import {
+  findSafeWorkspaceForCwd,
+  getSafeRoots,
+  isInsideSafeMirror,
+  isSafeWorkspace,
+  resolveSafeRuntimeConfinement,
+} from './safeWorkspace';
 
 const dirs: string[] = [];
 const tmp = () => {
@@ -34,5 +40,40 @@ describe('safeWorkspace', () => {
       safeRoot: join('/w', 'safe'),
       draftsRoot: join('/w', 'safe', '_drafts'),
     });
+  });
+
+  test('finds the Safe workspace from its root or its mirror, never from an unrelated ancestor', () => {
+    const ws = tmp();
+    mkdirSync(join(ws, 'safe'));
+    mkdirSync(join(ws, 'sub'));
+    expect(findSafeWorkspaceForCwd(ws)).toBe(ws);
+    expect(findSafeWorkspaceForCwd(join(ws, 'safe'))).toBe(ws);
+    // A project under a folder that happens to hold safe/ is not armed.
+    expect(findSafeWorkspaceForCwd(join(ws, 'sub'))).toBeNull();
+    expect(findSafeWorkspaceForCwd(tmp())).toBeNull();
+    expect(findSafeWorkspaceForCwd(null)).toBeNull();
+  });
+
+  test('resolves the confinement and creates the drafts directory', () => {
+    const ws = tmp();
+    mkdirSync(join(ws, 'safe'));
+    const confinement = resolveSafeRuntimeConfinement(ws, ['/skills']);
+    expect(confinement).toEqual({
+      root: ws,
+      safeRoot: join(ws, 'safe'),
+      draftsRoot: join(ws, 'safe', '_drafts'),
+      readableRoots: ['/skills'],
+    });
+    expect(existsSync(join(ws, 'safe', '_drafts'))).toBe(true);
+    expect(resolveSafeRuntimeConfinement(tmp())).toBeNull();
+  });
+
+  test('tells mirror paths from originals', () => {
+    const ws = tmp();
+    expect(isInsideSafeMirror(ws, 'safe/a.md')).toBe(true);
+    expect(isInsideSafeMirror(ws, join(ws, 'safe', 'b', 'c.md'))).toBe(true);
+    expect(isInsideSafeMirror(ws, 'a.docx')).toBe(false);
+    expect(isInsideSafeMirror(ws, 'safe/../a.docx')).toBe(false);
+    expect(isInsideSafeMirror(ws, join(ws, 'safety', 'x.md'))).toBe(false);
   });
 });

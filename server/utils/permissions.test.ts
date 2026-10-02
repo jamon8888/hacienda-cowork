@@ -4,7 +4,14 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { canAccess, canAccessAsync, FileAccessPolicy, normalizePath, resolvePathWithWorkspace } from './permissions';
+import {
+  applySafeWorkspaceScope,
+  canAccess,
+  canAccessAsync,
+  FileAccessPolicy,
+  normalizePath,
+  resolvePathWithWorkspace,
+} from './permissions';
 
 describe('canAccess', () => {
   // Use platform-appropriate absolute paths so tests pass on Windows and Unix
@@ -238,6 +245,64 @@ describe('canAccessAsync', () => {
     };
 
     await expect(canAccessAsync(escapedPath, 'write', permissions, workspace)).resolves.toBe(false);
+  });
+});
+
+describe('applySafeWorkspaceScope', () => {
+  const tempDirs: string[] = [];
+  afterEach(async () => {
+    await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  });
+
+  async function safeWorkspace(): Promise<string> {
+    const workspace = await mkdtemp(join(tmpdir(), 'perm-safe-'));
+    tempDirs.push(workspace);
+    await mkdir(join(workspace, 'safe', '_drafts'), { recursive: true });
+    await writeFile(join(workspace, 'contrat.txt'), 'original');
+    await writeFile(join(workspace, 'safe', 'contrat.txt.md'), 'mirror');
+    return workspace;
+  }
+
+  const broad: FileAccessPolicy = {
+    system: 'read',
+    workspace: 'write',
+    customPaths: new Map([['/', 'write']]),
+  };
+
+  test('confines a Safe workspace to the mirror and its drafts', async () => {
+    const workspace = await safeWorkspace();
+    const policy = applySafeWorkspaceScope(broad, workspace);
+
+    expect(await canAccessAsync(join(workspace, 'contrat.txt'), 'read', policy, workspace)).toBe(false);
+    expect(await canAccessAsync('contrat.txt', 'read', policy, workspace)).toBe(false);
+    expect(await canAccessAsync(join(workspace, 'safe', 'contrat.txt.md'), 'read', policy, workspace)).toBe(true);
+    expect(await canAccessAsync(join(workspace, 'safe', 'contrat.txt.md'), 'write', policy, workspace)).toBe(false);
+    expect(await canAccessAsync(join(workspace, 'safe', '_drafts', 'note.md'), 'write', policy, workspace)).toBe(true);
+    // The user's broad custom path and system read no longer apply.
+    expect(await canAccessAsync('/etc/hosts', 'read', policy, workspace)).toBe(false);
+  });
+
+  test('refuses a symlink from the mirror to an original', async () => {
+    const workspace = await safeWorkspace();
+    await symlink(join(workspace, 'contrat.txt'), join(workspace, 'safe', 'leak.md'));
+    const policy = applySafeWorkspaceScope(broad, workspace);
+
+    expect(await canAccessAsync(join(workspace, 'safe', 'leak.md'), 'read', policy, workspace)).toBe(false);
+  });
+
+  test("keeps a read-only agent read-only in its drafts", async () => {
+    const workspace = await safeWorkspace();
+    const policy = applySafeWorkspaceScope({ ...broad, workspace: 'read' }, workspace);
+
+    expect(await canAccessAsync(join(workspace, 'safe', '_drafts', 'note.md'), 'write', policy, workspace)).toBe(false);
+    expect(await canAccessAsync(join(workspace, 'safe', 'contrat.txt.md'), 'read', policy, workspace)).toBe(true);
+  });
+
+  test('leaves a workspace without safe/ unchanged', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'perm-open-'));
+    tempDirs.push(workspace);
+    expect(applySafeWorkspaceScope(broad, workspace)).toBe(broad);
+    expect(applySafeWorkspaceScope(broad, null)).toBe(broad);
   });
 });
 
