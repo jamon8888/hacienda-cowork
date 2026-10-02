@@ -17,6 +17,7 @@ import { getServerPort } from './serverPort';
 import { validateRuntimeModelId } from './runtimeModelValidation';
 import { formatLocalModelToolUseError, resolveLocalModelToolUseSupport, getOllamaVersion } from '../handlers/providers';
 import { requiresFreshThread } from './codexThreadRecovery';
+import { findSafeWorkspaceForCwd } from './safeWorkspace';
 import { appendCustomInstructionsToPrompt } from './customInstructions';
 import { getCodexService } from './codexSkillsBridge';
 import {
@@ -873,6 +874,7 @@ export async function buildCodexDeveloperInstructions(options: {
       sandboxMode,
       readAccessMode,
       visibleSkills: getPromptVisibleSkills(runtimeSkills),
+      safeWorkspace: findSafeWorkspaceForCwd(options.workspacePath) !== null,
     },
   );
   if (process.env.DEMO_PROMPT) {
@@ -2127,8 +2129,11 @@ export async function runCodexAgentTurn(
     customInstructions: options.customInstructions,
     runtimeSkills,
   });
+  const baseInstructions = getMainAgentBaseInstructions({
+    safeWorkspace: findSafeWorkspaceForCwd(options.workspacePath) !== null,
+  });
   const systemMessage = [
-    getMainAgentBaseInstructions(),
+    baseInstructions,
     developerInstructions,
   ].filter(Boolean).join('\n\n');
 
@@ -2166,7 +2171,7 @@ export async function runCodexAgentTurn(
           model: resolvedModel,
           modelProvider: profile.modelProvider,
           providerConfig: profile.providerConfig,
-          baseInstructions: getMainAgentBaseInstructions(),
+          baseInstructions,
           developerInstructions,
           config: threadConfig,
           effort: options.reasoningEffort ?? null,
