@@ -66,6 +66,79 @@ import { WINDOWS_APP_USER_MODEL_ID } from './utils/windowsAppConfig';
 import { APP_VERSION } from '../shared/version';
 import { distributionProductConfig } from '../shared/productConfig';
 
+// =============================================================================
+// LAZY-LOADED SERVER MODULE TYPES
+// Imported as types to avoid circular dependencies and enable lazy loading
+// at runtime while keeping compile-time type safety.
+// =============================================================================
+import type { app as ExpressApp } from '../server/server';
+import type { toolManager as ToolManager } from '../server/server';
+import type { approvalManager as ApprovalManager } from '../server/server';
+import type { agentTabManager as AgentTabManager } from '../server/server';
+import type { initializeFileWatcher as InitializeFileWatcher } from '../server/server';
+import type { cleanupFileWatcher as CleanupFileWatcher } from '../server/server';
+import type { setServerPort as SetServerPort } from '../server/server';
+
+import type { getTheme as GetTheme } from '../server/configStore';
+import type { getLanguage as GetLanguage } from '../server/configStore';
+import type { getBooleanUISetting as GetBooleanUISetting } from '../server/configStore';
+import type { getZoomFactor as GetZoomFactor } from '../server/configStore';
+import type { setZoomFactor as SetZoomFactor } from '../server/configStore';
+import type { incrementAppLaunchCount as IncrementAppLaunchCount } from '../server/configStore';
+
+import type { globalFileAccessResolver as GlobalFileAccessResolver } from '../server/globalFileAccessResolver';
+import type { thumbnailService as ThumbnailService } from '../server/thumbnailService';
+import type { validateRipgrepBinary as ValidateRipgrepBinary } from '../server/utils/ripgrep';
+import type { shutdownCuaDriverProcesses as ShutdownCuaDriverProcesses } from '../server/tools/builtin-tools/cua-driver/tools';
+import type { startInterpreterCliSocketServer as StartInterpreterCliSocketServer, InterpreterCliSocketServerHandle } from '../server/utils/interpreterCliSocketServer';
+import type { startInterpreterCliFileBridge as StartInterpreterCliFileBridge, InterpreterCliFileBridgeHandle } from '../server/utils/interpreterCliFileBridge';
+
+// Also import the other modules that are used throughout the file
+import { InterpreterOverlayService, type InterpreterOverlayTrayState } from '../apps/interpreter-overlay/electron/service';
+import { FormTestsDebugServer } from '../apps/interpreter-overlay/electron/form-tests-debug-server';
+import { getCurrentWorkspace, resolveWorkspacePath } from '../server/utils/workspace';
+import { workstationService } from './services/workstation';
+import {
+  getWindowSessionByWindowId,
+  getWindowSessionKeyForWindowId,
+  listWindowSessions,
+  registerWindowSession,
+  runWithWindowSessionOverride,
+  unregisterWindowSession,
+} from '../server/utils/windowSessions';
+import {
+  bindWindowSessionWorkspace,
+  unbindWindowSessionWorkspace,
+} from '../server/workspaceWatchRegistry';
+import type { LayoutState } from '../shared/types/layout';
+import {
+  noteAppChildProcessGone,
+  noteSecondInstanceHandoff,
+  shutdownOfficeExtension,
+} from './services/office-extension';
+import {
+  ensureBrowserExtensionRelayRunning,
+  formatOptionalBrowserExtensionRelayStartupFailureLog,
+  setBrowserExtensionRelayLifecycleListener,
+  shutdownBrowserExtensionRelay,
+} from './services/browser-extension-relay';
+import type { BrowserExtensionRelayLifecycleEvent } from '../server/utils/browserExtensionRelay';
+import { browserService } from './services/browser';
+import { shutdownCodexRuntime } from '../src/lib/codex/service';
+import { buildApplicationMenu, setCreateWindowHandler } from './menu';
+import { buildInterpreterTrayMenuTemplate } from './trayMenu';
+import { initAutoUpdater } from './autoUpdater';
+import { ensureShellIntegrationInstalled } from './services/shell-integration';
+import { emitWorkspaceChanged as emitWorkspaceChangedEvent, emitWindowFullscreenChanged } from './ipc/events';
+import { IPC_CHANNELS } from './ipc/registry';
+import { thumbnailService as ThumbnailServiceValue } from '../server/thumbnailService';
+import { validateRipgrepBinary as ValidateRipgrepBinaryValue } from '../server/utils/ripgrep';
+import { shutdownCuaDriverProcesses as ShutdownCuaDriverProcessesValue } from '../server/tools/builtin-tools/cua-driver/tools';
+import { startInterpreterCliSocketServer as StartInterpreterCliSocketServerValue } from '../server/utils/interpreterCliSocketServer';
+import { startInterpreterCliFileBridge as StartInterpreterCliFileBridgeValue } from '../server/utils/interpreterCliFileBridge';
+import { broadcastEvent } from '../server/handlers/broadcast';
+import { globalFileAccessResolver as GlobalFileAccessResolverValue } from '../server/globalFileAccessResolver';
+
 const originalConsole = {
   log: console.log,
   error: console.error,
@@ -857,66 +930,30 @@ invokeConsoleSafely(originalConsole.log, [`\n${'='.repeat(60)}`], 'stdout');
 invokeConsoleSafely(originalConsole.log, [`  LOG FILE: ${LOG_FILE}`], 'stdout');
 invokeConsoleSafely(originalConsole.log, [`${'='.repeat(60)}\n`], 'stdout');
 
-import { app as expressApp, toolManager, setServerPort, approvalManager, agentTabManager, initializeFileWatcher, cleanupFileWatcher } from '../server/server';
-import { shutdownCuaDriverProcesses } from '../server/tools/builtin-tools/cua-driver/tools';
-import {
-  startInterpreterCliSocketServer,
-  type InterpreterCliSocketServerHandle,
-} from '../server/utils/interpreterCliSocketServer';
-import {
-  startInterpreterCliFileBridge,
-  type InterpreterCliFileBridgeHandle,
-} from '../server/utils/interpreterCliFileBridge';
-import {
-  getTheme,
-  getLanguage,
-  getBooleanUISetting,
-  getZoomFactor,
-  setZoomFactor,
-  incrementAppLaunchCount,
-} from '../server/configStore';
-import { broadcastEvent } from '../server/handlers/broadcast';
-import { globalFileAccessResolver } from '../server/globalFileAccessResolver';
-import { setupIpcHandlers } from './ipc/handlers';
-import { emitWorkspaceChanged as emitWorkspaceChangedEvent, emitWindowFullscreenChanged } from './ipc/events';
-import { IPC_CHANNELS } from './ipc/registry';
-import { thumbnailService } from '../server/thumbnailService';
-import { validateRipgrepBinary } from '../server/utils/ripgrep';
-import {
-  noteAppChildProcessGone,
-  noteSecondInstanceHandoff,
-  shutdownOfficeExtension,
-} from './services/office-extension';
-import {
-  ensureBrowserExtensionRelayRunning,
-  formatOptionalBrowserExtensionRelayStartupFailureLog,
-  setBrowserExtensionRelayLifecycleListener,
-  shutdownBrowserExtensionRelay,
-} from './services/browser-extension-relay';
-import { ensureShellIntegrationInstalled } from './services/shell-integration';
-import type { BrowserExtensionRelayLifecycleEvent } from '../server/utils/browserExtensionRelay';
-import { browserService } from './services/browser';
-import { workstationService } from './services/workstation';
-import { shutdownCodexRuntime } from '../src/lib/codex/service';
-import { buildApplicationMenu, setCreateWindowHandler } from './menu';
-import { buildInterpreterTrayMenuTemplate } from './trayMenu';
-import { initAutoUpdater } from './autoUpdater';
-import { InterpreterOverlayService, type InterpreterOverlayTrayState } from '../apps/interpreter-overlay/electron/service';
-import { FormTestsDebugServer } from '../apps/interpreter-overlay/electron/form-tests-debug-server';
-import { getCurrentWorkspace, resolveWorkspacePath } from '../server/utils/workspace';
-import {
-  getWindowSessionByWindowId,
-  getWindowSessionKeyForWindowId,
-  listWindowSessions,
-  registerWindowSession,
-  runWithWindowSessionOverride,
-  unregisterWindowSession,
-} from '../server/utils/windowSessions';
-import {
-  bindWindowSessionWorkspace,
-  unbindWindowSessionWorkspace,
-} from '../server/workspaceWatchRegistry';
-import type { LayoutState } from '../shared/types/layout';
+// =============================================================================
+// LAZY-LOADED SERVER MODULE REFERENCES
+// These are populated inside app.whenReady().then() to avoid blocking
+// the main process startup with heavy Express + route module imports.
+// =============================================================================
+let expressApp: typeof ExpressApp | null = null;
+let toolManager: typeof ToolManager | null = null;
+let approvalManager: typeof ApprovalManager | null = null;
+let agentTabManager: typeof AgentTabManager | null = null;
+let initializeFileWatcher: typeof InitializeFileWatcher | null = null;
+let cleanupFileWatcher: typeof CleanupFileWatcher | null = null;
+let setServerPort: typeof SetServerPort | null = null;
+let getTheme: typeof GetTheme | null = null;
+let getLanguage: typeof GetLanguage | null = null;
+let getBooleanUISetting: typeof GetBooleanUISetting | null = null;
+let getZoomFactor: typeof GetZoomFactor | null = null;
+let setZoomFactor: typeof SetZoomFactor | null = null;
+let incrementAppLaunchCount: typeof IncrementAppLaunchCount | null = null;
+let globalFileAccessResolver: typeof GlobalFileAccessResolver | null = null;
+let thumbnailService: typeof ThumbnailService | null = null;
+let validateRipgrepBinary: typeof ValidateRipgrepBinary | null = null;
+let shutdownCuaDriverProcesses: typeof ShutdownCuaDriverProcesses | null = null;
+let startInterpreterCliSocketServer: typeof StartInterpreterCliSocketServer | null = null;
+let startInterpreterCliFileBridge: typeof StartInterpreterCliFileBridge | null = null;
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -967,6 +1004,42 @@ let interpreterOverlayTrayState: InterpreterOverlayTrayState = {
 };
 let formTestsDebugServer: FormTestsDebugServer | null = null;
 const appStartTime: number = Date.now(); // Track session duration for telemetry
+
+// Lazy-loaded server module getter
+async function ensureServerModuleLoaded(): Promise<void> {
+  if (expressApp) return; // Already loaded
+
+  const serverModule = await import('../server/server');
+  const configStoreModule = await import('../server/configStore');
+  const globalFileAccessResolverModule = await import('../server/globalFileAccessResolver');
+  const thumbnailServiceModule = await import('../server/thumbnailService');
+  const ripgrepModule = await import('../server/utils/ripgrep');
+  const cuaDriverModule = await import('../server/tools/builtin-tools/cua-driver/tools');
+  const interpreterCliSocketServerModule = await import('../server/utils/interpreterCliSocketServer');
+  const interpreterCliFileBridgeModule = await import('../server/utils/interpreterCliFileBridge');
+
+  expressApp = serverModule.app;
+  toolManager = serverModule.toolManager;
+  approvalManager = serverModule.approvalManager;
+  agentTabManager = serverModule.agentTabManager;
+  initializeFileWatcher = serverModule.initializeFileWatcher;
+  cleanupFileWatcher = serverModule.cleanupFileWatcher;
+  setServerPort = serverModule.setServerPort;
+
+  getTheme = configStoreModule.getTheme;
+  getLanguage = configStoreModule.getLanguage;
+  getBooleanUISetting = configStoreModule.getBooleanUISetting;
+  getZoomFactor = configStoreModule.getZoomFactor;
+  setZoomFactor = configStoreModule.setZoomFactor;
+  incrementAppLaunchCount = configStoreModule.incrementAppLaunchCount;
+
+  globalFileAccessResolver = globalFileAccessResolverModule.globalFileAccessResolver;
+  thumbnailService = thumbnailServiceModule.thumbnailService;
+  validateRipgrepBinary = ripgrepModule.validateRipgrepBinary;
+  shutdownCuaDriverProcesses = cuaDriverModule.shutdownCuaDriverProcesses;
+  startInterpreterCliSocketServer = interpreterCliSocketServerModule.startInterpreterCliSocketServer;
+  startInterpreterCliFileBridge = interpreterCliFileBridgeModule.startInterpreterCliFileBridge;
+}
 const FORM_TESTS_MODE = process.env.FORM_TESTS_MODE === 'true';
 const FORM_TESTS_INTERACTION_MODE = process.env.FORM_TESTS_INTERACTION_MODE || 'real';
 const INTERPRETER_OVERLAY_DEBUG_PORT = Number(
@@ -1196,7 +1269,7 @@ function ensureTray(): void {
 }
 
 async function applyLaunchAtLoginSetting(): Promise<void> {
-  const launchAtLogin = await getBooleanUISetting('launchAtLogin');
+  const launchAtLogin = await getBooleanUISetting!('launchAtLogin');
   app.setLoginItemSettings({
     openAtLogin: launchAtLogin,
     openAsHidden: launchAtLogin,
@@ -1477,7 +1550,7 @@ async function handleExternalAskPaths(paths: string[]): Promise<void> {
       throw new Error('No target window available for external ask request.');
     }
 
-    agentTabManager.requestAgentTask({
+    agentTabManager!.requestAgentTask({
       initialMessage: request.prompt,
       workspacePath: normalizedWorkspacePath,
       targetWindowSessionKey: targetWindowSessionKey ?? undefined,
@@ -1629,7 +1702,7 @@ function setupThumbnailProtocol() {
     try {
       const filePath = decodeURIComponent(request.url.slice('thumbnail://'.length));
 
-      const result = await thumbnailService.getThumbnail(filePath);
+      const result = await thumbnailService!.getThumbnail(filePath);
       if (!result) {
         return new Response('', { status: 404 });
       }
@@ -1651,32 +1724,34 @@ function setupThumbnailProtocol() {
 }
 
 async function startExpressServer() {
+  // Ensure server module is loaded (lazy-loaded on first call)
+  await ensureServerModuleLoaded();
   // LOG_DIR is already set at module import time (see top of file)
 
   try {
-    await toolManager.initialize();
+    await toolManager!.initialize();
   } catch (error) {
     console.error('[Server] Tool manager initialization failed, starting with no MCP servers:', error);
   }
 
-  validateRipgrepBinary().catch((err) => {
+  validateRipgrepBinary!().catch((err) => {
     console.error('[Server] ripgrep validation failed:', err);
   });
 
   // Start Express server with retry logic for port conflicts
-  server = http.createServer(expressApp);
+  server = http.createServer(expressApp!);
   const serverHost = '127.0.0.1';
 
   serverPort = await listenOnAvailableLocalPort(server, serverHost, (port, code) => {
     console.log(`Port ${port} unavailable (${code}), trying next...`);
   });
-  setServerPort(serverPort);
+  setServerPort!(serverPort);
   console.log(`\n${'='.repeat(60)}`);
   console.log(`  MCP TOOL SERVER READY`);
   console.log(`  http://${serverHost}:${serverPort}`);
   console.log(`${'='.repeat(60)}\n`);
-  interpreterCliFileBridge = await startInterpreterCliFileBridge(serverPort);
-  interpreterCliSocketServer = await startInterpreterCliSocketServer(expressApp, serverPort);
+  interpreterCliFileBridge = await startInterpreterCliFileBridge!(serverPort);
+  interpreterCliSocketServer = await startInterpreterCliSocketServer!(expressApp!, serverPort);
 }
 
 type CreateWindowResult =
@@ -1997,7 +2072,7 @@ function bindWindowEvents(window: BrowserWindow, options: { primary: boolean; se
       if (window.isDestroyed()) return;
 
       const zoomFactor = clampZoomFactor(window.webContents.getZoomFactor());
-      void setZoomFactor(zoomFactor).catch((error) => {
+      void setZoomFactor!(zoomFactor).catch((error) => {
         console.error('[Main] Failed to persist zoom factor:', error);
       });
       broadcastEvent('zoomFactor:changed', { zoomFactor });
@@ -2327,7 +2402,7 @@ async function createWindow(options?: CreateWindowOptions): Promise<CreateWindow
     abortInitialization: async () => {
       await abortWindowInitialization();
     },
-    getZoomFactor,
+    getZoomFactor: getZoomFactor!,
     loadContent: loadMainWindowContent,
     maximize: isPlaywrightElectronSession,
     registerWindow: (createdWindow) => {
@@ -2450,8 +2525,8 @@ async function cleanup() {
 
   // Clear manager state FIRST (synchronous, no timeout needed)
   try {
-    approvalManager.clearAll();
-    agentTabManager.clearAll();
+    approvalManager!.clearAll();
+    agentTabManager!.clearAll();
     console.log('Cleared manager state');
     cleanupResults['managerState'] = { success: true, timedOut: false };
   } catch (error) {
@@ -2461,7 +2536,7 @@ async function cleanup() {
 
   // Stop file watcher
   cleanupResults['fileWatcher'] = await withTimeout(
-    cleanupFileWatcher(),
+    cleanupFileWatcher!(),
     2000,
     'File watcher cleanup'
   );
@@ -2524,7 +2599,7 @@ async function cleanup() {
   }
 
   cleanupResults['cuaDriver'] = await withTimeout(
-    shutdownCuaDriverProcesses(),
+    shutdownCuaDriverProcesses!(),
     2000,
     'CUA driver shutdown'
   );
@@ -2533,7 +2608,7 @@ async function cleanup() {
     // Shutdown tool manager
     console.log('Shutting down tool manager...');
     cleanupResults['toolManager'] = await withTimeout(
-      toolManager.shutdown(),
+      toolManager!.shutdown(),
       5000,
       'Tool manager shutdown'
     );
@@ -2612,6 +2687,9 @@ app.whenReady().then(async () => {
     process.env.QWEN_ASR_ASSET_DIR = getQwenAsrInstallRoot();
     process.env.MOONSHINE_ASSET_DIR = getMoonshineInstallRoot();
 
+    // Load server module (lazy-loaded, now that app is ready)
+    await ensureServerModuleLoaded();
+
     // Start Express server first (this initializes workspace)
     await startExpressServer();
 
@@ -2622,7 +2700,7 @@ app.whenReady().then(async () => {
     });
 
     // Initialize i18n before building menu (menu labels use t())
-    const configLanguage = await getLanguage();
+    const configLanguage = await getLanguage!();
     await initI18nMain(configLanguage);
 
     setCreateWindowHandler(async () => {
@@ -2638,11 +2716,12 @@ app.whenReady().then(async () => {
     await buildApplicationMenu();
 
     // Set up IPC handlers with dependencies
+    const { setupIpcHandlers } = await import('./ipc/handlers');
     setupIpcHandlers({
       serverPort,
-      approvalManager,
-      agentTabManager,
-      globalFileAccessResolver,
+      approvalManager: approvalManager!,
+      agentTabManager: agentTabManager!,
+      globalFileAccessResolver: globalFileAccessResolver!,
       cleanup,
       cachedFileTree,
       getInterpreterOverlayService: () => interpreterOverlayService,
@@ -2650,12 +2729,12 @@ app.whenReady().then(async () => {
     });
 
     // Initialize native theme from saved preference
-    const savedTheme = await getTheme();
+    const savedTheme = await getTheme!();
     nativeTheme.themeSource = savedTheme;
     await applyLaunchAtLoginSetting();
 
     try {
-      const appLaunchCount = await incrementAppLaunchCount();
+      const appLaunchCount = await incrementAppLaunchCount!();
       console.log('[Main] App launch count:', appLaunchCount);
     } catch (error) {
       console.error('[Main] Failed to increment app launch count:', error);
@@ -2710,7 +2789,7 @@ app.whenReady().then(async () => {
     }
 
     // Initialize file watcher for workspace
-    await initializeFileWatcher();
+    await initializeFileWatcher!();
 
     // Mark app as fully ready
     appReady = true;

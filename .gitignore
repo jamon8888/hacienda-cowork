@@ -123,3 +123,4 @@ scenario-runs/
 public/file-viewer/
 public/vendor/
 public/flyfish-viewer-*.json
+.openbitfun/

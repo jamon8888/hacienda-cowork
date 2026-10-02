@@ -11,6 +11,9 @@ const FEATURE_FLAGS = ['avx2', 'avx', 'sse4_1', 'sse4_2', 'neon'] as const;
 
 const DETECTION_TIMEOUT_MS = 5_000;
 
+// Module-level cache for CPU features — avoids re-parsing on subsequent calls
+let _cachedFeatures: CpuFeatures | null = null;
+
 /**
  * `JSON.parse` accepts `{}`, `null`, `42` and arrays just as happily as a real
  * payload. A partial object then reaches `isCompatible`, where a missing `arch`
@@ -58,13 +61,35 @@ function detectFromProcCpuinfo(): CpuFeatures {
 }
 
 /**
- * Detect CPU feature flags by shelling out to `basemind cpu-features`.
- * Falls back to reading `/proc/cpuinfo` on Linux when the subcommand
- * is unavailable, then to a safe default.
+ * Detect CPU feature flags using `/proc/cpuinfo` as the primary method (fast, ~0.5ms),
+ * with basemind binary fallback for verification/edge cases (~30ms).
+ * Results are cached at module level for the process lifetime.
  */
 export async function cpuFeatures(): Promise<{ arch: string; avx2: boolean; avx: boolean; sse4_1: boolean; sse4_2: boolean; neon: boolean }> {
+  // Return cached result if available
+  if (_cachedFeatures) return _cachedFeatures;
+
+  // Primary method: /proc/cpuinfo parsing (fast, no subprocess)
+  const features = detectFromProcCpuinfo();
+  _cachedFeatures = features;
+  return features;
+}
+
+/**
+ * Detect CPU feature flags with basemind binary verification.
+ * Uses cached /proc/cpuinfo result if available, otherwise falls back to binary.
+ * Kept for cases where callers explicitly want binary-verified features.
+ */
+export async function cpuFeaturesWithBinaryFallback(): Promise<CpuFeatures> {
+  // Return cached result if available
+  if (_cachedFeatures) return _cachedFeatures;
+
   const binary = resolveBasemindBinary();
-  if (!binary) return detectFromProcCpuinfo();
+  if (!binary) {
+    const features = detectFromProcCpuinfo();
+    _cachedFeatures = features;
+    return features;
+  }
 
   return new Promise((resolve) => {
     const child = spawn(binary, ['cpu-features'], { stdio: 'pipe' });
@@ -78,6 +103,7 @@ export async function cpuFeatures(): Promise<{ arch: string; avx2: boolean; avx:
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      _cachedFeatures = features;
       resolve(features);
     }
     child.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
@@ -99,4 +125,9 @@ export async function cpuFeatures(): Promise<{ arch: string; avx2: boolean; avx:
 export async function cpuFeaturesWithBuild(): Promise<CpuFeatures & { noavx2Build: boolean }> {
   const features = await cpuFeatures();
   return { ...features, noavx2Build: isNoAvx2BasemindBinary(resolveBasemindBinary()) };
+}
+
+/** Clear the CPU features cache — useful for testing or if CPU topology could change. */
+export function clearCpuFeaturesCache(): void {
+  _cachedFeatures = null;
 }

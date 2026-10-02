@@ -38,10 +38,9 @@ describe('basemindDownload stages', () => {
     const { basemindDownload } = await load();
     const updates = [];
     for await (const u of basemindDownload()) updates.push(u);
+    // Ready stages yield done immediately (no start progress since no work needed)
     expect(updates.map((u) => u.stage)).toEqual([
-      'nerModel', 'nerModel',
-      'reranker', 'reranker',
-      'embeddings', 'embeddings',
+      'nerModel', 'reranker', 'embeddings',
     ]);
     const done = updates.filter((u) => u.done);
     expect(done).toHaveLength(3);
@@ -54,9 +53,10 @@ describe('basemindDownload stages', () => {
     const { basemindDownload } = await load();
     const updates = [];
     for await (const u of basemindDownload('embeddings')) updates.push(u);
-    expect(updates.map((u) => u.stage)).toEqual(['embeddings', 'embeddings']);
+    // Embeddings stage yields one error update (no binary, not ready)
+    expect(updates.map((u) => u.stage)).toEqual(['embeddings']);
     expect(updates[0]).toMatchObject({ stage: 'embeddings', progress: 0, done: false });
-    expect(updates[1].error).toMatch(/basemind binary not found/);
+    expect(updates[0].error).toMatch(/basemind binary not found/);
   });
 
   it('filters to a single onlyStage', async () => {
@@ -64,8 +64,9 @@ describe('basemindDownload stages', () => {
     const { basemindDownload } = await load();
     const updates = [];
     for await (const u of basemindDownload('reranker')) updates.push(u);
-    expect(updates.map((u) => u.stage)).toEqual(['reranker', 'reranker']);
-    expect(updates[1]).toMatchObject({ done: true, progress: 100 });
+    // Ready reranker yields done immediately
+    expect(updates.map((u) => u.stage)).toEqual(['reranker']);
+    expect(updates[0]).toMatchObject({ done: true, progress: 100 });
   });
 });
 

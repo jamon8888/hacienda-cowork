@@ -25,7 +25,7 @@ const STAGES: Array<{ stage: BasemindDownloadStage; resource: ModelResource }> =
   { stage: 'embeddings', resource: 'embeddings' },
 ];
 
-const WARMUP_TIMEOUT_MS = 5 * 60_000;
+const WARMUP_TIMEOUT_MS = 60_000;
 const WARMUP_QUERY = 'quarterly report renewable energy';
 
 /**
@@ -134,98 +134,128 @@ async function runWarmup(binary: string, stage: BasemindDownloadStage, workspace
  * Pass `onlyStage` to run just that stage — the onboarding UI calls this once
  * per stage, and re-running all three on every call would re-spawn already
  * satisfied, multi-hundred-MB warmup commands for no reason.
+ * 
+ * Parallelization: nerModel and reranker are independent HF Hub fetches and
+ * run concurrently. embeddings runs after them (requires warmup workspace).
  */
 export async function* basemindDownload(onlyStage?: BasemindDownloadStage): AsyncGenerator<BasemindDownloadProgress> {
   const binary = resolveBasemindBinary();
 
+  // First, check which stages are already satisfied
+  const stagesToRun: Array<{ stage: BasemindDownloadStage; resource: ModelResource }> = [];
   for (const { stage, resource } of STAGES) {
     if (onlyStage !== undefined && stage !== onlyStage) continue;
+    if (isModelResourceReady(resource)) {
+      yield { stage, progress: 100, done: true };
+    } else {
+      stagesToRun.push({ stage, resource });
+    }
+  }
 
+  if (stagesToRun.length === 0) return;
+
+  if (!binary) {
+    for (const { stage } of stagesToRun) {
+      yield { stage, progress: 0, done: false, error: 'basemind binary not found' };
+    }
+    return;
+  }
+
+  // Partition stages: pre-seed (nerModel, reranker) can run in parallel;
+  // embeddings requires warmup workspace and runs sequentially after.
+  const preSeedStages = stagesToRun.filter(s => s.stage === 'nerModel' || s.stage === 'reranker');
+  const warmupStages = stagesToRun.filter(s => s.stage === 'embeddings');
+
+  // Phase 1: Run pre-seed stages (nerModel + reranker) in parallel
+  if (preSeedStages.length > 0) {
+    const { preseedNerModel, FASTINO_REPO, FASTINO_REV, FASTINO_FILES, GTE_REPO, GTE_REV, GTE_FILES } =
+      await import('./basemindPreseed');
+
+    // Start: yield progress 0 for all pre-seed stages
+    for (const { stage } of preSeedStages) {
+      yield { stage, progress: 0, done: false };
+    }
+
+    // Run pre-seeds concurrently - each returns final progress update
+    const preSeedResults = await Promise.all(
+      preSeedStages.map(async ({ stage, resource }) => {
+        const opts = stage === 'nerModel'
+          ? { repo: FASTINO_REPO, rev: FASTINO_REV, files: FASTINO_FILES }
+          : { repo: GTE_REPO, rev: GTE_REV, files: GTE_FILES };
+        try {
+          const result = await preseedNerModel(opts);
+          if (isModelResourceReady(resource)) {
+            return { stage, progress: 100, done: true, error: undefined as string | undefined };
+          }
+          return { stage, progress: 0, done: false, error: result.error ?? `${stage} model not ready after pre-seed` };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          return { stage, progress: 0, done: false, error: `${stage} model cache setup failed: ${message}` };
+        }
+      })
+    );
+
+    // Yield results in original order
+    for (const result of preSeedResults) {
+      yield result;
+    }
+
+    // Phase 1.5: Activate reranker for known workspaces (GTE custom_model)
+    // This runs after the reranker weights are downloaded. (Future: import when module exists)
+    // if (preSeedStages.some(s => s.stage === 'reranker')) {
+    //   try {
+    //     const { ensureKnownWorkspacesRerankerModels } = await import('./rerankerWorkspace');
+    //     await ensureKnownWorkspacesRerankerModels();
+    //   } catch (err) {
+    //     console.warn(`[basemindDownload] workspace GTE activation failed: ${err instanceof Error ? err.message : String(err)}`);
+    //   }
+    // }
+  }
+
+  // Phase 2: Run warmup stages (embeddings) sequentially (requires workspace)
+  for (const { stage, resource } of warmupStages) {
     yield { stage, progress: 0, done: false };
 
-    if (isModelResourceReady(resource)) {
-      yield { stage, progress: 100, done: true };
+    let workspace: string;
+    try {
+      workspace = await ensureWarmupWorkspace();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      yield { stage, progress: 0, done: false, error: `warmup workspace setup failed: ${message}` };
       continue;
     }
 
-    if (!binary) {
-      yield { stage, progress: 0, done: false, error: 'basemind binary not found' };
-      continue;
-    }
+    let commsDir: string | null = null;
+    try {
+      commsDir = mkdtempSync(path.join(tmpdir(), 'basemind-model-warmup-comms-'));
+      const result = await runWarmup(binary, stage, workspace, commsDir);
 
-    let result: { ok: boolean; error?: string };
-    if (stage === 'nerModel' || stage === 'reranker') {
-      // No basemind one-shot CLI command exercises these backends the way
-      // onboarding needs (scan never initializes NER; `code --rerank` only
-      // knows compiled-in presets, not the GTE Custom model) — pre-seed the
-      // weights directly so onboarding actually delivers "models downloaded"
-      // (see basemindPreseed.ts). nerModel = fastino GLiNER2 run through
-      // candle (GLiNER2-redaction spec #37), reranker = GTE-multilingual
-      // int8 (decision #228).
-      const { preseedNerModel, FASTINO_REPO, FASTINO_REV, FASTINO_FILES, GTE_REPO, GTE_REV, GTE_FILES } =
-        await import('./basemindPreseed');
-      const opts = stage === 'nerModel'
-        ? { repo: FASTINO_REPO, rev: FASTINO_REV, files: FASTINO_FILES }
-        : { repo: GTE_REPO, rev: GTE_REV, files: GTE_FILES };
-      try {
-        result = await preseedNerModel(opts);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        result = { ok: false, error: `${stage} model cache setup failed: ${message}` };
+      if (isModelResourceReady(resource)) {
+        yield { stage, progress: 100, done: true };
+      } else {
+        yield {
+          stage,
+          progress: 0,
+          done: false,
+          error: result.error ?? 'warmup command completed but no model artifact was found in the Hugging Face hub cache afterward',
+        };
       }
-      // rerankerWorkspace activation deferred (phase-2): #22 ports preseed
-      // + embeddings warmup only; workspace GTE materialization lands later.
-    } else {
-      let workspace: string;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      yield { stage, progress: 0, done: false, error: `warmup failed: ${message}` };
+    } finally {
       try {
-        // Only the embeddings stage still warms up (no git needed: `memory
-        // documents` doesn't enumerate via git). Reranker/NER are pre-seeded.
-        workspace = await ensureWarmupWorkspace();
+        cleanupTempDir(workspace);
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        yield { stage, progress: 0, done: false, error: `warmup workspace setup failed: ${message}` };
-        continue;
+        console.warn(`[basemindDownload] warmup workspace cleanup failed for ${workspace}: ${err instanceof Error ? err.message : String(err)}`);
       }
-      // Private comms socket for this warmup (see runWarmup). Created beside
-      // the workspace with a matching name so both are throwaway, listed
-      // together, and cleaned together.
-      let commsDir: string | null = null;
-      try {
-        commsDir = mkdtempSync(path.join(tmpdir(), 'basemind-model-warmup-comms-'));
-        result = await runWarmup(binary, stage, workspace, commsDir);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        yield { stage, progress: 0, done: false, error: `warmup failed: ${message}` };
-        continue;
-      } finally {
+      if (commsDir) {
         try {
-          cleanupTempDir(workspace);
+          cleanupTempDir(commsDir);
         } catch (err) {
-          console.warn(`[basemindDownload] warmup workspace cleanup failed for ${workspace}: ${err instanceof Error ? err.message : String(err)}`);
-        }
-        if (commsDir) {
-          try {
-            cleanupTempDir(commsDir);
-          } catch (err) {
-            console.warn(`[basemindDownload] warmup comms cleanup failed for ${commsDir}: ${err instanceof Error ? err.message : String(err)}`);
-          }
+          console.warn(`[basemindDownload] warmup comms cleanup failed for ${commsDir}: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
-    }
-
-    // The warmup command downloads the model, then immediately exercises it
-    // (embeds/reranks/detects on the sample doc). A machine-local failure in
-    // that second step (e.g. an ONNX Runtime load error) must not be reported
-    // as a download failure when the artifact landed in the hub cache anyway.
-    if (isModelResourceReady(resource)) {
-      yield { stage, progress: 100, done: true };
-    } else {
-      yield {
-        stage,
-        progress: 0,
-        done: false,
-        error: result.error ?? 'warmup command completed but no model artifact was found in the Hugging Face hub cache afterward',
-      };
     }
   }
 }
