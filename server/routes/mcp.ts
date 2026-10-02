@@ -19,6 +19,9 @@ import {
   matchesAllowedToolScope,
 } from '../utils/toolScope';
 import { isToolServerAgentAccessible } from '../../shared/toolServerAvailability';
+import { isServerHiddenInSafeWorkspace } from '../../shared/utils/interpreterToolSurface';
+import { isSafeWorkspace } from '../utils/safeWorkspace';
+import { getCurrentWorkspace } from '../utils/workspace';
 import { getGlobalDisabledTools, resolveAndExecuteCodexTool } from './mcpDependencies';
 
 const router = Router();
@@ -88,6 +91,10 @@ const MCP_TOOL_SERVER_BLACKLIST: string[] = [
 
 function isBlacklistedMcpServer(serverId: string, _profileId?: string): boolean {
   if (MCP_TOOL_SERVER_BLACKLIST.includes(serverId)) {
+    return true;
+  }
+  // Outbound-send servers are not exposed while the open workspace is Safe.
+  if (isServerHiddenInSafeWorkspace(serverId) && isSafeWorkspace(getCurrentWorkspace())) {
     return true;
   }
 

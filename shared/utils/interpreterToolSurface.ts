@@ -8,6 +8,21 @@ const DEFAULT_HIDDEN_SERVER_IDS = new Set<string>([
   'basemind',
 ]);
 
+/**
+ * Servers that can send content out of the app (mail, messaging). In a Safe
+ * workspace the model drafts and the lawyer sends: tokenized text would leave
+ * as tokens, and these tools' own results are not the lawyer's to review.
+ */
+export const SAFE_HIDDEN_SERVER_IDS: ReadonlySet<string> = new Set([
+  'builtin-nylas',
+  'builtin-whatsapp',
+  'builtin-telegram',
+]);
+
+export function isServerHiddenInSafeWorkspace(serverId: string): boolean {
+  return SAFE_HIDDEN_SERVER_IDS.has(serverId);
+}
+
 export function isInterpreterCliServerVisible(serverId: string): boolean {
   return !DEFAULT_HIDDEN_SERVER_IDS.has(serverId);
 }
