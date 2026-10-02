@@ -547,7 +547,7 @@ export async function maybeRedactToolResult(
   options: MaybeRedactOptions,
   deps: RuntimeRedactionDeps = {},
 ): Promise<unknown> {
-  const { serverId, toolName, result, workspacePath, threadKey } = options;
+  const { serverId, result, workspacePath, threadKey } = options;
   // builtin-test-filesystem is test infrastructure asserting verbatim tool
   // output (permission E2E); the production gate must not rewrite its results.
   if (serverId === 'builtin-test-filesystem') return result;
