@@ -50,6 +50,8 @@ function normalizeToolApprovalMode(value: unknown): AppToolApprovalMode | null {
   return value === 'auto' || value === 'prompt' || value === 'approve' ? value : null;
 }
 
+const APP_INTERNAL_BASEMIND_TOOLS = new Set(['vault', 'redact_text', 'admin']);
+
 export class ToolManager {
   private validateMcpConfig(config: Record<string, any>): {
     normalizedTransport: 'stdio' | 'streamable_http';
@@ -1004,6 +1006,17 @@ export class ToolManager {
       appInternal?: boolean;
     },
   ): Promise<any> {
+    // basemind's vault / redact_text / admin are app plumbing. Only app code
+    // (`appInternal`) may call them; a model-bound caller would otherwise read
+    // decrypted originals or rewrite the index (defence in depth behind the
+    // hidden-server filter on the CLI and MCP surfaces).
+    if (
+      serverId === 'basemind'
+      && !options?.appInternal
+      && APP_INTERNAL_BASEMIND_TOOLS.has(toolName)
+    ) {
+      throw new Error(`Tool 'basemind__${toolName}' is not available to agents.`);
+    }
     // Check if it's a built-in tool
     const builtinTool = options?.includeHiddenBuiltins
       ? getBuiltinToolHandlerIncludingHidden(serverId, toolName)

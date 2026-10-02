@@ -172,6 +172,10 @@ async function callVaultTool(
     undefined,
     undefined,
     { threadId: await getAppMcpOwnerThreadId() },
+    undefined,
+    // Decrypted originals go to the renderer (Show Originals) and the export
+    // tool, never into model context.
+    { appInternal: true },
   );
 }
 

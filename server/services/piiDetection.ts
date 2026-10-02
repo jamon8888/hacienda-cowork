@@ -204,6 +204,9 @@ async function detectPii(
     // Without a thread context `callTool` throws before reaching the tool, so
     // detection silently degraded to the regex fallback on every send.
     { threadId: await getAppMcpOwnerThreadId() },
+    undefined,
+    // The result feeds the redaction gate itself, never model context.
+    { appInternal: true },
   );
   // An error payload parses to no detections, which is indistinguishable from
   // "nothing found". Surface it so callers can fall back or, in cabinet mode, block.
@@ -266,6 +269,8 @@ async function redactFile(filePath: string): Promise<RedactTextResult> {
     undefined,
     undefined,
     { threadId: await getAppMcpOwnerThreadId() },
+    undefined,
+    { appInternal: true },
   );
   return sweepResidualPii(parseRedactTextResult(raw), customTerms);
 }
