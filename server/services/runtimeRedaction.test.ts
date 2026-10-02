@@ -22,6 +22,7 @@ import {
   RUNTIME_REDACTION_DEFERRED_MARKER,
   setActiveTurnWorkspace,
 } from './runtimeRedaction';
+import { WorkspaceTokenRegistry } from './workspaceTokenRegistry';
 import type { PiiDetection } from '../../src/lib/pii/regex-detector';
 
 const PROBE_EMAIL = 'john@example.com';
@@ -41,6 +42,18 @@ afterEach(() => {
   }
 });
 
+function memoryVault() {
+  const blobs = new Map<string, string>();
+  return {
+    exists: (docId: string) => blobs.has(docId),
+    decrypt: async (docId: string) => JSON.parse(blobs.get(docId) ?? '{}') as Record<string, string>,
+    encrypt: async (map: Record<string, string>) => JSON.stringify(map),
+    write: (docId: string, blob: string) => {
+      blobs.set(docId, blob);
+    },
+  };
+}
+
 const stubDeps = {
   // NER down by default: regex-only fallback must still redact.
   isNerReady: () => false,
@@ -51,6 +64,9 @@ const stubDeps = {
   recordBlock: async () => {},
   blockedSendMessage: async () => 'blocked',
   loadCustomInstructions: async () => null,
+  // A registry per call: the thread map carries consistency in these tests;
+  // the workspace numbering has its own describe block.
+  workspaceRegistry: async (workspacePath: string) => new WorkspaceTokenRegistry(workspacePath, {}, memoryVault()),
 };
 
 describe('applyFileReadRedaction', () => {
@@ -1039,3 +1055,50 @@ describe('cabinet mode', () => {
     ).rejects.toBeInstanceOf(DetectionUnavailableError);
   });
 });
+
+describe('workspace token registry', () => {
+  test('a value the mirrors already tokenized keeps that token in the conversation', async () => {
+    clearRuntimeRehydrationMaps();
+    const ws = workspace(true);
+    const registry = new WorkspaceTokenRegistry(ws, { '[EMAIL_0]': 'other@example.com', '[EMAIL_1]': PROBE_EMAIL }, memoryVault());
+    const deps = { ...stubDeps, workspaceRegistry: async () => registry };
+    const { text } = await maybeRedactOutboundText(`Mail ${PROBE_EMAIL}`, { workspacePath: ws, threadKey: 't-reg-1' }, deps);
+    expect(text).toBe('Mail [EMAIL_1]');
+  });
+
+  test('a new conversation value never takes a number a mirror already uses, and joins the registry', async () => {
+    clearRuntimeRehydrationMaps();
+    const ws = workspace(true);
+    const registry = new WorkspaceTokenRegistry(ws, { '[EMAIL_0]': 'other@example.com' }, memoryVault());
+    const deps = { ...stubDeps, workspaceRegistry: async () => registry };
+    const { text } = await maybeRedactOutboundText(`Mail ${PROBE_EMAIL}`, { workspacePath: ws, threadKey: 't-reg-2' }, deps);
+    expect(text).toBe('Mail [EMAIL_1]');
+    expect(registry.valueOf('[EMAIL_1]')).toBe(PROBE_EMAIL);
+    // A tool result in another thread of the same workspace reuses it.
+    const result = await maybeRedactToolResult({
+      serverId: 'builtin-fs',
+      toolName: 'read_file',
+      result: { content: [{ type: 'text', text: `from ${PROBE_EMAIL}` }] },
+      workspacePath: ws,
+      threadKey: 't-reg-3',
+    }, deps);
+    expect((result as { content: Array<{ text: string }> }).content[0].text).toBe('from [EMAIL_1]');
+  });
+
+  test('cabinet mode refuses when the registry cannot be read', async () => {
+    clearRuntimeRehydrationMaps();
+    const ws = workspace(true);
+    const deps = {
+      ...stubDeps,
+      isCabinetMode: () => true,
+      isFullDetectionReady: () => true,
+      isNerReady: () => true,
+      blockedSendMessage: async () => 'blocked',
+      workspaceRegistry: async () => { throw new Error('vault locked'); },
+    };
+    await expect(
+      maybeRedactOutboundText(`Mail ${PROBE_EMAIL}`, { workspacePath: ws, threadKey: 't-reg-4' }, deps),
+    ).rejects.toBeInstanceOf(DetectionUnavailableError);
+  });
+});
+

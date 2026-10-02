@@ -36,6 +36,7 @@ describe('ensureBasemindForWorkspace', () => {
       deps: {
         register: async () => { calls.push('register'); return 'basemind'; },
         ensureConfig: async (serverId: string) => { calls.push(`ensure:${serverId}`); },
+        ensureMirrors: async () => { calls.push('mirrors'); },
       },
     };
   }
@@ -48,7 +49,8 @@ describe('ensureBasemindForWorkspace', () => {
     try {
       const { calls, deps } = fakes();
       await ensureBasemindForWorkspace(ws, deps);
-      expect(calls).toEqual(['register']);
+      // Mirrors written before the workspace token registry are renumbered.
+      expect(calls).toEqual(['register', 'mirrors']);
     } finally {
       rmSync(ws, { recursive: true, force: true });
     }
