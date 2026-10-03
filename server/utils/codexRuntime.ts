@@ -17,7 +17,7 @@ import { getServerPort } from './serverPort';
 import { validateRuntimeModelId } from './runtimeModelValidation';
 import { formatLocalModelToolUseError, resolveLocalModelToolUseSupport, getOllamaVersion } from '../handlers/providers';
 import { requiresFreshThread } from './codexThreadRecovery';
-import { findSafeWorkspaceForCwd } from './safeWorkspace';
+import { appendDossierToPrompt, findSafeWorkspaceForCwd, loadDossierContext } from './safeWorkspace';
 import { appendCustomInstructionsToPrompt } from './customInstructions';
 import { getCodexService } from './codexSkillsBridge';
 import {
@@ -829,6 +829,18 @@ async function appendPracticePack(developerInstructions: string): Promise<string
   return appendPracticePackToPrompt(developerInstructions, await getActiveVerticalPack());
 }
 
+/**
+ * The folder notes of a Safe workspace, read from their redacted mirror (the
+ * original is never opened), after the pack and before the user's custom
+ * instructions. Already redacted, so it does not go through the outbound gate.
+ */
+function appendDossier(developerInstructions: string, workspacePath: string | undefined): string {
+  const workspace = findSafeWorkspaceForCwd(workspacePath);
+  return workspace
+    ? appendDossierToPrompt(developerInstructions, loadDossierContext(workspace))
+    : developerInstructions;
+}
+
 function appendTaskSpecificInstructions(
   developerInstructions: string,
   system: string | undefined,
@@ -893,6 +905,7 @@ export async function buildCodexDeveloperInstructions(options: {
     developerInstructions += `\n\n${process.env.DEMO_PROMPT}`;
   }
   developerInstructions = await appendPracticePack(developerInstructions);
+  developerInstructions = appendDossier(developerInstructions, options.workspacePath);
   const customInstructions = await resolveCustomInstructionsForTurn(
     options.customInstructions,
     options.workspacePath,
