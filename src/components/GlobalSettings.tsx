@@ -16,6 +16,7 @@ import { useSpatialNavigation } from '../hooks/useSpatialNavigation';
 // Section content components
 import { AccountSectionContent } from "./settings/AccountSection";
 import { CabinetModeSectionContent } from "./settings/CabinetModeSection";
+import { PackSectionContent } from "./settings/PackSection";
 import { PlanSectionContent } from "./settings/PlanSection";
 import { ProfilesSectionContent } from "./settings/ProfilesSection";
 import { ToolsSectionContent } from "./settings/ToolsSection";
@@ -432,6 +433,9 @@ export function GlobalSettings({
                       </div>
                       <div data-settings-section="cabinet-mode">
                         <CabinetModeSectionContent />
+                      </div>
+                      <div data-settings-section="vertical-pack">
+                        <PackSectionContent />
                       </div>
                       <div className="mt-3" data-settings-section="safe-repropose">
                         <Button

@@ -2500,5 +2500,20 @@
   "errors.ui.demoFileMissing": "Archivo demo no encontrado: {{path}}",
   "errors.ui.demoProfileMissing": "Perfil demo no encontrado: {{id}}",
   "errors.ui.demoServerMissing": "Servidor demo no encontrado: {{id}}",
-  "errors.ui.demoCandidateMissing": "Candidato MCP no encontrado: {{id}}"
+  "errors.ui.demoCandidateMissing": "Candidato MCP no encontrado: {{id}}",
+  "settings.packs.title": "Paquete profesional",
+  "settings.packs.description": "Un paquete da al asistente la identidad, las reglas deontológicas y las skills de una profesión. Instale uno desde una carpeta; solo añade instrucciones y no desbloquea nada más.",
+  "settings.packs.install": "Instalar un paquete…",
+  "settings.packs.none": "No hay ningún paquete instalado.",
+  "settings.packs.invalid": "Este paquete no se puede usar: {{reason}}",
+  "settings.packs.requiresSafe": "Pensado para carpetas Safe.",
+  "settings.packs.active": "En uso",
+  "settings.packs.use": "Usar",
+  "settings.packs.remove": "Quitar",
+  "settings.packs.useDefault": "Volver al paquete predeterminado",
+  "settings.packs.installed": "Paquete instalado.",
+  "settings.packs.replaceBody": "La versión {{version}} de este paquete ya está instalada. Instalar este la sustituye.",
+  "settings.packs.replaceConfirm": "Sustituirla",
+  "settings.packs.installFailed": "No se instaló el paquete: {{reason}}",
+  "settings.packs.changeFailed": "Algo salió mal con los paquetes. Inténtelo de nuevo."
 }

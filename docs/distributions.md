@@ -128,6 +128,60 @@ internal binary artifacts, organization-specific configuration, credentials,
 and deployment policy, or trigger these public workflows. It must not become a
 second application or the owner of canonical release logic.
 
+## Vertical packs
+
+A vertical pack adapts the assistant to a regulated profession (law, medicine,
+accounting…) without forking application behaviour. It is a folder:
+
+```
+my-pack/
+  pack.json
+  identity.md       # who the assistant is, for whom, in what setting
+  deontology.md     # the profession's rules (secrecy, sources, irreversible acts)
+  skills/<name>/SKILL.md   # optional
+```
+
+```json
+{
+  "id": "droit-des-affaires",
+  "version": "1.0.0",
+  "name": "Droit des affaires",
+  "requiresSafe": true,
+  "identityFile": "identity.md",
+  "deontologyFile": "deontology.md",
+  "suggestionPills": [{ "label": "Relire un contrat", "prompt": "Relis ce contrat." }]
+}
+```
+
+`id` uses lowercase letters, digits and dashes. Files named by the manifest
+must sit inside the pack folder (no `..`, no link leaving it) and stay under
+16 000 characters. A pack that fails validation is listed with its reason and
+never used; it cannot stop the app or a turn from starting.
+
+What a pack does: its identity and rules are added to the prompt as a
+`Practice pack` section, after the core prompt and before the user's own custom
+instructions, and its `skills/` folder is registered with the runtime. The text
+is not run through the Safe redaction (it is written by the firm and holds no
+client data). What a pack never does: unlock a client feature, change a
+permission, or reach a hosted service. Skills are read-only to the agent in a
+Safe workspace like any other skill.
+
+**Installing.** Anyone can install a pack from Settings > General > Privacy >
+Professional pack. It is copied to `<app data>/packs/<id>/`; replacing another
+version asks first. The user's pick is stored as `activeVerticalPackId`.
+
+**Shipping one in a distribution.** Package the folder under `resources/` with
+`extraResources` and name it in the overlay:
+
+```json
+{ "distribution": { "verticalPack": { "id": "droit-des-affaires", "resourcePath": "vertical-pack" } } }
+```
+
+`resourcePath` is relative to the packaged `resources/` folder and may not
+leave it. With no pick from the user, the distribution's pack is the active
+one; the user can switch to another or go back to it. The community profile
+ships none.
+
 ## Privacy contract
 
 The community profile has no vendor telemetry destination. Providing a

@@ -216,6 +216,15 @@ const handlers: Record<string, Record<string, HandlerFn>> = {
     },
   },
 
+  // ========== Vertical packs (settings) ==========
+  packs: {
+    list: async () => (await import('../services/verticalPackAdmin')).getPackListView(),
+    setActive: async ([packId]: [string | null]) => (await import('../services/verticalPackAdmin')).chooseActivePack(packId),
+    install: async ([sourceDir, allowReplace]: [string, boolean]) =>
+      (await import('../services/verticalPackAdmin')).installPackFromFolder(sourceDir, allowReplace === true),
+    remove: async ([packId]: [string]) => (await import('../services/verticalPackAdmin')).removeInstalledPack(packId),
+  },
+
   // ========== Search (basemind code/document search) ==========
   search: {
     searchCode: async ([params]: [import('../handlers/search').SearchCodeParams]) => {

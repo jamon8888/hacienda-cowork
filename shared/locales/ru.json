@@ -2500,5 +2500,20 @@
   "errors.ui.demoFileMissing": "Демо-файл не найден: {{path}}",
   "errors.ui.demoProfileMissing": "Демо-профиль не найден: {{id}}",
   "errors.ui.demoServerMissing": "Демо-сервер не найден: {{id}}",
-  "errors.ui.demoCandidateMissing": "Кандидат MCP не найден: {{id}}"
+  "errors.ui.demoCandidateMissing": "Кандидат MCP не найден: {{id}}",
+  "settings.packs.title": "Профессиональный пакет",
+  "settings.packs.description": "Пакет задаёт ассистенту личность, профессиональные правила и навыки определённой профессии. Установите его из папки: он добавляет только инструкции и ничего больше не открывает.",
+  "settings.packs.install": "Установить пакет…",
+  "settings.packs.none": "Пакеты не установлены.",
+  "settings.packs.invalid": "Этот пакет нельзя использовать: {{reason}}",
+  "settings.packs.requiresSafe": "Предназначен для папок Safe.",
+  "settings.packs.active": "Используется",
+  "settings.packs.use": "Использовать",
+  "settings.packs.remove": "Удалить",
+  "settings.packs.useDefault": "Вернуться к пакету по умолчанию",
+  "settings.packs.installed": "Пакет установлен.",
+  "settings.packs.replaceBody": "Версия {{version}} этого пакета уже установлена. Установка этого пакета заменит её.",
+  "settings.packs.replaceConfirm": "Заменить",
+  "settings.packs.installFailed": "Пакет не установлен: {{reason}}",
+  "settings.packs.changeFailed": "Что-то пошло не так с пакетами. Повторите попытку."
 }

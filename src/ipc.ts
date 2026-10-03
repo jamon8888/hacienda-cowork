@@ -763,6 +763,35 @@ interface WorkspaceScanIpc {
   setCabinetMode(value: boolean, confirmed: boolean): Promise<{ enabled: boolean; auditRecorded: boolean }>;
 }
 
+export interface PackListEntry {
+  id: string | null;
+  name: string;
+  version: string | null;
+  description: string;
+  source: 'installed' | 'distribution';
+  requiresSafe: boolean;
+  hasSkills: boolean;
+  error: string | null;
+}
+
+export interface PackListView {
+  activeId: string | null;
+  chosenId: string | null;
+  packs: PackListEntry[];
+}
+
+export type PackInstallOutcome =
+  | { installed: true; packId: string; replaced: boolean }
+  | { installed: false; error: string; existingVersion: string | null };
+
+interface PacksIpc {
+  list(): Promise<PackListView>;
+  /** null goes back to the distribution default. */
+  setActive(packId: string | null): Promise<PackListView>;
+  install(sourceDir: string, allowReplace: boolean): Promise<PackInstallOutcome>;
+  remove(packId: string): Promise<PackListView>;
+}
+
 interface BasemindDownloadResult {
   stages: Array<{ stage: string; success: boolean; error?: string }>;
   success: boolean;
@@ -859,6 +888,14 @@ export const pii: PiiIpc = isMarketingDemoMode()
     },
   }
   : (client.pii as PiiIpc);
+export const packs: PacksIpc = isMarketingDemoMode()
+  ? {
+    list: async () => ({ activeId: null, chosenId: null, packs: [] }),
+    setActive: async () => { throw new Error('Not available in demo mode'); },
+    install: async () => { throw new Error('Not available in demo mode'); },
+    remove: async () => { throw new Error('Not available in demo mode'); },
+  }
+  : (client.packs as PacksIpc);
 export const workspaceScan: WorkspaceScanIpc = isMarketingDemoMode()
   ? {
     status: async () => { throw new Error('Not available in demo mode'); },

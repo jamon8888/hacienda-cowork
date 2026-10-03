@@ -2500,5 +2500,20 @@
   "errors.ui.demoFileMissing": "File demo non trovato: {{path}}",
   "errors.ui.demoProfileMissing": "Profilo demo non trovato: {{id}}",
   "errors.ui.demoServerMissing": "Server demo non trovato: {{id}}",
-  "errors.ui.demoCandidateMissing": "Candidato MCP non trovato: {{id}}"
+  "errors.ui.demoCandidateMissing": "Candidato MCP non trovato: {{id}}",
+  "settings.packs.title": "Pacchetto professionale",
+  "settings.packs.description": "Un pacchetto dà all'assistente l'identità, le regole deontologiche e le skill di una professione. Ne installi uno da una cartella; aggiunge solo istruzioni e non sblocca nient'altro.",
+  "settings.packs.install": "Installa un pacchetto…",
+  "settings.packs.none": "Nessun pacchetto installato.",
+  "settings.packs.invalid": "Questo pacchetto non è utilizzabile: {{reason}}",
+  "settings.packs.requiresSafe": "Pensato per le cartelle Safe.",
+  "settings.packs.active": "In uso",
+  "settings.packs.use": "Usa",
+  "settings.packs.remove": "Rimuovi",
+  "settings.packs.useDefault": "Torna al pacchetto predefinito",
+  "settings.packs.installed": "Pacchetto installato.",
+  "settings.packs.replaceBody": "La versione {{version}} di questo pacchetto è già installata. Installare questo la sostituisce.",
+  "settings.packs.replaceConfirm": "Sostituiscila",
+  "settings.packs.installFailed": "Il pacchetto non è stato installato: {{reason}}",
+  "settings.packs.changeFailed": "Qualcosa è andato storto con i pacchetti. Riprovi."
 }

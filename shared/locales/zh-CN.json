@@ -2500,5 +2500,20 @@
   "errors.ui.demoFileMissing": "未找到演示文件：{{path}}",
   "errors.ui.demoProfileMissing": "未找到演示配置文件：{{id}}",
   "errors.ui.demoServerMissing": "未找到演示工具服务器：{{id}}",
-  "errors.ui.demoCandidateMissing": "未找到导入的 MCP 候选项：{{id}}"
+  "errors.ui.demoCandidateMissing": "未找到导入的 MCP 候选项：{{id}}",
+  "settings.packs.title": "专业包",
+  "settings.packs.description": "专业包为助手赋予某个职业的身份、职业规范和技能。可从文件夹安装；它只添加指令，不会解锁其他功能。",
+  "settings.packs.install": "安装专业包…",
+  "settings.packs.none": "尚未安装任何专业包。",
+  "settings.packs.invalid": "此专业包无法使用：{{reason}}",
+  "settings.packs.requiresSafe": "适用于 Safe 文件夹。",
+  "settings.packs.active": "使用中",
+  "settings.packs.use": "使用",
+  "settings.packs.remove": "移除",
+  "settings.packs.useDefault": "恢复默认专业包",
+  "settings.packs.installed": "专业包已安装。",
+  "settings.packs.replaceBody": "此专业包的 {{version}} 版本已安装。安装当前版本将替换它。",
+  "settings.packs.replaceConfirm": "替换",
+  "settings.packs.installFailed": "专业包未能安装：{{reason}}",
+  "settings.packs.changeFailed": "处理专业包时出错。请重试。"
 }

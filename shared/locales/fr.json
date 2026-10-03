@@ -2500,5 +2500,20 @@
   "errors.ui.demoFileMissing": "Fichier de démonstration introuvable : {{path}}",
   "errors.ui.demoProfileMissing": "Profil de démonstration introuvable : {{id}}",
   "errors.ui.demoServerMissing": "Serveur d'outils de démonstration introuvable : {{id}}",
-  "errors.ui.demoCandidateMissing": "Candidat MCP importé introuvable : {{id}}"
+  "errors.ui.demoCandidateMissing": "Candidat MCP importé introuvable : {{id}}",
+  "settings.packs.title": "Pack métier",
+  "settings.packs.description": "Un pack donne à l'assistant l'identité, les règles déontologiques et les skills d'un métier. Installez-en un depuis un dossier ; il n'ajoute que des instructions et ne débloque rien d'autre.",
+  "settings.packs.install": "Installer un pack…",
+  "settings.packs.none": "Aucun pack n'est installé.",
+  "settings.packs.invalid": "Ce pack est inutilisable : {{reason}}",
+  "settings.packs.requiresSafe": "Prévu pour les dossiers Safe.",
+  "settings.packs.active": "Utilisé",
+  "settings.packs.use": "Utiliser",
+  "settings.packs.remove": "Retirer",
+  "settings.packs.useDefault": "Revenir au pack par défaut",
+  "settings.packs.installed": "Pack installé.",
+  "settings.packs.replaceBody": "La version {{version}} de ce pack est déjà installée. L'installation de celui-ci la remplace.",
+  "settings.packs.replaceConfirm": "La remplacer",
+  "settings.packs.installFailed": "Le pack n'a pas été installé : {{reason}}",
+  "settings.packs.changeFailed": "Un problème est survenu avec les packs. Réessayez."
 }
