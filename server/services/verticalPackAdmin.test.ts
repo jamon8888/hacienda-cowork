@@ -50,6 +50,21 @@ describe('verticalPackAdmin', () => {
     expect(JSON.stringify(view)).not.toContain('PRIVATE');
   });
 
+  test('the pack in force offers its starter prompts to the new-tab screen, never its text', async () => {
+    await admin.installPackFromFolder(makePack('droit', {
+      suggestionPills: [{ label: 'Relire un contrat', prompt: 'Relis ce contrat.' }],
+    }), false);
+    expect((await admin.getPackListView()).activePack).toBeNull();
+    const view = await admin.chooseActivePack('droit');
+    expect(view.activePack).toEqual({
+      id: 'droit',
+      name: 'Pack droit',
+      suggestionPills: [{ label: 'Relire un contrat', prompt: 'Relis ce contrat.' }],
+    });
+    expect(JSON.stringify(view)).not.toContain('PRIVATE');
+    expect((await admin.chooseActivePack(null)).activePack).toBeNull();
+  });
+
   test('picking a pack makes it active; only a valid pack can be picked', async () => {
     await admin.installPackFromFolder(makePack('droit'), false);
     const view = await admin.chooseActivePack('droit');

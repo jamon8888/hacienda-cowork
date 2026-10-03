@@ -29,9 +29,18 @@ export interface PackListEntry {
   error: string | null;
 }
 
+export interface ActivePackSuggestions {
+  id: string;
+  name: string;
+  /** Starter prompts the pack offers on the new-tab screen. */
+  suggestionPills: Array<{ label: string; prompt: string }>;
+}
+
 export interface PackListView {
   /** The pack in force (the user's pick, else the distribution's). */
   activeId: string | null;
+  /** What the new-tab screen needs from the pack in force; never its identity or rules. */
+  activePack: ActivePackSuggestions | null;
   /** The user's own pick; null means "the distribution default, if any". */
   chosenId: string | null;
   packs: PackListEntry[];
@@ -40,8 +49,12 @@ export interface PackListView {
 export async function getPackListView(): Promise<PackListView> {
   const source = getPackSource();
   const chosenId = await getActiveVerticalPackId();
+  const active = resolveActivePack(source, chosenId);
   return {
-    activeId: resolveActivePack(source, chosenId)?.id ?? null,
+    activeId: active?.id ?? null,
+    activePack: active
+      ? { id: active.id, name: active.name, suggestionPills: active.suggestionPills }
+      : null,
     chosenId,
     packs: listPacks(source).map((entry) => entry.result.ok
       ? {

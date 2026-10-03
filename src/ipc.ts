@@ -778,6 +778,8 @@ export interface PackListEntry {
 
 export interface PackListView {
   activeId: string | null;
+  /** The pack in force, with the starter prompts it offers on the new-tab screen. */
+  activePack: { id: string; name: string; suggestionPills: Array<{ label: string; prompt: string }> } | null;
   chosenId: string | null;
   packs: PackListEntry[];
 }
@@ -907,7 +909,7 @@ export const safeSurfaces: SafeSurfacesIpc = isMarketingDemoMode()
   : (client.safeSurfaces as SafeSurfacesIpc);
 export const packs: PacksIpc = isMarketingDemoMode()
   ? {
-    list: async () => ({ activeId: null, chosenId: null, packs: [] }),
+    list: async () => ({ activeId: null, activePack: null, chosenId: null, packs: [] }),
     setActive: async () => { throw new Error('Not available in demo mode'); },
     install: async () => { throw new Error('Not available in demo mode'); },
     remove: async () => { throw new Error('Not available in demo mode'); },
