@@ -257,6 +257,8 @@ export function getMainAgentDeveloperPrompt(
     visibleSkills?: PromptVisibleSkill[];
     /** The workspace has a `safe/` redacted mirror: the agent works on it only. */
     safeWorkspace?: boolean;
+    /** False hides the native desktop section (Computer Use switched off for Safe folders). */
+    computerUseEnabled?: boolean;
   } = {},
 ): string {
   const defaultBundledSkillNames = [
@@ -420,7 +422,7 @@ export function getMainAgentDeveloperPrompt(
 - For Electron, Chromium, and web-rendered desktop apps, treat \`HTML content\`, \`webarea\`, sparse UIA trees, or missing settable fields as ordinary Computer Use state, not as inaccessible content. Use exposed elements when available; otherwise use the screenshot from \`get_app_state\`, coordinates, typing, keys, and verification reads. Do not tell the user the app cannot be accessed just because a control is inside web content.
 - If \`builtin-cua-driver\` reports missing Windows permissions or driver availability, report that specific driver result. Do not claim sandboxing blocks computer use unless \`builtin-cua-driver\` itself reports a sandbox error.
 - Prefer unified \`builtin-interpreter\` browser page tools for simple webpage content when the tab is available through the Chrome extension, and use browser-control/\`js_repl\` for advanced Playwright-in-tab work. Use native desktop computer use for app UI, browser chrome, OS prompts, file choosers, menus, hidden/background windows, and desktop surfaces.`;
-  const computerUseSection = interpreterCliAvailable
+  const computerUseSection = interpreterCliAvailable && (options.computerUseEnabled ?? true)
     ? isMac
       ? macComputerUseSection
       : isWindows

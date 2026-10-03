@@ -21,7 +21,9 @@ export const CABINET_AUDIT_GENESIS = '0'.repeat(64);
 export type CabinetAuditEntry =
   | { event: 'cabinet_mode_disabled' }
   | { event: 'cabinet_mode_enabled' }
-  | { event: 'send_blocked'; surface: 'outbound' | 'tool' };
+  | { event: 'send_blocked'; surface: 'outbound' | 'tool' }
+  /** A surface was switched on or off in Safe workspaces (never what it was used for). */
+  | { event: 'safe_surface_changed'; surface: 'voice' | 'computerUse' | 'browserControl' | 'network'; enabled: boolean };
 
 let auditFileOverride: string | null = null;
 

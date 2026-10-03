@@ -361,5 +361,18 @@ describe('mainAgentPrompt', () => {
       expect(base.length).toBeLessThan(18000);
     });
   });
+
+  test('hides the native desktop section when Computer Use is switched off', () => {
+    const prompt = (computerUseEnabled?: boolean) => getMainAgentDeveloperPrompt(
+      'gpt-5.4-mini',
+      true,
+      '/usr/local/bin/interpreter-app',
+      { platform: 'darwin', ...(computerUseEnabled === undefined ? {} : { computerUseEnabled }) },
+    );
+    expect(prompt()).toContain('## Native desktop computer use');
+    expect(prompt(true)).toContain('## Native desktop computer use');
+    expect(prompt(false)).not.toContain('## Native desktop computer use');
+    expect(prompt(false)).not.toContain('builtin-cua-driver launch_app');
+  });
 });
 

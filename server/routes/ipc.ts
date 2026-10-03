@@ -216,6 +216,13 @@ const handlers: Record<string, Record<string, HandlerFn>> = {
     },
   },
 
+  // ========== Safe surfaces (settings) ==========
+  safeSurfaces: {
+    get: async () => (await import('../services/safeSurfaces')).getSafeSurfaces(),
+    set: async ([surface, enabled, confirmed]: [string, boolean, boolean]) =>
+      (await import('../services/safeSurfaces')).setSafeSurface(surface, enabled, { confirmed }),
+  },
+
   // ========== Vertical packs (settings) ==========
   packs: {
     list: async () => (await import('../services/verticalPackAdmin')).getPackListView(),

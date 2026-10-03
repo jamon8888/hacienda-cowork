@@ -129,6 +129,16 @@ async function getConfigVerticalPackSkillRoots(): Promise<string[]> {
   }
 }
 
+/** Lazy, like the other config reads here. Unreadable settings keep the network as configured. */
+async function isSafeNetworkSurfaceOff(): Promise<boolean> {
+  try {
+    const { getSafeSurfacesSync } = await import("../../../server/services/safeSurfaces");
+    return getSafeSurfacesSync().network === false;
+  } catch {
+    return false;
+  }
+}
+
 async function getConfigMacosScreenshotAccess(): Promise<boolean> {
   if (process.platform !== "darwin") {
     return true;
@@ -2109,12 +2119,14 @@ export class CodexAppServerClient {
         ])
       : null;
     const effectiveCwd = safe ? safe.safeRoot : cwd;
+    // The user can leave the network off in Safe folders; the sandbox then has none.
+    const networkAccess = safe && await isSafeNetworkSurfaceOff() ? false : runtimeAccess.networkAccess;
     return {
       cwd: effectiveCwd,
       workspacePermission: buildCodexWorkspacePermissionSelection({
         sandboxMode: runtimeAccess.sandboxMode,
         readAccessMode: runtimeAccess.readAccessMode,
-        networkAccess: runtimeAccess.networkAccess,
+        networkAccess,
         allowTempAccess: process.platform === "darwin" ? runtimeAccess.macosTempAccess : true,
         cwd: effectiveCwd,
         additionalReadableRoots: getInterpreterCliSandboxReadableRoots(),

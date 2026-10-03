@@ -786,6 +786,15 @@ export type PackInstallOutcome =
   | { installed: true; packId: string; replaced: boolean }
   | { installed: false; error: string; existingVersion: string | null };
 
+export type SafeSurfaceName = 'voice' | 'computerUse' | 'browserControl' | 'network';
+export type SafeSurfaceState = Record<SafeSurfaceName, boolean>;
+
+interface SafeSurfacesIpc {
+  get(): Promise<SafeSurfaceState>;
+  /** Turning a surface on needs confirmed=true; every change is audited first. */
+  set(surface: SafeSurfaceName, enabled: boolean, confirmed: boolean): Promise<SafeSurfaceState>;
+}
+
 interface PacksIpc {
   list(): Promise<PackListView>;
   /** null goes back to the distribution default. */
@@ -890,6 +899,12 @@ export const pii: PiiIpc = isMarketingDemoMode()
     },
   }
   : (client.pii as PiiIpc);
+export const safeSurfaces: SafeSurfacesIpc = isMarketingDemoMode()
+  ? {
+    get: async () => ({ voice: false, computerUse: true, browserControl: true, network: true }),
+    set: async () => { throw new Error('Not available in demo mode'); },
+  }
+  : (client.safeSurfaces as SafeSurfacesIpc);
 export const packs: PacksIpc = isMarketingDemoMode()
   ? {
     list: async () => ({ activeId: null, chosenId: null, packs: [] }),
