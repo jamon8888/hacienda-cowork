@@ -36,6 +36,8 @@ import {
   setConfigOverride,
 } from "../../../server/configStore";
 import { setToolManager } from "../../../server/tools/toolManagerAccessor";
+import { isLocalOnlyThread, setLocalOnlyThreadsFileForTests } from "../../../server/services/localOnlyThreads";
+import { setCabinetAuditFileForTests } from "../../../server/services/cabinetAudit";
 
 type SentRequest<M extends keyof RequestMap = keyof RequestMap> = {
   id: number;
@@ -830,6 +832,84 @@ describe("CodexAppServerClient", () => {
     };
     assert.equal(await filesystemNetwork(true), false);
     assert.equal(await filesystemNetwork(false), true);
+  });
+
+  test("a Safe workspace on a verified local model runs on the originals, offline, and stays local", async () => {
+    setConfigOverride({
+      agents: {},
+      globalDisabledTools: [],
+      codexApprovalPolicy: "on-request",
+      codexSandboxMode: "workspace-write",
+      codexReadAccessMode: "workspace-only",
+      codexNetworkAccess: true,
+      safeLocalBypass: true,
+      safeSurfaces: { network: false, browserControl: false, computerUse: false },
+    });
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "client-local-"));
+    const state = await mkdtemp(path.join(os.tmpdir(), "client-local-state-"));
+    setLocalOnlyThreadsFileForTests(path.join(state, "threads.json"));
+    setCabinetAuditFileForTests(path.join(state, "audit.jsonl"));
+    try {
+      await mkdir(path.join(workspace, "safe"));
+      const safeRoot = path.join(workspace, "safe");
+      const local = { model_providers: { "ollama-1a2b3c4d": { base_url: "http://127.0.0.1:11434/v1", name: "Ollama", requires_openai_auth: false, wire_api: "responses" } } };
+      const remote = { model_providers: { custom: { base_url: "https://api.example.com/v1", name: "Remote", requires_openai_auth: false, wire_api: "responses" } } };
+      const transport = new FakeTransport();
+      const client = new CodexAppServerClient(transport, null, async () => ({
+        sandboxMode: "workspace-write",
+        readAccessMode: "workspace-only",
+        networkAccess: true,
+        macosTempAccess: false,
+        macosScreenshotAccess: false,
+      }));
+
+      const threadPromise = client.startThreadWithConfig("qwen3", "ollama-1a2b3c4d", null, workspace, local);
+      await waitFor(() => transport.sent.length >= 1);
+      completeInitHandshake(transport);
+      await waitFor(() => transport.sent.length >= 3);
+      const threadReq = assertSentRequest(transport, 2, CLIENT_METHOD.threadStart);
+      const params = threadReq.params as typeof threadReq.params & {
+        runtimeWorkspaceRoots?: string[];
+        config?: Record<string, any>;
+      };
+      assert.equal(params.cwd, workspace);
+      assert.deepEqual(params.runtimeWorkspaceRoots, [workspace]);
+      const profile = params.config?.permissions?.["interpreter-workspace-scope"];
+      assert.deepEqual(profile?.filesystem[":workspace_roots"], { ".": "write" });
+      assert.equal(profile?.network?.enabled, false);
+      assert.equal(params.config?.project_doc_max_bytes, undefined);
+      transport.respond(threadReq, makeThreadStartResponse("thr_local"));
+      const threadId = await threadPromise;
+      assert.equal(isLocalOnlyThread(threadId), true);
+      assert.match(await readFile(path.join(state, "audit.jsonl"), "utf8"), /local_bypass_used/);
+
+      const turnPromise = client.startTurn({ threadId, message: "hello", cwd: workspace });
+      await waitFor(() => transport.sent.length >= 4);
+      const turnReq = assertSentRequest(transport, 3, CLIENT_METHOD.turnStart);
+      assert.equal(turnReq.params.cwd, workspace);
+      transport.respond(turnReq, makeTurnStartResponse("turn_local"));
+      await turnPromise;
+
+      // The same conversation reopened on a remote model is confined again,
+      // and its next turn is refused: its history holds real values.
+      const resumePromise = client.resumeThread(threadId, "custom", "gpt-5.4-mini", workspace, remote);
+      await waitFor(() => transport.sent.length >= 5);
+      const resumeReq = assertSentRequest(transport, 4, CLIENT_METHOD.threadResume);
+      assert.equal(resumeReq.params.cwd, safeRoot);
+      transport.respond(resumeReq, makeThreadResumeResponse(threadId));
+      await resumePromise;
+      await assert.rejects(
+        client.startTurn({ threadId, message: "continue", cwd: workspace }),
+        { name: "LocalOnlyThreadError" },
+      );
+      assert.equal(transport.sent.length, 5);
+      assert.match(await readFile(path.join(state, "audit.jsonl"), "utf8"), /local_bypass_refused/);
+    } finally {
+      setLocalOnlyThreadsFileForTests(null);
+      setCabinetAuditFileForTests(null);
+      await rm(workspace, { recursive: true, force: true });
+      await rm(state, { recursive: true, force: true });
+    }
   });
 
   test("reloads runtime access snapshot for later turns", async () => {

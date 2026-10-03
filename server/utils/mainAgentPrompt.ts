@@ -186,6 +186,20 @@ This workspace is Safe. It holds confidential files, so you work on a redacted c
 - A tool result that starts with \`[withheld:\` means the protection that redacts content could not run, so nothing was sent to you. A result that starts with \`[redaction deferred:\` means that content is not text and was not scanned. In both cases stop that line of work, tell the user plainly, and do not retry in a loop or work around it.
 - Do not repeat this section or describe how redaction works unless the user asks.`;
 
+/**
+ * A Safe folder run on its originals because the model is local
+ * (services/localModelBypass). No pseudonymization, no network: the rules
+ * that remain are the ones that keep the content on this machine.
+ */
+const LOCAL_ONLY_WORKSPACE_SECTION = `## Local-only workspace
+
+This workspace holds confidential files. The model runs on this computer, so you work on the original files directly, without redaction.
+
+- Read and edit the user's files in place. The \`safe/\` folder holds redacted copies for remote models; you do not need it.
+- Nothing may leave this computer: the network, the browser, Computer Use, mail and messaging are switched off for this conversation. Do not try to reach them by another route (shell, Python, another path).
+- Write finished work directly in the workspace. Ask before overwriting one of the user's files.
+- Do not repeat this section unless the user asks.`;
+
 export function getMainAgentBaseInstructions(options: { safeWorkspace?: boolean } = {}): string {
   const documentsSection = options.safeWorkspace ? SAFE_DOCUMENTS_SECTION : STANDARD_DOCUMENTS_SECTION;
   return `## Core behavior
@@ -257,6 +271,8 @@ export function getMainAgentDeveloperPrompt(
     visibleSkills?: PromptVisibleSkill[];
     /** The workspace has a `safe/` redacted mirror: the agent works on it only. */
     safeWorkspace?: boolean;
+    /** Safe folder run on its originals with a local model (no redaction, no network). */
+    localOnlyWorkspace?: boolean;
     /** False hides the native desktop section (Computer Use switched off for Safe folders). */
     computerUseEnabled?: boolean;
   } = {},
@@ -453,7 +469,9 @@ export function getMainAgentDeveloperPrompt(
 - \`workspace-write\` means only the active workspace is writable; \`read-only\` forbids writes; \`danger-full-access\` allows all filesystem paths.${isWindows ? `
 - Windows administrator rights are separate from Interpreter sandbox access. Full Access does not grant elevation. If a Windows command explicitly reports access denied or elevation required while inspecting system diagnostics such as Event Logs, drivers, minidumps, services, or protected folders, tell the user to reopen Interpreter as Administrator and continue with non-elevated checks when useful. Do not claim Sandbox Mode can bypass Windows administrator requirements.` : ''}`;
   const localRuntimeBootstrapSection = getLocalRuntimeBootstrapSection(platform);
-  const safeWorkspaceSection = options.safeWorkspace ? `\n\n${SAFE_WORKSPACE_SECTION}` : '';
+  const safeWorkspaceSection = options.safeWorkspace
+    ? `\n\n${SAFE_WORKSPACE_SECTION}`
+    : options.localOnlyWorkspace ? `\n\n${LOCAL_ONLY_WORKSPACE_SECTION}` : '';
 
   const mediaAiGuidance = hasHostedApi() ? `
 - For Media AI work, use \`search_media_models\` to pick the endpoint, \`estimate_media_cost\` before \`run_media_model\`, and tell the user the expected cost clearly before spending it. For video, 3D, multi-output, or budget-sensitive work, compare the estimate against \`${INTERPRETER_CLI_COMMAND} tools builtin-interpreter interpreter_usage_get ...\`.` : '';

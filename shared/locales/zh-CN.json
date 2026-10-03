@@ -2532,5 +2532,12 @@
   "settings.safeSurfaces.enableTitle": "在 Safe 文件夹中开启此项？",
   "settings.safeSurfaces.enableBody": "经此通道的内容不会脱敏，会原样到达 AI 提供方或其他服务。开启操作将以您的名义记录在审计日志中。",
   "settings.safeSurfaces.enableConfirm": "开启 — 我承担责任",
-  "settings.safeSurfaces.changeFailed": "设置未更改。请重试。"
+  "settings.safeSurfaces.changeFailed": "设置未更改。请重试。",
+  "settings.safeLocalBypass.title": "使用本地模型处理原件",
+  "settings.safeLocalBypass.description": "在 Safe 文件夹中，模型在本机运行的对话会直接读取原始文件，不做假名化处理。开启后，Safe 文件夹中的网络、浏览器和电脑控制也会关闭。每次更改都会记入审计日志。",
+  "settings.safeLocalBypass.inactive": "以下功能开启时不生效：{{surfaces}}。",
+  "settings.safeLocalBypass.enableTitle": "不做假名化，直接处理原件？",
+  "settings.safeLocalBypass.enableBody": "仅适用于在本机运行的模型（例如 localhost 上的 Ollama 或 LM Studio）；使用其他模型时，Safe 保持不变。Safe 文件夹中的网络、浏览器和电脑控制将被关闭。以这种方式进行的对话以后无法改用远程模型继续。转发到云服务的本地服务器由您自行负责。",
+  "settings.safeLocalBypass.enableConfirm": "处理原件",
+  "safe.localOnly.refused": "此对话在未做假名化的情况下读取了文件，因此只能使用本机上的模型继续。请切换回本地模型，或开始新的对话。"
 }

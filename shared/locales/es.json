@@ -2532,5 +2532,12 @@
   "settings.safeSurfaces.enableTitle": "¿Activar esto en las carpetas Safe?",
   "settings.safeSurfaces.enableBody": "El contenido que pasa por este canal no se seudonimiza y llega tal cual al proveedor de IA u otros servicios. La activación queda registrada en el registro de auditoría, a su nombre.",
   "settings.safeSurfaces.enableConfirm": "Activar — asumo la responsabilidad",
-  "settings.safeSurfaces.changeFailed": "No se cambió el ajuste. Inténtelo de nuevo."
+  "settings.safeSurfaces.changeFailed": "No se cambió el ajuste. Inténtelo de nuevo.",
+  "settings.safeLocalBypass.title": "Trabajar con los originales con un modelo local",
+  "settings.safeLocalBypass.description": "En las carpetas Safe, una conversación cuyo modelo se ejecuta en este equipo lee los archivos originales, sin seudonimización. Activarlo también desactiva la red, el navegador y el control del equipo en las carpetas Safe. Cada cambio queda registrado en el registro de auditoría.",
+  "settings.safeLocalBypass.inactive": "Sin efecto mientras estén activados: {{surfaces}}.",
+  "settings.safeLocalBypass.enableTitle": "¿Trabajar con los originales sin seudonimización?",
+  "settings.safeLocalBypass.enableBody": "Solo con un modelo que se ejecute en este equipo (por ejemplo Ollama o LM Studio en localhost); con cualquier otro modelo, Safe no cambia. La red, el navegador y el control del equipo se desactivarán en las carpetas Safe. Una conversación así no podrá continuar nunca con un modelo remoto. Un servidor local que reenvíe a un servicio en la nube es responsabilidad suya.",
+  "settings.safeLocalBypass.enableConfirm": "Trabajar con los originales",
+  "safe.localOnly.refused": "Esta conversación leyó archivos sin seudonimización, así que solo puede continuar con un modelo en este equipo. Vuelva a un modelo local o inicie una conversación nueva."
 }

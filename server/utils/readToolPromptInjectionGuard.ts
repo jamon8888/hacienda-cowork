@@ -143,6 +143,24 @@ export function setReadToolPromptInjectionGuardRunnerForTests(
   guardModelRunnerForTests = runner;
 }
 
+/**
+ * Where the guard sends tool output, or null when the guard is off. Local-only
+ * Safe work needs it on this machine too (services/localModelBypass); a guard
+ * that is on but cannot be resolved counts as remote.
+ */
+export async function resolveReadToolGuardRoute(): Promise<{
+  modelProvider: string | null;
+  providerConfig: CodexProfile['providerConfig'] | null;
+} | null> {
+  const settings = await getInterpreterOverlaySettings();
+  if (!settings.readToolPromptInjectionGuard.enabled) return null;
+  const profileId = resolveOverlayModelTaskProfileIds(settings).readToolGuardProfileId;
+  const profile = profileId ? await getProfile(profileId) : null;
+  if (!profile) return { modelProvider: null, providerConfig: null };
+  const codexProfile = resolveGuardProfile(resolveCodexProfileFromModelConfig(profileToModelConfig(profile)));
+  return { modelProvider: codexProfile.modelProvider, providerConfig: codexProfile.providerConfig ?? null };
+}
+
 export async function classifyReadToolPromptInjection(
   input: ReadToolPromptInjectionGuardInput,
 ): Promise<GuardDecision | null> {
