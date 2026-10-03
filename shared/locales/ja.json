@@ -2515,5 +2515,7 @@
   "settings.packs.replaceBody": "このパックのバージョン {{version}} はすでにインストールされています。これをインストールすると置き換えられます。",
   "settings.packs.replaceConfirm": "置き換える",
   "settings.packs.installFailed": "パックをインストールできませんでした：{{reason}}",
-  "settings.packs.changeFailed": "パックの処理中に問題が発生しました。もう一度お試しください。"
+  "settings.packs.changeFailed": "パックの処理中に問題が発生しました。もう一度お試しください。",
+  "basemind.banner.packTitle": "このフォルダは Safe ではありません",
+  "basemind.banner.packMessage": "パック「{{pack}}」は機密文書向けです。Safe 以外では、入力した内容とアシスタントが読むファイルがそのまま AI プロバイダーに送信されます。このフォルダを Safe にして、匿名化されたコピーで作業してください。"
 }

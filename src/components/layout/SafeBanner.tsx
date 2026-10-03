@@ -5,7 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { getWorkspace } from '@/api';
 import { useLayoutActions } from '@/hooks/useLayout';
-import { basemind, workspace } from '@/ipc';
+import { basemind, packs, workspace } from '@/ipc';
+import { PACKS_CHANGED_EVENT } from '@/lib/packEvents';
 import {
   getSafeStatusSnapshot,
   refreshSafeStatus,
@@ -16,6 +17,7 @@ import {
   SAFE_BANNER_ID,
   SAFE_BANNER_LATER_BUTTON_ID,
   SAFE_BANNER_LEARN_MORE_BUTTON_ID,
+  SAFE_BANNER_PACK_NOTICE_ID,
   SAFE_BANNER_RETRY_BUTTON_ID,
   SAFE_BANNER_STATUS_ID,
 } from '../../../shared/element-ids';
@@ -54,6 +56,8 @@ export function SafeBanner() {
   const [phase, setPhase] = useState<SafeBannerPhase>('hidden');
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
   const status = useSyncExternalStore(subscribeSafeStatus, getSafeStatusSnapshot, getSafeStatusSnapshot);
+  // The pack in force, when it needs a Safe folder to be used as intended.
+  const [safePack, setSafePack] = useState<{ name: string } | null>(null);
 
   const applyPath = useCallback((path: string | null) => {
     setWorkspacePath(path);
@@ -103,6 +107,29 @@ export function SafeBanner() {
     };
   }, [applyPath]);
 
+  // Which pack is in force, re-read when the user changes packs or opens a
+  // folder. A read that fails leaves the banner as it was: no pack, no notice.
+  useEffect(() => {
+    let cancelled = false;
+    const loadPack = async () => {
+      try {
+        const view = await packs.list();
+        const active = view.packs.find((entry) => entry.id !== null && entry.id === view.activeId);
+        if (!cancelled) setSafePack(active?.requiresSafe ? { name: active.name } : null);
+      } catch {
+        if (!cancelled) setSafePack(null);
+      }
+    };
+    void loadPack();
+    window.addEventListener(PACKS_CHANGED_EVENT, loadPack);
+    const unsubscribe = workspace.onChanged(() => { void loadPack(); });
+    return () => {
+      cancelled = true;
+      window.removeEventListener(PACKS_CHANGED_EVENT, loadPack);
+      unsubscribe();
+    };
+  }, []);
+
   const runDownload = useCallback(async () => {
     if (!workspacePath) return;
     setPhase('inProgress');
@@ -133,11 +160,24 @@ export function SafeBanner() {
     openSettings(undefined, 'privacy');
   }, [openSettings]);
 
-  if (phase === 'hidden' || !workspacePath) return null;
+  // A pack made for confidential files is in force and this folder is not Safe:
+  // keep offering Safe, whatever "Later" the user once chose. Unknown is not
+  // "not Safe" (status unread, or no such field): nothing is forced then.
+  const packNotice = Boolean(
+    workspacePath
+    && safePack
+    && status?.safeWorkspace === false
+    && !status.indexing
+    && !status.progress
+    && phase !== 'inProgress'
+    && phase !== 'failed',
+  );
+
+  if ((phase === 'hidden' && !packNotice) || !workspacePath) return null;
 
   // Story #19: "active" must be earned by files this workspace actually has.
-  let displayPhase = phase;
-  if (phase === 'active') {
+  let displayPhase: SafeBannerPhase = packNotice ? 'proposed' : phase;
+  if (phase === 'active' && !packNotice) {
     if (!status) return null;
     if (status.fileCount === 0) {
       displayPhase = status.indexing || status.progress ? 'inProgress' : 'proposed';
@@ -153,14 +193,14 @@ export function SafeBanner() {
         background: 'color-mix(in srgb, var(--oa-bg-subtle, var(--muted)) 46%, transparent)',
       }}
       role="region"
-      aria-label={t('basemind.banner.title')}
+      aria-label={packNotice ? t('basemind.banner.packTitle', { pack: safePack?.name }) : t('basemind.banner.title')}
     >
       <div className="flex min-w-0 flex-1 items-start gap-3">
         <div
           className="flex size-7 shrink-0 items-center justify-center rounded-full"
           style={{ background: 'color-mix(in srgb, #059669 12%, transparent)' }}
         >
-          {displayPhase === 'failed' ? (
+          {displayPhase === 'failed' || packNotice ? (
             <ShieldAlert className="size-3.5 text-emerald-700 dark:text-emerald-300" aria-hidden />
           ) : displayPhase === 'active' ? (
             <CheckCircle2 className="size-3.5 text-emerald-700 dark:text-emerald-300" aria-hidden />
@@ -170,17 +210,17 @@ export function SafeBanner() {
         </div>
         <div className="min-w-0 flex-1">
           {displayPhase === 'proposed' && (
-            <>
+            <div data-testid={packNotice ? SAFE_BANNER_PACK_NOTICE_ID : undefined}>
               <p className="text-ui-sm text-[var(--oa-text-strong)]">
-                {t('basemind.banner.title')}
+                {packNotice ? t('basemind.banner.packTitle', { pack: safePack?.name }) : t('basemind.banner.title')}
               </p>
               <p className="text-ui-xs text-[var(--oa-text-faint)]">
-                {t('basemind.banner.message')}
+                {packNotice ? t('basemind.banner.packMessage', { pack: safePack?.name }) : t('basemind.banner.message')}
               </p>
               <p className="text-ui-xs text-[var(--oa-text-faint)]">
                 {t('basemind.banner.cost')}
               </p>
-            </>
+            </div>
           )}
           {displayPhase === 'inProgress' && (
             <div data-testid={SAFE_BANNER_STATUS_ID} role="status" aria-live="polite">
@@ -241,15 +281,17 @@ export function SafeBanner() {
           >
             {t('basemind.banner.learnMore')}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            data-testid={SAFE_BANNER_LATER_BUTTON_ID}
-            onClick={handleLater}
-            className="rounded-full px-3 text-ui-sm"
-          >
-            {t('basemind.banner.later')}
-          </Button>
+          {!packNotice && (
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid={SAFE_BANNER_LATER_BUTTON_ID}
+              onClick={handleLater}
+              className="rounded-full px-3 text-ui-sm"
+            >
+              {t('basemind.banner.later')}
+            </Button>
+          )}
           <Button
             size="sm"
             data-testid={SAFE_BANNER_CTA_BUTTON_ID}

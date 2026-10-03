@@ -2515,5 +2515,7 @@
   "settings.packs.replaceBody": "此专业包的 {{version}} 版本已安装。安装当前版本将替换它。",
   "settings.packs.replaceConfirm": "替换",
   "settings.packs.installFailed": "专业包未能安装：{{reason}}",
-  "settings.packs.changeFailed": "处理专业包时出错。请重试。"
+  "settings.packs.changeFailed": "处理专业包时出错。请重试。",
+  "basemind.banner.packTitle": "此文件夹不是 Safe",
+  "basemind.banner.packMessage": "专业包“{{pack}}”适用于机密文档。在 Safe 之外，您的提问和助手读取的文件会原样发送给 AI 提供方。请将此文件夹设为 Safe，以便在已脱敏的副本上工作。"
 }

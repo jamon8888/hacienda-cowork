@@ -6,6 +6,7 @@ import { isModelResourceReady } from '../utils/hubCache';
 import { getCurrentWorkspace } from '../utils/workspace';
 import { getCodeIndexingEnabled } from '../configStore';
 import { getScanState, setIndexingState } from '../utils/scanState';
+import { isSafeWorkspace } from '../utils/safeWorkspace';
 
 export { setIndexingState };
 
@@ -28,6 +29,8 @@ export interface WorkspaceScanResult {
 }
 
 export interface WorkspaceScanStatus {
+  /** The open workspace has a `safe/` folder (it opted in), whatever the banner remembers. */
+  safeWorkspace: boolean;
   redactionActive: boolean;
   indexing: boolean;
   fileCount: number;
@@ -142,6 +145,7 @@ export function getWorkspaceScanStatus(): WorkspaceScanStatus {
 
   const scanState = getScanState();
   return {
+    safeWorkspace: isSafeWorkspace(getCurrentWorkspace()),
     redactionActive: xbergAvailable,
     indexing: scanState.indexing,
     fileCount: countWorkspaceSafeFiles(),

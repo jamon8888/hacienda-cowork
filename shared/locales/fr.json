@@ -2515,5 +2515,7 @@
   "settings.packs.replaceBody": "La version {{version}} de ce pack est déjà installée. L'installation de celui-ci la remplace.",
   "settings.packs.replaceConfirm": "La remplacer",
   "settings.packs.installFailed": "Le pack n'a pas été installé : {{reason}}",
-  "settings.packs.changeFailed": "Un problème est survenu avec les packs. Réessayez."
+  "settings.packs.changeFailed": "Un problème est survenu avec les packs. Réessayez.",
+  "basemind.banner.packTitle": "Ce dossier n'est pas Safe",
+  "basemind.banner.packMessage": "Le pack « {{pack}} » est prévu pour des documents confidentiels. Hors Safe, ce que vous demandez et les fichiers que l'assistant lit sont envoyés tels quels au fournisseur d'IA. Rendez ce dossier Safe pour travailler sur des copies pseudonymisées."
 }

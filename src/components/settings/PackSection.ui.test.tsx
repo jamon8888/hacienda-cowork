@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
+import { PACKS_CHANGED_EVENT } from '@/lib/packEvents';
 import { PackSectionContent } from './PackSection';
 
 const mocks = vi.hoisted(() => {
@@ -69,4 +70,17 @@ describe('PackSectionContent', () => {
     await userEvent.click(await screen.findByRole('button', { name: /install|installer/i }));
     expect(mocks.packs.install).not.toHaveBeenCalled();
   });
+
+  test('tells the rest of the app when the pack in force may have changed', async () => {
+    const listener = vi.fn();
+    window.addEventListener(PACKS_CHANGED_EVENT, listener);
+    try {
+      render(<PackSectionContent />);
+      await userEvent.click(await screen.findByRole('button', { name: /^use$|^utiliser$/i }));
+      await waitFor(() => expect(listener).toHaveBeenCalledTimes(1));
+    } finally {
+      window.removeEventListener(PACKS_CHANGED_EVENT, listener);
+    }
+  });
 });
+

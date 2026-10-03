@@ -2515,5 +2515,7 @@
   "settings.packs.replaceBody": "La versione {{version}} di questo pacchetto è già installata. Installare questo la sostituisce.",
   "settings.packs.replaceConfirm": "Sostituiscila",
   "settings.packs.installFailed": "Il pacchetto non è stato installato: {{reason}}",
-  "settings.packs.changeFailed": "Qualcosa è andato storto con i pacchetti. Riprovi."
+  "settings.packs.changeFailed": "Qualcosa è andato storto con i pacchetti. Riprovi.",
+  "basemind.banner.packTitle": "Questa cartella non è Safe",
+  "basemind.banner.packMessage": "Il pacchetto «{{pack}}» è pensato per documenti riservati. Fuori da Safe, ciò che chiede e i file letti dall'assistente vengono inviati così come sono al fornitore di IA. Renda Safe questa cartella per lavorare su copie pseudonimizzate."
 }

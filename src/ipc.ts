@@ -736,6 +736,8 @@ interface PiiIpc {
 }
 
 export interface WorkspaceScanStatus {
+  /** The open workspace has a safe/ folder; the banner's remembered state can be stale. */
+  safeWorkspace: boolean;
   redactionActive: boolean;
   indexing: boolean;
   fileCount: number;
