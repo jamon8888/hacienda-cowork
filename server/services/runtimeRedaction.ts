@@ -23,6 +23,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { buildRedactedText, mergeDetections } from '../../src/lib/pii/labels';
+import type { WorkspaceTokenRegistry } from './workspaceTokenRegistry';
 import { detectCustomTerms, type CustomTerm } from '../../src/lib/pii/custom-terms';
 import { detectRegex } from '../../src/lib/pii/regex-detector';
 import type { PiiDetection } from '../../src/lib/pii/regex-detector';
@@ -50,6 +51,12 @@ export interface RuntimeRedactionDeps {
   recordBlock?: (surface: 'outbound' | 'tool') => Promise<void>;
   blockedSendMessage?: () => Promise<string>;
   loadCustomInstructions?: () => Promise<string | null>;
+  workspaceRegistry?: (workspacePath: string) => Promise<WorkspaceTokenRegistry>;
+}
+
+async function defaultWorkspaceRegistry(workspacePath: string): Promise<WorkspaceTokenRegistry> {
+  const { loadWorkspaceTokenRegistry } = await import('./workspaceTokenRegistry');
+  return loadWorkspaceTokenRegistry(workspacePath);
 }
 
 async function defaultDetectNer(text: string, options?: { requireNer?: boolean }): Promise<PiiDetection[]> {
@@ -111,6 +118,7 @@ function resolveDeps(deps: RuntimeRedactionDeps = {}): {
   recordBlock: (surface: 'outbound' | 'tool') => Promise<void>;
   blockedSendMessage: () => Promise<string>;
   loadCustomInstructions: () => Promise<string | null>;
+  workspaceRegistry: (workspacePath: string) => Promise<WorkspaceTokenRegistry>;
 } {
   return {
     isNerReady: deps.isNerReady ?? defaultIsNerReady,
@@ -121,6 +129,7 @@ function resolveDeps(deps: RuntimeRedactionDeps = {}): {
     recordBlock: deps.recordBlock ?? defaultRecordBlock,
     blockedSendMessage: deps.blockedSendMessage ?? defaultBlockedSendMessage,
     loadCustomInstructions: deps.loadCustomInstructions ?? defaultLoadCustomInstructions,
+    workspaceRegistry: deps.workspaceRegistry ?? defaultWorkspaceRegistry,
   };
 }
 
@@ -211,6 +220,11 @@ function isNonTextContent(text: string): boolean {
 
 export interface RedactTextOptions {
   threadKey?: string;
+  /**
+   * Safe workspace root. Tokens then come from the workspace registry, so a
+   * value has the same token here as in every safe/ mirror.
+   */
+  workspacePath?: string | null;
   /** Cabinet mode: throw DetectionUnavailableError instead of the regex-only fallback. */
   requireFullDetection?: boolean;
 }
@@ -318,13 +332,29 @@ async function redactTextBatch(
     }
     if (options.requireFullDetection && !nerRan) throw new DetectionUnavailableError();
   }
+  // Loaded before the synchronous allocation below, so two batches can never
+  // pick the same new token between awaits.
+  let registry: WorkspaceTokenRegistry | null = null;
+  if (options.workspacePath) {
+    try {
+      registry = await resolved.workspaceRegistry(options.workspacePath);
+    } catch (error) {
+      // Cabinet mode refuses what it cannot vouch for: thread-only tokens
+      // could reuse a number a mirror already gives another value.
+      if (options.requireFullDetection) throw new DetectionUnavailableError();
+      console.warn('[runtime-redaction] workspace token registry unavailable; tokens stay thread-scoped', error);
+    }
+  }
   const threadMap = options.threadKey ? runtimeRehydrationMaps.get(options.threadKey) : undefined;
-  const reserved = new Set(Object.keys(threadMap ?? {}));
-  // One value keeps one token across the conversation and across the texts of
-  // this batch, so the model can follow the same company or person. Different
-  // values never share a token: new ones skip every reserved (live) token.
-  const reusable: Record<string, string> = { ...threadMap };
-  return entries.map((entry, index): RedactedText => {
+  const workspaceTokens = registry?.tokens() ?? {};
+  const reserved = new Set([...Object.keys(threadMap ?? {}), ...Object.keys(workspaceTokens)]);
+  // One value keeps one token across the workspace (mirrors and conversation)
+  // and across the texts of this batch, so the model can follow the same
+  // company or person. Different values never share a token: new ones skip
+  // every reserved (live) token. The registry wins where an older thread map
+  // disagrees.
+  const reusable: Record<string, string> = { ...threadMap, ...workspaceTokens };
+  const results = entries.map((entry, index): RedactedText => {
     if (!scannable[index]) return { text: RUNTIME_REDACTION_DEFERRED_MARKER, redacted: false, deferred: true };
     // NER runs unconditionally when ready: regex covers patterns (email,
     // phone, …) but NER-only categories (names, addresses) would pass raw.
@@ -336,9 +366,18 @@ async function redactTextBatch(
     const { redactedText, rehydrationMap } = buildRedactedText(entry.text, detections, reserved, reusable);
     for (const token of Object.keys(rehydrationMap)) reserved.add(token);
     Object.assign(reusable, rehydrationMap);
+    registry?.record(rehydrationMap);
     if (options.threadKey) storeRuntimeRehydrationMap(options.threadKey, rehydrationMap);
     return { text: redactedText, redacted: true, deferred: false };
   });
+  // Best effort, like the thread map: a lost write cannot leak anything, and
+  // the export refuses a token whose value it cannot resolve unambiguously.
+  if (registry) {
+    void registry.persist().catch((error) => {
+      console.warn('[runtime-redaction] workspace token registry not persisted', error);
+    });
+  }
+  return results;
 }
 
 export async function redactFileReadOutputText(
@@ -525,6 +564,7 @@ export async function maybeRedactToolResult(
   let withheld = false;
   const redacted = await applyFileReadRedaction(result, {
     ...(threadKey ? { threadKey } : {}),
+    workspacePath: workspacePath ?? null,
     requireFullDetection,
     onWithheld: () => { withheld = true; },
   }, deps);
@@ -582,6 +622,7 @@ export async function maybeRedactOutboundText(
       text,
       {
         ...(options.threadKey ? { threadKey: options.threadKey } : {}),
+        workspacePath: options.workspacePath ?? null,
         requireFullDetection,
       },
       deps,

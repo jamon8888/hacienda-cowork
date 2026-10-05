@@ -4,6 +4,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { setIndexingState } from './scanState';
+import { renumberTokens, type WorkspaceTokenRegistry } from '../services/workspaceTokenRegistry';
 
 /**
  * ponytail: 2s trailing debounce — up to ~2s search lag after a single save;
@@ -76,6 +77,7 @@ export interface SafeRedactResult {
 }
 
 type RedactFn = (absolutePath: string) => Promise<SafeRedactResult>;
+type RegistryFn = (workspacePath: string) => Promise<WorkspaceTokenRegistry>;
 type VaultPersistFn = (docId: string, map: Record<string, string>) => Promise<void> | void;
 type VaultRemoveFn = (docId: string) => Promise<void> | void;
 
@@ -95,7 +97,13 @@ async function defaultVaultRemove(docId: string): Promise<void> {
   deleteVaultBlobPath(resolveVaultBlobPath(docId));
 }
 
+async function defaultRegistry(workspacePath: string): Promise<WorkspaceTokenRegistry> {
+  const { loadWorkspaceTokenRegistry } = await import('../services/workspaceTokenRegistry');
+  return loadWorkspaceTokenRegistry(workspacePath);
+}
+
 let redactFn: RedactFn = defaultRedactFile;
+let registryFn: RegistryFn = defaultRegistry;
 let vaultPersistFn: VaultPersistFn = defaultVaultPersist;
 let vaultRemoveFn: VaultRemoveFn = defaultVaultRemove;
 
@@ -136,6 +144,10 @@ export function setSafeSyncDebounceMsForTests(ms: number | null): void {
 
 export function setSafeSyncRedactForTests(fn: RedactFn | null): void {
   redactFn = fn ?? defaultRedactFile;
+}
+
+export function setSafeSyncRegistryForTests(fn: RegistryFn | null): void {
+  registryFn = fn ?? defaultRegistry;
 }
 
 export function setSafeSyncVaultPersistForTests(fn: VaultPersistFn | null): void {
@@ -195,8 +207,19 @@ export async function syncSafeMirrorFile(
   }
 
   try {
-    const { redacted_text, rehydration_map } = await redactFn(originalAbs);
-    if (!redacted_text) throw new Error('redact returned no content');
+    const redacted = await redactFn(originalAbs);
+    if (!redacted.redacted_text) throw new Error('redact returned no content');
+    // basemind numbers each file on its own; the workspace registry gives a
+    // value one token across every mirror and the conversation. The registry
+    // is on disk before the mirror is: a mirror using tokens the registry
+    // could forget after a restart would collide with later ones.
+    const registry = await registryFn(workspacePath);
+    const renumber = registry.adopt(redacted.rehydration_map);
+    await registry.persist();
+    const redacted_text = renumberTokens(redacted.redacted_text, renumber);
+    const rehydration_map = Object.fromEntries(
+      Object.entries(redacted.rehydration_map).map(([token, value]) => [renumber[token] ?? token, value]),
+    );
     await mkdir(dirname(mirrorAbs), { recursive: true });
     await writeFile(mirrorAbs, redacted_text, 'utf8');
     try {

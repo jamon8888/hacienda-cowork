@@ -5,11 +5,33 @@ import { join } from 'node:path';
 
 import {
   armSafeWorkspace,
+  ensureMirrorsOnWorkspaceRegistry,
   POPULATION_FILE_LIMIT,
   runInitialPopulation,
+  setSafeArmRegistryForTests,
   setSafeArmRescanForTests,
 } from './safeArm';
-import { clearAllSafeSync, mirrorDocId, setSafeSyncArmedForTests, setSafeSyncRedactForTests, setSafeSyncVaultPersistForTests, setSafeSyncVaultRemoveForTests } from './safeSync';
+import { clearAllSafeSync, mirrorDocId, setSafeSyncArmedForTests, setSafeSyncRedactForTests, setSafeSyncRegistryForTests, setSafeSyncVaultPersistForTests, setSafeSyncVaultRemoveForTests } from './safeSync';
+import { WorkspaceTokenRegistry } from '../services/workspaceTokenRegistry';
+
+// One in-memory registry per workspace; `written` records what reached the vault.
+const registries = new Map<string, WorkspaceTokenRegistry>();
+const written = new Set<string>();
+function memoryRegistry(workspacePath: string): WorkspaceTokenRegistry {
+  let registry = registries.get(workspacePath);
+  if (!registry) {
+    registry = new WorkspaceTokenRegistry(workspacePath, {}, {
+      exists: () => false,
+      decrypt: async () => ({}),
+      encrypt: async (map) => JSON.stringify(map),
+      write: () => {
+        written.add(workspacePath);
+      },
+    });
+    registries.set(workspacePath, registry);
+  }
+  return registry;
+}
 
 describe('safeArm (arm + initial population)', () => {
   let workspace = '';
@@ -29,6 +51,13 @@ describe('safeArm (arm + initial population)', () => {
     setSafeSyncRedactForTests(redactMock);
     setSafeSyncVaultPersistForTests(async () => {});
     setSafeSyncVaultRemoveForTests(() => {});
+    registries.clear();
+    written.clear();
+    setSafeSyncRegistryForTests(async (path) => memoryRegistry(path));
+    setSafeArmRegistryForTests({
+      load: async (path) => memoryRegistry(path),
+      has: async (path) => written.has(path),
+    });
   });
 
   afterEach(() => {
@@ -38,7 +67,34 @@ describe('safeArm (arm + initial population)', () => {
     setSafeSyncRedactForTests(null);
     setSafeSyncVaultPersistForTests(null);
     setSafeSyncVaultRemoveForTests(null);
+    setSafeSyncRegistryForTests(null);
+    setSafeArmRegistryForTests(null);
     rmSync(workspace, { recursive: true, force: true });
+  });
+
+  test('population leaves a registry behind even when no file held PII', async () => {
+    armSafeWorkspace(workspace);
+    writeFileSync(join(workspace, 'notes.txt'), 'hi');
+    await runInitialPopulation(workspace);
+    expect(written.has(workspace)).toBe(true);
+  });
+
+  test('mirrors written before the registry are mirrored again once', async () => {
+    armSafeWorkspace(workspace);
+    writeFileSync(join(workspace, 'notes.txt'), 'hi');
+    writeFileSync(join(workspace, 'safe', 'notes.txt.md'), 'old per-file numbering');
+    expect(await ensureMirrorsOnWorkspaceRegistry(workspace)).toBe(true);
+    expect(redactMock).toHaveBeenCalledTimes(1);
+    // The registry now marks the workspace done.
+    expect(await ensureMirrorsOnWorkspaceRegistry(workspace)).toBe(false);
+    expect(redactMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('a Safe workspace with no mirror yet, or a workspace that is not Safe, is left alone', async () => {
+    expect(await ensureMirrorsOnWorkspaceRegistry(workspace)).toBe(false);
+    armSafeWorkspace(workspace);
+    expect(await ensureMirrorsOnWorkspaceRegistry(workspace)).toBe(false);
+    expect(redactMock).not.toHaveBeenCalled();
   });
 
   test('armSafeWorkspace creates safe/ and is idempotent', () => {

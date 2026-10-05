@@ -3,6 +3,11 @@ import { join } from 'node:path';
 
 import { IGNORED_SEGMENTS, syncSafeMirrorFile } from './safeSync';
 import { setIndexingState, setPopulationProgress } from './scanState';
+import {
+  hasPersistedWorkspaceTokenRegistry,
+  loadWorkspaceTokenRegistry,
+  type WorkspaceTokenRegistry,
+} from '../services/workspaceTokenRegistry';
 
 /**
  * Root-guard marker: basemind refuses a non-git workspace root without
@@ -62,6 +67,17 @@ let rescanFn: RescanFn = defaultRescan;
 
 export function setSafeArmRescanForTests(fn: RescanFn | null): void {
   rescanFn = fn ?? defaultRescan;
+}
+
+type RegistryFn = (workspacePath: string) => Promise<WorkspaceTokenRegistry>;
+type HasRegistryFn = (workspacePath: string) => Promise<boolean>;
+
+let registryFn: RegistryFn = (workspacePath) => loadWorkspaceTokenRegistry(workspacePath);
+let hasRegistryFn: HasRegistryFn = (workspacePath) => hasPersistedWorkspaceTokenRegistry(workspacePath);
+
+export function setSafeArmRegistryForTests(fns: { load: RegistryFn; has: HasRegistryFn } | null): void {
+  registryFn = fns?.load ?? ((workspacePath) => loadWorkspaceTokenRegistry(workspacePath));
+  hasRegistryFn = fns?.has ?? ((workspacePath) => hasPersistedWorkspaceTokenRegistry(workspacePath));
 }
 
 /**
@@ -124,6 +140,14 @@ export async function runInitialPopulation(
       setPopulationProgress({ done: countWritten + skipped, total: files.length });
     }
 
+    // Written even when no file held PII: its presence marks the mirrors as
+    // numbered on the workspace registry (ensureMirrorsOnWorkspaceRegistry).
+    try {
+      await (await registryFn(workspacePath)).persist({ force: true });
+    } catch (error) {
+      console.warn('[safe-arm] workspace token registry not persisted after population', error);
+    }
+
     if (mirrorPaths.length > 0) {
       await rescanFn({ paths: mirrorPaths });
     }
@@ -133,3 +157,35 @@ export async function runInitialPopulation(
   }
   return { written: countWritten, skipped };
 }
+
+function hasMirrorFiles(dir: string): boolean {
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return false;
+  }
+  return entries.some((entry) => {
+    const full = join(dir, entry);
+    try {
+      return statSync(full).isDirectory() ? hasMirrorFiles(full) : entry.endsWith('.md');
+    } catch {
+      return false;
+    }
+  });
+}
+
+/**
+ * Mirrors written before the workspace token registry were numbered per file,
+ * so `[PERSON_0]` could name two people in two mirrors. A Safe workspace with
+ * mirrors and no registry is mirrored again once, through the registry; the
+ * registry written at the end marks it done. Returns whether it ran.
+ */
+export async function ensureMirrorsOnWorkspaceRegistry(workspacePath: string): Promise<boolean> {
+  if (!existsSync(join(workspacePath, 'safe'))) return false;
+  if (await hasRegistryFn(workspacePath)) return false;
+  if (!hasMirrorFiles(join(workspacePath, 'safe'))) return false;
+  await runInitialPopulation(workspacePath);
+  return true;
+}
+

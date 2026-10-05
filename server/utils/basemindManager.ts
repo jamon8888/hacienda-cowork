@@ -348,11 +348,17 @@ export async function ensureBasemindForWorkspace(
   deps: {
     register?: () => Promise<string>;
     ensureConfig?: (serverId: string) => Promise<void>;
+    ensureMirrors?: (workspacePath: string) => Promise<unknown>;
   } = {},
 ): Promise<void> {
   if (!workspacePath) return;
   if (existsSync(resolve(workspacePath, 'safe'))) {
     await (deps.register ?? registerBasemindServer)();
+    // Background: re-mirroring a large folder must not hold the switch.
+    const ensureMirrors = deps.ensureMirrors
+      ?? (async (path: string) => (await import('./safeArm')).ensureMirrorsOnWorkspaceRegistry(path));
+    void ensureMirrors(workspacePath)
+      .catch((error) => console.warn('[basemind] could not renumber existing safe/ mirrors', error));
     return;
   }
   await (deps.ensureConfig ?? ensureBasemindServerConfig)('basemind');
