@@ -11,8 +11,8 @@
  * Hook point: `ToolManager.callTool` passes every builtin and MCP result
  * through `maybeRedactToolResult` before it returns to the agent loop
  * (spec §7: all tool results, not only file reads). The hook re-enters
- * itself via basemind `redact_text`, so both `redact_text` and `vault`
- * (which returns originals for Show Originals) are exempted by name.
+ * itself via basemind `redact_text` and `vault`, which the app calls as
+ * `appInternal` so they never reach this hook.
  *
  * Rehydration maps accumulate in a thread-scoped in-memory store. Nothing
  * here writes to disk: vault persistence waits on the passphrase UX
@@ -508,16 +508,13 @@ export async function maybeRedactToolResult(
   options: MaybeRedactOptions,
   deps: RuntimeRedactionDeps = {},
 ): Promise<unknown> {
-  const { serverId, toolName, result, workspacePath, threadKey } = options;
+  const { serverId, result, workspacePath, threadKey } = options;
   // builtin-test-filesystem is test infrastructure asserting verbatim tool
   // output (permission E2E); the production gate must not rewrite its results.
   if (serverId === 'builtin-test-filesystem') return result;
-  // redact_text is this hook's own NER backend (recursion) and vault returns
-  // the decrypted originals Show Originals displays; both pass through raw.
-  if (
-    serverId === 'basemind'
-    && (toolName === 'redact_text' || toolName === 'vault')
-  ) return result;
+  // basemind's `redact_text` and `vault` are not exempt here: the app calls
+  // them with `appInternal` (ToolManager skips this gate), and any other caller
+  // is model-bound, so a `vault` decrypt result must be redacted like the rest.
   // Workspace-gated (#19 §9): redaction arms only on safe/ opt-in. Outside a
   // safe workspace the workspace sends cleartext — no provider heuristic.
   // An unknown workspacePath fails closed (treat as armed) so a missing
