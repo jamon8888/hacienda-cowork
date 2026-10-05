@@ -2515,5 +2515,7 @@
   "settings.packs.replaceBody": "이 팩의 {{version}} 버전이 이미 설치되어 있습니다. 이 팩을 설치하면 교체됩니다.",
   "settings.packs.replaceConfirm": "교체",
   "settings.packs.installFailed": "팩을 설치하지 못했습니다: {{reason}}",
-  "settings.packs.changeFailed": "팩 처리 중 문제가 발생했습니다. 다시 시도하세요."
+  "settings.packs.changeFailed": "팩 처리 중 문제가 발생했습니다. 다시 시도하세요.",
+  "basemind.banner.packTitle": "이 폴더는 Safe가 아닙니다",
+  "basemind.banner.packMessage": "팩 「{{pack}}」은(는) 기밀 문서용입니다. Safe가 아니면 요청 내용과 어시스턴트가 읽는 파일이 그대로 AI 제공업체에 전송됩니다. 이 폴더를 Safe로 만들어 가명 처리된 사본으로 작업하세요."
 }

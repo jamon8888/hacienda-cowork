@@ -7,9 +7,11 @@ import {
   SAFE_BANNER_ID,
   SAFE_BANNER_LATER_BUTTON_ID,
   SAFE_BANNER_LEARN_MORE_BUTTON_ID,
+  SAFE_BANNER_PACK_NOTICE_ID,
   SAFE_BANNER_RETRY_BUTTON_ID,
   SAFE_BANNER_STATUS_ID,
 } from '../../../shared/element-ids';
+import { PACKS_CHANGED_EVENT } from '@/lib/packEvents';
 import { SafeBanner } from './SafeBanner';
 import { Sidebar } from '../Sidebar';
 
@@ -51,6 +53,13 @@ const ipcMocks = vi.hoisted(() => {
         success: true,
       })),
     },
+    packs: {
+      list: vi.fn(async (): Promise<{
+        activeId: string | null;
+        chosenId: string | null;
+        packs: Array<{ id: string | null; name: string; requiresSafe: boolean }>;
+      }> => ({ activeId: null, chosenId: null, packs: [] })),
+    },
     workspaceScan: {
       status: vi.fn(async () => ({
         redactionActive: true,
@@ -81,6 +90,7 @@ vi.mock('@/ipc', () => ({
   basemind: ipcMocks.basemind,
   workspaceScan: ipcMocks.workspaceScan,
   workspace: ipcMocks.workspace,
+  packs: ipcMocks.packs,
 }));
 
 vi.mock('@/components/Explorer', () => ({
@@ -104,6 +114,7 @@ vi.mock('@/demo/marketingDemo', () => ({
 }));
 
 function statusFixture(overrides?: {
+  safeWorkspace?: boolean;
   fileCount?: number;
   entities?: number;
   indexing?: boolean;
@@ -334,4 +345,96 @@ describe('SafeBanner', () => {
       { timeout: 3500 },
     );
   });
+
+  describe('with a pack that needs a Safe folder', () => {
+    const lawPack = {
+      activeId: 'droit',
+      chosenId: 'droit',
+      packs: [{ id: 'droit', name: 'Droit des affaires', requiresSafe: true }],
+    };
+
+    test('warns that the folder is not Safe, with no way to dismiss it', async () => {
+      ipcMocks.packs.list.mockResolvedValue(lawPack);
+      ipcMocks.workspaceScan.status.mockResolvedValue(statusFixture({ safeWorkspace: false }));
+      render(<SafeBanner />);
+
+      expect(await screen.findByTestId(SAFE_BANNER_PACK_NOTICE_ID)).toBeInTheDocument();
+      expect(screen.getByText('basemind.banner.packTitle')).toBeInTheDocument();
+      expect(screen.getByText('basemind.banner.packMessage')).toBeInTheDocument();
+      expect(screen.getByTestId(SAFE_BANNER_CTA_BUTTON_ID)).toBeInTheDocument();
+      expect(screen.getByTestId(SAFE_BANNER_LEARN_MORE_BUTTON_ID)).toBeInTheDocument();
+      expect(screen.queryByTestId(SAFE_BANNER_LATER_BUTTON_ID)).not.toBeInTheDocument();
+    });
+
+    test('ignores a "Later" the user chose before the pack, and leaves it stored', async () => {
+      window.localStorage.setItem('interpreter:safe-banner:/workspace', 'skipped');
+      ipcMocks.packs.list.mockResolvedValue(lawPack);
+      ipcMocks.workspaceScan.status.mockResolvedValue(statusFixture({ safeWorkspace: false }));
+      render(<SafeBanner />);
+
+      expect(await screen.findByTestId(SAFE_BANNER_PACK_NOTICE_ID)).toBeInTheDocument();
+      expect(window.localStorage.getItem('interpreter:safe-banner:/workspace')).toBe('skipped');
+    });
+
+    test('Make Safe still runs the normal setup', async () => {
+      const user = userEvent.setup();
+      ipcMocks.packs.list.mockResolvedValue(lawPack);
+      ipcMocks.workspaceScan.status.mockResolvedValue(statusFixture({ safeWorkspace: false }));
+      render(<SafeBanner />);
+
+      await user.click(await screen.findByTestId(SAFE_BANNER_CTA_BUTTON_ID));
+      await waitFor(() => expect(ipcMocks.basemind.download).toHaveBeenCalledTimes(1));
+    });
+
+    test('a Safe folder gets the ordinary banner, not the notice', async () => {
+      window.localStorage.setItem('interpreter:safe-banner:/workspace', 'safe');
+      ipcMocks.packs.list.mockResolvedValue(lawPack);
+      ipcMocks.workspaceScan.status.mockResolvedValue(statusFixture({ safeWorkspace: true, fileCount: 3 }));
+      render(<SafeBanner />);
+
+      expect(await screen.findByTestId(SAFE_BANNER_STATUS_ID)).toBeInTheDocument();
+      expect(screen.queryByTestId(SAFE_BANNER_PACK_NOTICE_ID)).not.toBeInTheDocument();
+    });
+
+    test('a pack that does not need Safe changes nothing', async () => {
+      window.localStorage.setItem('interpreter:safe-banner:/workspace', 'skipped');
+      ipcMocks.packs.list.mockResolvedValue({
+        activeId: 'notes',
+        chosenId: 'notes',
+        packs: [{ id: 'notes', name: 'Notes', requiresSafe: false }],
+      });
+      ipcMocks.workspaceScan.status.mockResolvedValue(statusFixture({ safeWorkspace: false }));
+      render(<SafeBanner />);
+
+      await waitFor(() => expect(ipcMocks.packs.list).toHaveBeenCalled());
+      expect(screen.queryByTestId(SAFE_BANNER_ID)).not.toBeInTheDocument();
+    });
+
+    test('a status without the safeWorkspace field forces nothing', async () => {
+      window.localStorage.setItem('interpreter:safe-banner:/workspace', 'skipped');
+      ipcMocks.packs.list.mockResolvedValue(lawPack);
+      ipcMocks.workspaceScan.status.mockResolvedValue(statusFixture());
+      render(<SafeBanner />);
+
+      await waitFor(() => expect(ipcMocks.packs.list).toHaveBeenCalled());
+      expect(screen.queryByTestId(SAFE_BANNER_ID)).not.toBeInTheDocument();
+    });
+
+    test('switching pack shows or removes the notice without a reload', async () => {
+      window.localStorage.setItem('interpreter:safe-banner:/workspace', 'skipped');
+      ipcMocks.workspaceScan.status.mockResolvedValue(statusFixture({ safeWorkspace: false }));
+      render(<SafeBanner />);
+      await waitFor(() => expect(ipcMocks.packs.list).toHaveBeenCalled());
+      expect(screen.queryByTestId(SAFE_BANNER_ID)).not.toBeInTheDocument();
+
+      ipcMocks.packs.list.mockResolvedValue(lawPack);
+      act(() => { window.dispatchEvent(new Event(PACKS_CHANGED_EVENT)); });
+      expect(await screen.findByTestId(SAFE_BANNER_PACK_NOTICE_ID)).toBeInTheDocument();
+
+      ipcMocks.packs.list.mockResolvedValue({ activeId: null, chosenId: null, packs: [] });
+      act(() => { window.dispatchEvent(new Event(PACKS_CHANGED_EVENT)); });
+      await waitFor(() => expect(screen.queryByTestId(SAFE_BANNER_ID)).not.toBeInTheDocument());
+    });
+  });
 });
+

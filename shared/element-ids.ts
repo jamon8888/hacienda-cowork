@@ -154,6 +154,7 @@ export const SAFE_BANNER_LATER_BUTTON_ID = 'safe-banner-later-button' as const;
 export const SAFE_BANNER_LEARN_MORE_BUTTON_ID = 'safe-banner-learn-more-button' as const;
 export const SAFE_BANNER_RETRY_BUTTON_ID = 'safe-banner-retry-button' as const;
 export const SAFE_BANNER_STATUS_ID = 'safe-banner-status' as const;
+export const SAFE_BANNER_PACK_NOTICE_ID = 'safe-banner-pack-notice' as const;
 
 // =============================================================================
 // SIDEBAR BUTTONS
@@ -412,6 +413,7 @@ export const ELEMENT_IDS = {
   safeBannerLearnMoreButton: SAFE_BANNER_LEARN_MORE_BUTTON_ID,
   safeBannerRetryButton: SAFE_BANNER_RETRY_BUTTON_ID,
   safeBannerStatus: SAFE_BANNER_STATUS_ID,
+  safeBannerPackNotice: SAFE_BANNER_PACK_NOTICE_ID,
 
   // === SIDEBAR BUTTONS ===
   explorerButton: EXPLORER_BUTTON_ID,

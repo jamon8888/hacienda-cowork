@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { openFolderDialog, packs, type PackListEntry, type PackListView } from '@/ipc';
+import { notifyPacksChanged } from '@/lib/packEvents';
 import { Button } from '../ui/button';
 import { SettingsRow } from './SettingsSection';
 
@@ -34,6 +35,7 @@ export function PackSectionContent() {
     setNotice(null);
     try {
       setView(await action());
+      notifyPacksChanged();
     } catch (error) {
       console.error('Failed to change the vertical pack:', error);
       setNotice('changeFailed');
@@ -49,6 +51,7 @@ export function PackSectionContent() {
         setPendingReplace(null);
         setNotice('installed');
         await load();
+        notifyPacksChanged();
         return;
       }
       if (outcome.existingVersion) {

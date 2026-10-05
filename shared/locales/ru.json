@@ -2515,5 +2515,7 @@
   "settings.packs.replaceBody": "Версия {{version}} этого пакета уже установлена. Установка этого пакета заменит её.",
   "settings.packs.replaceConfirm": "Заменить",
   "settings.packs.installFailed": "Пакет не установлен: {{reason}}",
-  "settings.packs.changeFailed": "Что-то пошло не так с пакетами. Повторите попытку."
+  "settings.packs.changeFailed": "Что-то пошло не так с пакетами. Повторите попытку.",
+  "basemind.banner.packTitle": "Эта папка не Safe",
+  "basemind.banner.packMessage": "Пакет «{{pack}}» предназначен для конфиденциальных документов. Вне Safe ваши запросы и файлы, которые читает ассистент, отправляются поставщику ИИ как есть. Сделайте эту папку Safe, чтобы работать с обезличенными копиями."
 }

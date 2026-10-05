@@ -2515,5 +2515,7 @@
   "settings.packs.replaceBody": "La versión {{version}} de este paquete ya está instalada. Instalar este la sustituye.",
   "settings.packs.replaceConfirm": "Sustituirla",
   "settings.packs.installFailed": "No se instaló el paquete: {{reason}}",
-  "settings.packs.changeFailed": "Algo salió mal con los paquetes. Inténtelo de nuevo."
+  "settings.packs.changeFailed": "Algo salió mal con los paquetes. Inténtelo de nuevo.",
+  "basemind.banner.packTitle": "Esta carpeta no es Safe",
+  "basemind.banner.packMessage": "El paquete «{{pack}}» está pensado para documentos confidenciales. Fuera de Safe, lo que usted pide y los archivos que el asistente lee se envían tal cual al proveedor de IA. Convierta esta carpeta en Safe para trabajar con copias seudonimizadas."
 }

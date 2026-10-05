@@ -37,6 +37,32 @@ describe('getWorkspaceScanStatus entities (GLiNER2 spec #37)', () => {
   });
 });
 
+describe('getWorkspaceScanStatus safeWorkspace', () => {
+  test('is true only while the open workspace has a safe/ folder', () => {
+    const ws = mkdtempSync(path.join(tmpdir(), 'scan-safe-flag-'));
+    const previous = getCurrentWorkspace();
+    setCurrentWorkspace(ws);
+    try {
+      expect(getWorkspaceScanStatus().safeWorkspace).toBe(false);
+      mkdirSync(path.join(ws, 'safe'));
+      expect(getWorkspaceScanStatus().safeWorkspace).toBe(true);
+    } finally {
+      setCurrentWorkspace(previous);
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+
+  test('is false with no workspace open', () => {
+    const previous = getCurrentWorkspace();
+    setCurrentWorkspace(null);
+    try {
+      expect(getWorkspaceScanStatus().safeWorkspace).toBe(false);
+    } finally {
+      setCurrentWorkspace(previous);
+    }
+  });
+});
+
 describe('getWorkspaceScanStatus progress during initial population (spec #37)', () => {
   test('reports done/total while population runs, null after', async () => {
     const { setSafeArmRescanForTests } = await import('../utils/safeArm');
