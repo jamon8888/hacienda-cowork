@@ -336,6 +336,12 @@
     "zod": "4.6.5"
   },
   "pnpm": {
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-86w9-cpqp-85rv",
+        "GHSA-vfj7-8cjw-p6xm"
+      ]
+    },
     "overrides": {
       "@moonshine-ai/moonshine-js>@ricky0123/vad-web": "0.0.30",
       "@huggingface/transformers>sharp": "-",
@@ -349,6 +355,7 @@
       "exceljs>uuid": "11.1.1",
       "fast-uri@<3.1.7": "3.1.7",
       "hono@<4.12.34": "4.12.34",
+      "http-cache-semantics@<=4.2.0": "4.3.0",
       "@jimp/core>file-type": "21.3.4",
       "js-yaml@<4": "3.15.2",
       "js-yaml@>=4 <4.3.2": "4.3.2",
