@@ -66,6 +66,12 @@ const PATTERNS = {
   // ten to thirteen digits of a compact card or of an American Express number
   // (4-6-5, 15 digits) and leave the rest in clear.
   credit_card: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b|\b3[47]\d{2}[-\s]?\d{6}[-\s]?\d{5}\b/g,
+  // A run of eleven digits or more with no `+` and no separator is an identifier
+  // (ID card, licence, account, SIRET), not a phone number: a national number
+  // has ten digits, an international one starts with `+`. It runs before
+  // `phone`, whose 3-3-4 fallback would label it a phone and, beyond thirteen
+  // digits, stop short and leave the tail in clear.
+  long_number: /(?<![\d+])\d{11,}(?!\d)/g,
   // E.164 first (`+` + 8–15 digits, separators allowed): the international
   // form wins over the US-centric fallback below (+33 …, +1-800-…). Written
   // with the trunk zero in parentheses (+33 (0)4 65 71 20 45), it is the

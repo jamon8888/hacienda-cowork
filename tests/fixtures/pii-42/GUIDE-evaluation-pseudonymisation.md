@@ -55,15 +55,15 @@ Attendu : zéro ligne. (`1978` peut légitimement rester dans la « loi n° 78-1
 | 12 | state_or_region | `[STATE_OR_REGION_n]` | NER | `Auvergne-Rhône-Alpes`, `Rhône`, `Texas`, `TX` | `Rhône` figure aussi dans « Banque Fictive du Rhône » (org). Sigle `TX`. Une région seule est peu identifiante : risque de sur-redaction. |
 | 13 | postal_code | `[POSTAL_CODE_n]` | NER | `69003`, `69100`, `78701` | 5 chiffres sans indice ; dans l'adresse, le NER peut l'inclure dans `address`. Le code banque `12345` a aussi 5 chiffres. |
 | 14 | country | `[COUNTRY_n]` | NER | `France`, `United States`, `Việt Nam` | Pays isolé, peu identifiant. Le préfixe `FR76` de l'IBAN révèle le pays si l'IBAN n'est pas entièrement masqué. |
-| 15 | government_id | `[GOVERNMENT_ID_n]` | NER | `880692310285` | CNI : 12 chiffres, **même forme que le permis** (#18) ; seul le contexte distingue. Le regex le classe `phone` ([M]). |
+| 15 | government_id | `[GOVERNMENT_ID_n]` | NER | `880692310285` | CNI : 12 chiffres, **même forme que le permis** (#18) ; seul le contexte distingue. Regex seul : `[NUMBER_n]` (étiqueté `phone` avant le correctif, [M]). |
 | 16 | national_id_number | `[NATIONAL_ID_NUMBER_n]` | NER | `2 78 03 69 123 456 11` | NIR : encode année/mois de naissance et département (quasi-identifiant). Clé de contrôle valide. |
 | 17 | passport_number | `[PASSPORT_NUMBER_n]` | NER | `21CD47835` | Alphanumérique court, voisin d'une date d'expiration. |
-| 18 | drivers_license_number | `[DRIVERS_LICENSE_NUMBER_n]` | NER | `170369004512` | 12 chiffres, ambigu avec la CNI. Classé `phone` par le regex. |
+| 18 | drivers_license_number | `[DRIVERS_LICENSE_NUMBER_n]` | NER | `170369004512` | 12 chiffres, ambigu avec la CNI. Regex seul : `[NUMBER_n]` (étiqueté `phone` avant le correctif, [M]). |
 | 19 | license_number | `[LICENSE_NUMBER_n]` | NER | `CPI 6901 2019 000 041 237` | Carte professionnelle ; contient « 2019 » (ressemble à une année). |
 | 20 | tax_id | `[TAX_ID_n]` | NER | `30 12 345 678 912` | Numéro fiscal (SPI), 13 chiffres en groupes. |
 | 21 | tax_number | `[TAX_NUMBER_n]` | NER | `FR19 812 345 676`, `812 345 676` | TVA et SIREN partagent les mêmes chiffres. Le SIREN d'une société publique n'est pas sensible, mais ici c'est une EURL unipersonnelle (identifie la personne). |
-| 22 | bank_account | `[BANK_ACCOUNT_n]` | NER | `000123456789` | « Account No. » en contexte US. 12 chiffres : classé `phone` par le regex. |
-| 23 | account_number | `[ACCOUNT_NUMBER_n]` | NER | `12345678901` | Numéro de compte du RIB, **contenu dans l'IBAN** (chevauchement : le jeton IBAN doit tout couvrir). Classé `phone` par le regex. |
+| 22 | bank_account | `[BANK_ACCOUNT_n]` | NER | `000123456789` | « Account No. » en contexte US. 12 chiffres : regex seul `[NUMBER_n]` (étiqueté `phone` avant le correctif, [M]). |
+| 23 | account_number | `[ACCOUNT_NUMBER_n]` | NER | `12345678901` | Numéro de compte du RIB, **contenu dans l'IBAN** (chevauchement : le jeton IBAN doit tout couvrir). Regex seul : `[NUMBER_n]` (étiqueté `phone` avant le correctif, [M]). |
 | 24 | routing_number | `[ROUTING_NUMBER_n]` | NER | `123456780`, `67890` | ABA 9 chiffres ; code guichet 5 chiffres. Le code banque `12345` est le troisième composant du RIB. |
 | 25 | iban | `[IBAN_n]` | Regex + NER | `FR76 1234 5678 9012 3456 7890 104`, `FR7612345678901234567890104`, `BE68 5390 0754 7034`, `DE89 3704 0044 0532 0130 00`, `gb82 west 1234 5698 7654 32` | Espacé vs compact (2 valeurs, 2 jetons), minuscules, coupé par un retour à la ligne, espaces fines insécables : ces trois cas fuyaient avant le correctif du regex ([M]) et doivent désormais être masqués en entier (minuscules seulement si la clé mod-97 est valide). Même suite de chiffres que `credit_card` : l'IBAN prime. |
 | 26 | payment_card | `[CREDIT_CARD_n]` | Regex + NER | `4111 1111 1111 1111` | Numéro Visa de test, Luhn valide. |
@@ -104,7 +104,7 @@ Après correctif, ces cas sont masqués en entier (tests dans `regex-detector.te
 
 **Fuite partielle restante** : OID `1.3.6.1.4.1` → `[IP_n].4.1` (faux positif, sans PII).
 
-**Mauvais étiquetage** : tout nombre de 10 chiffres ou plus est classé `phone` (CNI, permis, n° de compte `12345678901`, `Account No. 000123456789`). Le masquage tient, mais le modèle voit `[PHONE_n]` pour un numéro de compte, et un SIREN ou un autre nombre long peut devenir « téléphone ».
+**Étiquetage des nombres longs, corrigé** : toute suite de 11 chiffres ou plus sans `+` ni séparateur (CNI, permis, n° de compte `12345678901`, `Account No. 000123456789`, SIRET, IMEI) était classée `phone`. Au-delà de 13 chiffres le motif s'arrêtait en route et laissait la fin en clair (SIRET : 1 chiffre, IMEI : 3, suite de 22 chiffres : 9). Ces suites forment maintenant une catégorie à part, masquée en entier : `[NUMBER_n]`. Les vrais téléphones (10 chiffres, `+…`, groupés) restent `[PHONE_n]`. Limite assumée : le regex ne peut pas dire si `[NUMBER_n]` est une CNI, un permis ou un compte ; seul le NER le distingue. Un numéro international à 11 chiffres écrit sans `+` devient aussi `[NUMBER_n]`.
 
 **Faux positifs** : `2024 0314 0001 7788` (carte), `3.1.4.2` et `1.3.6.1` (IP). Un point final de phrase collé à un e-mail est avalé dans le jeton (`[EMAIL_n] Pour la joindre…`).
 

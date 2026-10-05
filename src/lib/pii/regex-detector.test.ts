@@ -97,6 +97,30 @@ describe('detectRegex', () => {
     expect(detectRegex('call 0612345678')[0].category).toBe('phone');
   });
 
+  test('labels a long digit run as a number, not a phone, and masks all of it', () => {
+    // The 3-3-4 phone fallback took ten to thirteen digits and called them a
+    // phone; beyond thirteen it stopped short and left the tail in clear.
+    for (const number of [
+      '880692310285', // 12 digits: ID card, licence
+      '12345678901', // 11 digits: account number
+      '81234567600017', // 14 digits: SIRET
+      '490154203237518', // 15 digits: IMEI
+      '1234567890123456789012', // 22 digits
+    ]) {
+      expect(detectRegex(`n° ${number} fin`).map((d) => [d.category, d.text])).toEqual([
+        ['long_number', number],
+      ]);
+    }
+  });
+
+  test('keeps real phone numbers as phones next to the long-number rule', () => {
+    for (const phone of ['4155550132', '415-555-0132', '+14155550132', '0639981234', '+33 6 39 98 12 34']) {
+      expect(detectRegex(`tel ${phone} merci`).map((d) => [d.category, d.text])).toEqual([
+        ['phone', phone],
+      ]);
+    }
+  });
+
   test('detects a phone number with the trunk zero in parentheses', () => {
     // The plain E.164 form stops at the `(`, so these used to stay in clear.
     for (const phone of ['+33 (0)4 65 71 20 45', '+33(0)6 39 98 12 34', '+44 (0)20 7946 0958']) {

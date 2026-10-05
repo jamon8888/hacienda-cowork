@@ -78,6 +78,7 @@ const TOKEN_LABELS: Record<string, string> = {
   ipv4: 'IP',
   ipv6: 'IP',
   ip_address: 'IP',
+  long_number: 'NUMBER',
 };
 
 export function tokenLabelForCategory(category: string): string {
