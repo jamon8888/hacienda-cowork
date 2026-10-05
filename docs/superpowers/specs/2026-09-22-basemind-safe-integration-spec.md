@@ -125,6 +125,24 @@ Intégrer basemind à Workstation de façon simple, transparente et découplée 
 
 Un fichier `DOSSIER.md` à la racine du workspace porte le contexte du dossier (parties, juridiction, dates clés, consignes). Comme tout fichier, `safe-sync` le miroite en `safe/DOSSIER.md.md` ; **seul ce miroir** est injecté dans le prompt, sous `## Dossier`, entre le pack métier et les instructions personnalisées. L'original n'est jamais lu : il est seulement `stat`é pour savoir si son miroir est à jour. Miroir absent ou plus ancien que l'original (la synchro a ~2 s de retard) : la section dit que la fiche n'est pas prête et n'en révèle rien. Plafond 8 000 caractères ; au-delà, le début seul est montré et le prompt indique où lire la suite.
 
+## 7 ter. Surfaces qui restent actives en Safe
+
+Safe pseudonymise le texte et confine la lecture, mais quatre canaux transportent un contenu que l'app ne sait pas pseudonymiser. L'utilisateur choisit lesquels restent actifs dans les dossiers Safe (Réglages > Général > Confidentialité) ; le réglage `safeSurfaces` n'est modifiable ni par l'agent ni par un chemin `settings_set` détourné.
+
+| Surface | Défaut | Quand elle est coupée, dans un dossier Safe |
+|---|---|---|
+| `voice` | **coupée** | la session vocale temps réel (`advanced-voice-controller`, `createCall`) est refusée avec un message dans la langue de l'utilisateur ; la dictée locale n'est pas concernée (son texte passe par la pseudonymisation) |
+| `computerUse` | active | les serveurs `builtin-cua-driver` et `builtin-interpreter-overlay` disparaissent pour le modèle ; la politique d'accès Computer Use passe en refus (inspecter, contrôler, règles par app comprises) ; la section « contrôle du bureau » et le skill `computer-use` quittent le prompt |
+| `browserControl` | active | la politique d'accès au navigateur passe en refus pour lire, écrire et agir, au niveau du relais (donc aussi pour Playwright dans `js_repl`), et grants et règles par profil ne la rouvrent pas ; le skill `browser-control` quitte le prompt |
+| `network` | active | le bac à sable n'a plus de réseau ; `builtin-google` (recherche web) disparaît ; le prompt ne parle plus de réseau |
+
+Choix de conception :
+- **Allumer demande une confirmation** (`confirmed: true`, posé par la seule boîte de dialogue) ; éteindre non.
+- **Chaque changement est écrit d'abord dans le journal d'audit chaîné** (`safe_surface_changed`, surface et nouvel état, jamais le contenu) : pas de trace, pas de changement.
+- Le réglage s'applique là où la politique est appliquée, jamais à ce que l'écran des réglages affiche ou enregistre : la politique du navigateur de l'utilisateur reste la sienne.
+
+Limites connues : un serveur MCP ajouté par l'utilisateur n'est pas coupé avec `network` ; les onglets du navigateur intégré à l'app ne sont pas ceux de `browserControl` ; avec plusieurs fenêtres sur des dossiers différents, le relais du navigateur (global) suit le dossier courant.
+
 ## 8. Bannière onboarding « Rendre Safe » (#20)
 
 - **Slot** : bannière workspace-open (motif `WorkspaceSwitchBanner` / `TopNoticeStack`), **pas** une étape `onboardingSteps`.

@@ -2517,5 +2517,20 @@
   "settings.packs.installFailed": "パックをインストールできませんでした：{{reason}}",
   "settings.packs.changeFailed": "パックの処理中に問題が発生しました。もう一度お試しください。",
   "basemind.banner.packTitle": "このフォルダは Safe ではありません",
-  "basemind.banner.packMessage": "パック「{{pack}}」は機密文書向けです。Safe 以外では、入力した内容とアシスタントが読むファイルがそのまま AI プロバイダーに送信されます。このフォルダを Safe にして、匿名化されたコピーで作業してください。"
+  "basemind.banner.packMessage": "パック「{{pack}}」は機密文書向けです。Safe 以外では、入力した内容とアシスタントが読むファイルがそのまま AI プロバイダーに送信されます。このフォルダを Safe にして、匿名化されたコピーで作業してください。",
+  "safe.surface.voiceBlocked": "Safe フォルダでは音声がオフです。話した内容は匿名化されないままAIプロバイダーに届きます。設定 > 一般 > プライバシーでオンにできます。",
+  "settings.safeSurfaces.title": "Safe フォルダで有効のままにするもの",
+  "settings.safeSurfaces.description": "Safe はテキストを匿名化しますが、処理できない内容を運ぶ経路があります。Safe フォルダで有効にしておく経路を選んでください。変更はすべて監査ログに記録されます。",
+  "settings.safeSurfaces.voice": "音声",
+  "settings.safeSurfaces.voiceDescription": "話した音声は匿名化されずにそのままAIプロバイダーに届きます。既定ではオフです。",
+  "settings.safeSurfaces.computerUse": "コンピューター操作",
+  "settings.safeSurfaces.computerUseDescription": "アシスタントが画面とアプリを見て操作します。スクリーンショットは匿名化されません。",
+  "settings.safeSurfaces.browserControl": "ブラウザー操作",
+  "settings.safeSurfaces.browserControlDescription": "アシスタントが開いているブラウザーのページを読み取り、操作します。ページの内容は匿名化されません。",
+  "settings.safeSurfaces.network": "ネットワークと Web 検索",
+  "settings.safeSurfaces.networkDescription": "アシスタントが実行するコマンドはインターネットに接続でき、Web を検索できます。送信される内容は匿名化されません。",
+  "settings.safeSurfaces.enableTitle": "Safe フォルダでこれをオンにしますか？",
+  "settings.safeSurfaces.enableBody": "この経路を通る内容は匿名化されず、そのままAIプロバイダーなどのサービスに届きます。オンにしたことは、あなたの名前で監査ログに記録されます。",
+  "settings.safeSurfaces.enableConfirm": "オンにする — 責任は私が負います",
+  "settings.safeSurfaces.changeFailed": "設定は変更されませんでした。もう一度お試しください。"
 }

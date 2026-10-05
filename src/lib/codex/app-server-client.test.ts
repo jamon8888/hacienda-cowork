@@ -793,6 +793,45 @@ describe("CodexAppServerClient", () => {
     }
   });
 
+  test("a Safe workspace has no network when the user left that surface off", async () => {
+    setConfigOverride({
+      agents: {},
+      globalDisabledTools: [],
+      codexApprovalPolicy: "on-request",
+      codexSandboxMode: "workspace-write",
+      codexReadAccessMode: "workspace-only",
+      codexNetworkAccess: true,
+      safeSurfaces: { network: false },
+    });
+    const filesystemNetwork = async (safe: boolean) => {
+      const workspace = await mkdtemp(path.join(os.tmpdir(), "client-net-"));
+      try {
+        if (safe) await mkdir(path.join(workspace, "safe"));
+        const transport = new FakeTransport();
+        const client = new CodexAppServerClient(transport, null, async () => ({
+          sandboxMode: "workspace-write",
+          readAccessMode: "workspace-only",
+          networkAccess: true,
+          macosTempAccess: false,
+          macosScreenshotAccess: false,
+        }));
+        const threadPromise = client.startThread("gpt-5.4-mini", null, null, workspace);
+        await waitFor(() => transport.sent.length >= 1);
+        completeInitHandshake(transport);
+        await waitFor(() => transport.sent.length >= 3);
+        const request = assertSentRequest(transport, 2, CLIENT_METHOD.threadStart);
+        const params = request.params as typeof request.params & { config?: Record<string, any> };
+        transport.respond(request, makeThreadStartResponse("thr_net"));
+        await threadPromise;
+        return params.config?.permissions?.["interpreter-workspace-scope"]?.network?.enabled;
+      } finally {
+        await rm(workspace, { recursive: true, force: true });
+      }
+    };
+    assert.equal(await filesystemNetwork(true), false);
+    assert.equal(await filesystemNetwork(false), true);
+  });
+
   test("reloads runtime access snapshot for later turns", async () => {
     setConfigOverride({
       agents: {},

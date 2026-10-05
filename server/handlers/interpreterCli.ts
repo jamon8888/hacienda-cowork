@@ -15,11 +15,8 @@ import {
 } from '../utils/toolScope';
 import { runWithWindowSessionOverride } from '../utils/windowSessions';
 import { isToolServerAgentAccessible } from '../../shared/toolServerAvailability';
-import {
-  isInterpreterCliToolVisible,
-  isServerHiddenInSafeWorkspace,
-} from '../../shared/utils/interpreterToolSurface';
-import { isSafeWorkspace } from '../utils/safeWorkspace';
+import { isInterpreterCliToolVisible } from '../../shared/utils/interpreterToolSurface';
+import { getSafeHiddenServerIds } from '../services/safeSurfaces';
 import { prefixToolName } from '../../shared/utils/mcpToolName';
 import {
   INTERPRETER_CONFIG_ALIAS_ROOTS,
@@ -731,7 +728,7 @@ async function getBuiltinToolServerForCli(params: {
   serverId: string;
   toolName?: string;
   allowedTools: Set<string> | null;
-  safeWorkspace: boolean;
+  safeHiddenServerIds: ReadonlySet<string>;
 }): Promise<{
   includeHiddenBuiltins: boolean;
   server: ToolServerStatus;
@@ -740,7 +737,7 @@ async function getBuiltinToolServerForCli(params: {
     return null;
   }
   // Outbound-send servers do not exist for the model in a Safe workspace.
-  if (params.safeWorkspace && isServerHiddenInSafeWorkspace(params.serverId)) {
+  if (params.safeHiddenServerIds.has(params.serverId)) {
     return null;
   }
 
@@ -800,13 +797,13 @@ async function listVisibleInterpreterCliServers(
   const servers = await toolManager.listAllToolServers();
   const allowedTools = createAllowedToolSet(binding.allowedToolNames);
   const disabledServers = new Set(getGlobalDisabledToolsSync());
-  const safeWorkspace = isSafeWorkspace(binding.workspacePath);
+  const safeHidden = getSafeHiddenServerIds(binding.workspacePath);
   const visibleServers = servers
     .filter(
       (server) =>
         isToolServerAgentAccessible(server.state) &&
         !disabledServers.has(server.id) &&
-        !(safeWorkspace && isServerHiddenInSafeWorkspace(server.id)),
+        !safeHidden.has(server.id),
     )
     .map((server) => ({
       id: server.id,
@@ -843,7 +840,7 @@ async function listVisibleInterpreterCliServers(
 
   const scopedHiddenServers = getScopedHiddenBuiltinServers(allowedTools)
     .filter((server) => !disabledServers.has(server.id))
-    .filter((server) => !(safeWorkspace && isServerHiddenInSafeWorkspace(server.id)))
+    .filter((server) => !safeHidden.has(server.id))
     .filter(
       (server) =>
         !visibleServers.some((visibleServer) => visibleServer.id === server.id),
@@ -944,7 +941,7 @@ export async function listInterpreterCliServerTools(
   const builtinServer = await getBuiltinToolServerForCli({
     serverId,
     allowedTools,
-    safeWorkspace: isSafeWorkspace(binding.workspacePath),
+    safeHiddenServerIds: getSafeHiddenServerIds(binding.workspacePath),
   });
   if (builtinServer) {
     const server = toInterpreterCliServerInfo(
@@ -1036,7 +1033,7 @@ export async function describeInterpreterCliTool(
     serverId,
     toolName,
     allowedTools,
-    safeWorkspace: isSafeWorkspace(binding.workspacePath),
+    safeHiddenServerIds: getSafeHiddenServerIds(binding.workspacePath),
   });
   if (builtinServer) {
     const server = toInterpreterCliServerInfo(
@@ -1136,7 +1133,7 @@ export async function callInterpreterCliTool(params: {
     serverId: params.serverId,
     toolName: params.toolName,
     allowedTools,
-    safeWorkspace: isSafeWorkspace(binding.workspacePath),
+    safeHiddenServerIds: getSafeHiddenServerIds(binding.workspacePath),
   });
   const targetIsBuiltin = Boolean(
     getBuiltinServerIncludingHidden(params.serverId),
