@@ -11,13 +11,20 @@ const mocks = vi.hoisted(() => ({
       voice: false, computerUse: true, browserControl: true, network: true, [surface]: enabled,
     })),
   },
+  // The local-model row loads its own state next to the surfaces.
+  safeLocalBypass: {
+    get: vi.fn(async () => ({ enabled: false, blockingSurfaces: [] })),
+    set: vi.fn(async (enabled: boolean) => ({ enabled, blockingSurfaces: [] })),
+  },
 }));
 
-vi.mock('@/ipc', () => ({ safeSurfaces: mocks.safeSurfaces }));
+vi.mock('@/ipc', () => ({ safeSurfaces: mocks.safeSurfaces, safeLocalBypass: mocks.safeLocalBypass }));
 
 beforeEach(() => {
   mocks.safeSurfaces.get.mockClear();
   mocks.safeSurfaces.set.mockClear();
+  mocks.safeLocalBypass.get.mockClear();
+  mocks.safeLocalBypass.set.mockClear();
 });
 
 async function loadedSwitch(surface: string): Promise<HTMLElement> {
