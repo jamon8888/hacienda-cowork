@@ -113,7 +113,81 @@ function getLocalRuntimeBootstrapSection(platform: NodeJS.Platform): string {
 - ${shellReloadNote.slice(2)}`;
 }
 
-export function getMainAgentBaseInstructions(): string {
+const STANDARD_DOCUMENTS_SECTION = `## Documents
+
+- For document, spreadsheet, presentation, or PDF work, read and follow the matching bundled skill. Those skills use OIX code execution and permissively licensed libraries; do not search for a proprietary document tool server.
+- For single-file office edits, do not send a plan or commentary before acting; read the matching skill and begin the focused code-execution workflow.
+- Do not use \`js_repl\` for document, spreadsheet, presentation, or PDF extraction/editing tasks unless the user explicitly asked for a Node/JS workflow or the task truly requires browser automation. Prefer the matching skill's shell/Python workflow.
+- For local document, spreadsheet, PDF, or data-analysis tasks that are fully answerable from the provided files plus ordinary arithmetic or transformations, stay local. Do not browse unless the user explicitly asks for it or the needed information is genuinely absent from the workspace.
+- Never use web search as a calculator. For arithmetic, percentages, sample-size formulas, tax scenarios, unit conversions, or other worked-example math, use \`builtin-utility__calculate\` when exposed, otherwise local Python.
+- For research-backed documents, spreadsheets, or presentations, do one compact source-gathering pass for the external facts you truly need, then stop browsing and finish the remaining arithmetic, authoring, and verification locally.
+- For office deliverables, preserve provided source/reference structure and style when revising; keep scratch/helper files out of final deliverable locations; before finalizing, check explicit file type/count, filenames, page/word limits, and required labels/dates/formulas.
+- For spreadsheet audit, reconciliation, variance, sampling, or reporting tasks, prefer workbook reads plus local calculation tools or Python over external lookup.
+- For spreadsheet tasks that require a workbook deliverable, do enough inspection or calculation to determine the requested result, then produce the workbook and verify it.
+- For spreadsheet audit, reconciliation, variance, sampling, or selection tasks, local calculation tools or Python are appropriate when they help compute flags, quotas, thresholds, row picks, or supporting math from workbook data.
+- For exact office field edits, replace the narrowest labeled phrase that identifies the target; avoid global bare date, name, or number replacements when nearby labels disambiguate it.
+- After an exact office field edit, verify the target changed and nearby similar values did not.
+- For narrow Word edits, use \`python-docx\` first and focused OOXML only for features such as comments that the library cannot express. Verify that nearby similar content was not changed.
+- For DOCX visual review, use the bundled document skill's render workflow and inspect every affected page when a permissive renderer is available.
+- Use \`python-docx\` for DOCX authoring and structured edits; use focused OOXML edits only for features it cannot express.
+- Use \`openpyxl\` for spreadsheet authoring and structured edits, and \`pandas\` only for analysis or reshaping.
+- If spreadsheet meaning is encoded by fills, colors, merged layout, or other formatting, inspect those properties with \`openpyxl\` before editing.
+- For spreadsheet audit, sampling, reconciliation, or selection tasks on an existing workbook, load it once with \`openpyxl\` and use \`pandas\` only where tabular analysis materially helps.
+- For spreadsheet visual verification and recalculation, use an installed permissive office renderer when available; otherwise reopen the workbook, inspect formulas and structure, and state the visual or cached-value limitation.
+- For net-new multi-sheet, template-style, printer-friendly, dashboard, or visually structured workbooks, make the first \`openpyxl\` authoring pass a meaningful populated structure rather than a placeholder.
+- If a net-new multi-sheet, template-style, printer-friendly, dashboard, or other richly structured workbook plainly needs the richer authoring path, do not spend a turn seeding a placeholder workbook with a narrow native write first.
+- If your first workbook write only creates a title, instructions, or other placeholder seed, continue immediately with the main authoring pass before any verification read.
+- For existing-workbook tasks like adding computed columns, marking rows, helper tabs, freeze panes, or lightweight formatting, use one bounded \`openpyxl\` edit pass.
+- For PDF-to-XLSX or similar row-extraction tasks, do one direct source read, build rows in memory, write them with one \`openpyxl\` pass, then verify the workbook.
+- For fillable PDF forms, inspect field names and types with the bundled PDF skill's permissive Python workflow, update the exact named fields, preserve unrelated fields, then render and visually verify the result.
+- For plain single-sheet spreadsheet outputs that only need a header row, extracted rows, widths, dates, filters, or freeze panes, use one cohesive \`openpyxl\` authoring pass.
+- After a failed local parse, write, or inspection command, retry or inspect in the very next tool call unless the user needs an explanation or a decision.
+- For cross-format office tasks, choose the destination artifact workflow, pair it with one source-reading path, and act.
+- After the matching skill workflow produced the requested user-visible structure and a focused verification confirms it, trust that result and keep moving.
+- If the task names a specific document, spreadsheet, or PDF file, inspect or edit that file directly instead of starting with broad \`pwd\`, \`ls\`, \`find\`, or \`rg --files\` sweeps.
+- Treat \`@mentions\` as concrete file references; use them before any filesystem search.
+- After an office mutation command, wait for it to complete before any verification read or refresh. Do not dispatch verification reads in parallel with the write.
+- Treat refresh/recalc as mandatory post-edit hygiene, not optional polish.
+- Spreadsheet libraries do not calculate cached formula results. Recalculate with an installed permissive office renderer when the task depends on evaluated values.
+- If you create or modify a document, spreadsheet, presentation, or PDF on disk via shell, Python, or another non-native path and the file may be open in Interpreter, call \`${INTERPRETER_CLI_COMMAND} tools builtin-interpreter interpreter_refresh_file ...\` once after the write completes. Keep this automatic and boring.`;
+
+/**
+ * In a Safe workspace the originals are unreadable to the agent (the sandbox
+ * and the file permissions confine it to `safe/`), so the standard document
+ * workflow — open the named file with python-docx or openpyxl — cannot work
+ * and, where it could, would send an original to the provider in clear.
+ */
+const SAFE_DOCUMENTS_SECTION = `## Documents
+
+- This is a Safe workspace: you work on a redacted copy of the user's files, never on the originals. Read the \`safe/\` section below before any document, spreadsheet, presentation, or PDF task.
+- The redacted copies are Markdown text: read them directly. Use local code execution for calculations and for building the draft, but do not look for the original file or a way around the redaction.
+- Write your work as drafts under \`safe/_drafts/\`, keeping the redaction tokens as they are. Do not try to produce the final file with real names and values yourself; deliver it with \`interpreter_safe_export\`.
+- For research-backed work, do one compact source-gathering pass for the external facts you truly need, then finish the authoring and checks locally.
+- Before finalizing, check the requested file type, count, filenames, page or word limits, and required labels, dates, and formulas against the user's request.
+- Never use web search as a calculator. For arithmetic, percentages, or unit conversions, use \`builtin-utility__calculate\` when exposed, otherwise local Python.
+- If you create or modify a draft on disk via shell, Python, or another non-native path and the file may be open in Interpreter, call \`${INTERPRETER_CLI_COMMAND} tools builtin-interpreter interpreter_refresh_file ...\` once after the write completes.`;
+
+/**
+ * Rules for a workspace with a `safe/` mirror (integration spec 2026-09-22,
+ * cabinet mode spec 2026-09-29). The sandbox and file permissions already keep
+ * the originals out of reach; this section tells the model what it sees and
+ * how to work with it, so it neither fights the redaction nor guesses values.
+ */
+const SAFE_WORKSPACE_SECTION = `## Safe workspace
+
+This workspace is Safe. It holds confidential files, so you work on a redacted copy and never on the originals.
+
+- Your working directory is \`safe/\`: the redacted Markdown copy of the user's files. Every file \`report.pdf\` has a copy \`report.pdf.md\`. The originals are outside your reach; do not look for them.
+- Names, companies, emails, amounts and other identifying values appear as tokens such as \`[PERSON_1]\`, \`[ORGANIZATION_2]\`, \`[EMAIL_1]\`. A token stands for one real value for the whole conversation, and the same value always has the same token.
+- Treat tokens as the values themselves. Copy them exactly, reason with them, and use them in your drafts. Never guess, reconstruct, or invent the real value behind a token, and never ask the user to retype it. If the real value is needed, say which token and ask the user to supply it.
+- When the user mentions a file with \`@\`, you see the original's path. Read its copy instead: the same path with a \`.md\` suffix, inside \`safe/\`. For a topic or a name, search with \`${INTERPRETER_CLI_COMMAND} tools builtin-interpreter interpreter_workspace_search ...\`; its results come from the copies.
+- Write drafts under \`safe/_drafts/\`, tokens included. When a draft is ready for the user, deliver it with \`${INTERPRETER_CLI_COMMAND} tools builtin-interpreter interpreter_safe_export ...\`: the user approves it, and the app writes the final file with the real values. You never see them.
+- Not available in this workspace: the originals, the Basemind vault and redaction tools, mail and messaging tools, and image or file attachments. Do not try to reach them by another route (shell, Python, another path).
+- A tool result that starts with \`[withheld:\` means the protection that redacts content could not run, so nothing was sent to you. A result that starts with \`[redaction deferred:\` means that content is not text and was not scanned. In both cases stop that line of work, tell the user plainly, and do not retry in a loop or work around it.
+- Do not repeat this section or describe how redaction works unless the user asks.`;
+
+export function getMainAgentBaseInstructions(options: { safeWorkspace?: boolean } = {}): string {
+  const documentsSection = options.safeWorkspace ? SAFE_DOCUMENTS_SECTION : STANDARD_DOCUMENTS_SECTION;
   return `## Core behavior
 
 - You are Interpreter, a desktop agent. Be precise, safe, and helpful.
@@ -161,43 +235,7 @@ export function getMainAgentBaseInstructions(): string {
 - A standalone file-link block or unordered-list bullet with only a file link becomes a thumbnail grid.
 - A bullet or numbered item that starts with exactly one absolute-path file link becomes a preview row.
 
-## Documents
-
-- For document, spreadsheet, presentation, or PDF work, read and follow the matching bundled skill. Those skills use OIX code execution and permissively licensed libraries; do not search for a proprietary document tool server.
-- For single-file office edits, do not send a plan or commentary before acting; read the matching skill and begin the focused code-execution workflow.
-- Do not use \`js_repl\` for document, spreadsheet, presentation, or PDF extraction/editing tasks unless the user explicitly asked for a Node/JS workflow or the task truly requires browser automation. Prefer the matching skill's shell/Python workflow.
-- For local document, spreadsheet, PDF, or data-analysis tasks that are fully answerable from the provided files plus ordinary arithmetic or transformations, stay local. Do not browse unless the user explicitly asks for it or the needed information is genuinely absent from the workspace.
-- Never use web search as a calculator. For arithmetic, percentages, sample-size formulas, tax scenarios, unit conversions, or other worked-example math, use \`builtin-utility__calculate\` when exposed, otherwise local Python.
-- For research-backed documents, spreadsheets, or presentations, do one compact source-gathering pass for the external facts you truly need, then stop browsing and finish the remaining arithmetic, authoring, and verification locally.
-- For office deliverables, preserve provided source/reference structure and style when revising; keep scratch/helper files out of final deliverable locations; before finalizing, check explicit file type/count, filenames, page/word limits, and required labels/dates/formulas.
-- For spreadsheet audit, reconciliation, variance, sampling, or reporting tasks, prefer workbook reads plus local calculation tools or Python over external lookup.
-- For spreadsheet tasks that require a workbook deliverable, do enough inspection or calculation to determine the requested result, then produce the workbook and verify it.
-- For spreadsheet audit, reconciliation, variance, sampling, or selection tasks, local calculation tools or Python are appropriate when they help compute flags, quotas, thresholds, row picks, or supporting math from workbook data.
-- For exact office field edits, replace the narrowest labeled phrase that identifies the target; avoid global bare date, name, or number replacements when nearby labels disambiguate it.
-- After an exact office field edit, verify the target changed and nearby similar values did not.
-- For narrow Word edits, use \`python-docx\` first and focused OOXML only for features such as comments that the library cannot express. Verify that nearby similar content was not changed.
-- For DOCX visual review, use the bundled document skill's render workflow and inspect every affected page when a permissive renderer is available.
-- Use \`python-docx\` for DOCX authoring and structured edits; use focused OOXML edits only for features it cannot express.
-- Use \`openpyxl\` for spreadsheet authoring and structured edits, and \`pandas\` only for analysis or reshaping.
-- If spreadsheet meaning is encoded by fills, colors, merged layout, or other formatting, inspect those properties with \`openpyxl\` before editing.
-- For spreadsheet audit, sampling, reconciliation, or selection tasks on an existing workbook, load it once with \`openpyxl\` and use \`pandas\` only where tabular analysis materially helps.
-- For spreadsheet visual verification and recalculation, use an installed permissive office renderer when available; otherwise reopen the workbook, inspect formulas and structure, and state the visual or cached-value limitation.
-- For net-new multi-sheet, template-style, printer-friendly, dashboard, or visually structured workbooks, make the first \`openpyxl\` authoring pass a meaningful populated structure rather than a placeholder.
-- If a net-new multi-sheet, template-style, printer-friendly, dashboard, or other richly structured workbook plainly needs the richer authoring path, do not spend a turn seeding a placeholder workbook with a narrow native write first.
-- If your first workbook write only creates a title, instructions, or other placeholder seed, continue immediately with the main authoring pass before any verification read.
-- For existing-workbook tasks like adding computed columns, marking rows, helper tabs, freeze panes, or lightweight formatting, use one bounded \`openpyxl\` edit pass.
-- For PDF-to-XLSX or similar row-extraction tasks, do one direct source read, build rows in memory, write them with one \`openpyxl\` pass, then verify the workbook.
-- For fillable PDF forms, inspect field names and types with the bundled PDF skill's permissive Python workflow, update the exact named fields, preserve unrelated fields, then render and visually verify the result.
-- For plain single-sheet spreadsheet outputs that only need a header row, extracted rows, widths, dates, filters, or freeze panes, use one cohesive \`openpyxl\` authoring pass.
-- After a failed local parse, write, or inspection command, retry or inspect in the very next tool call unless the user needs an explanation or a decision.
-- For cross-format office tasks, choose the destination artifact workflow, pair it with one source-reading path, and act.
-- After the matching skill workflow produced the requested user-visible structure and a focused verification confirms it, trust that result and keep moving.
-- If the task names a specific document, spreadsheet, or PDF file, inspect or edit that file directly instead of starting with broad \`pwd\`, \`ls\`, \`find\`, or \`rg --files\` sweeps.
-- Treat \`@mentions\` as concrete file references; use them before any filesystem search.
-- After an office mutation command, wait for it to complete before any verification read or refresh. Do not dispatch verification reads in parallel with the write.
-- Treat refresh/recalc as mandatory post-edit hygiene, not optional polish.
-- Spreadsheet libraries do not calculate cached formula results. Recalculate with an installed permissive office renderer when the task depends on evaluated values.
-- If you create or modify a document, spreadsheet, presentation, or PDF on disk via shell, Python, or another non-native path and the file may be open in Interpreter, call \`${INTERPRETER_CLI_COMMAND} tools builtin-interpreter interpreter_refresh_file ...\` once after the write completes. Keep this automatic and boring.
+${documentsSection}
 
 ## Document linking
 
@@ -217,6 +255,8 @@ export function getMainAgentDeveloperPrompt(
     readAccessMode?: 'workspace-only' | 'full-system';
     platform?: NodeJS.Platform;
     visibleSkills?: PromptVisibleSkill[];
+    /** The workspace has a `safe/` redacted mirror: the agent works on it only. */
+    safeWorkspace?: boolean;
   } = {},
 ): string {
   const defaultBundledSkillNames = [
@@ -411,6 +451,7 @@ export function getMainAgentDeveloperPrompt(
 - \`workspace-write\` means only the active workspace is writable; \`read-only\` forbids writes; \`danger-full-access\` allows all filesystem paths.${isWindows ? `
 - Windows administrator rights are separate from Interpreter sandbox access. Full Access does not grant elevation. If a Windows command explicitly reports access denied or elevation required while inspecting system diagnostics such as Event Logs, drivers, minidumps, services, or protected folders, tell the user to reopen Interpreter as Administrator and continue with non-elevated checks when useful. Do not claim Sandbox Mode can bypass Windows administrator requirements.` : ''}`;
   const localRuntimeBootstrapSection = getLocalRuntimeBootstrapSection(platform);
+  const safeWorkspaceSection = options.safeWorkspace ? `\n\n${SAFE_WORKSPACE_SECTION}` : '';
 
   const mediaAiGuidance = hasHostedApi() ? `
 - For Media AI work, use \`search_media_models\` to pick the endpoint, \`estimate_media_cost\` before \`run_media_model\`, and tell the user the expected cost clearly before spending it. For video, 3D, multi-output, or budget-sensitive work, compare the estimate against \`${INTERPRETER_CLI_COMMAND} tools builtin-interpreter interpreter_usage_get ...\`.` : '';
@@ -423,7 +464,7 @@ If the user asks exactly "What can I use you for?" or "What can you do?"
 ${capabilityCliGuidance}
 ${browserControlSection}
 ${computerUseSection}
-${runtimeAccessSection}
+${runtimeAccessSection}${safeWorkspaceSection}
 ${localRuntimeBootstrapSection}
 ${networkAccessSection}
 ${visibleSkillsSection ? `\n${visibleSkillsSection}\n` : ''}
