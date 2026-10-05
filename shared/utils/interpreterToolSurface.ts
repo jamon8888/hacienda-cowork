@@ -2,6 +2,10 @@ import { prefixToolName } from './mcpToolName';
 
 const DEFAULT_HIDDEN_SERVER_IDS = new Set<string>([
   'builtin-browser',
+  // basemind is app plumbing (redaction, vault, index admin). The model
+  // searches through `interpreter_workspace_search`; exposing the server would
+  // hand it `vault` decrypt and the raw `redact_text` / `admin` tools.
+  'basemind',
 ]);
 
 export function isInterpreterCliServerVisible(serverId: string): boolean {

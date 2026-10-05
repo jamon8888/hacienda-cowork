@@ -82,6 +82,8 @@ const MCP_TOOL_SERVER_BLACKLIST: string[] = [
   // Testing tools - shouldn't be exposed
   'builtin-test-approval',
   'builtin-echo-secret',
+  // App plumbing: `vault` returns decrypted originals.
+  'basemind',
 ];
 
 function isBlacklistedMcpServer(serverId: string, _profileId?: string): boolean {
