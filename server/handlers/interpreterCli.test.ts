@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -154,6 +154,96 @@ describe('interpreterCli handlers', () => {
         },
       ],
     });
+  });
+
+  describe('outbound-send servers in a Safe workspace', () => {
+    async function withWorkspace(safe: boolean, run: (workspace: string) => Promise<void>) {
+      const workspace = await mkdtemp(path.join(tmpdir(), 'cli-safe-'));
+      try {
+        if (safe) await mkdir(path.join(workspace, 'safe'));
+        await run(workspace);
+      } finally {
+        await rm(workspace, { recursive: true, force: true });
+      }
+    }
+
+    function stubSendServers() {
+      const connected = (id: string, tool: string) => ({
+        id,
+        name: id,
+        description: id,
+        state: {
+          status: 'connected',
+          tools: [{ name: tool, description: tool, inputSchema: { type: 'object' } }],
+          resources: [],
+          prompts: [],
+        },
+      });
+      setToolManager({
+        async listAllToolServers() {
+          return [
+            connected('builtin-docx', 'read_word'),
+            connected('builtin-nylas', 'nylas_list_messages'),
+            connected('builtin-whatsapp', 'whatsapp_send'),
+            connected('builtin-telegram', 'telegram_send'),
+          ];
+        },
+        async getToolServerIncludingHidden(id: string) {
+          return connected(id, 'nylas_list_messages');
+        },
+        async getToolServer(id: string) {
+          return connected(id, 'read_word');
+        },
+        async callTool() {
+          throw new Error('callTool must not be reached for a hidden server');
+        },
+      } as any);
+    }
+
+    const allowed = [
+      'builtin-docx__read_word',
+      'builtin-nylas__nylas_list_messages',
+      'builtin-whatsapp__whatsapp_send',
+      'builtin-telegram__telegram_send',
+    ];
+
+    test('lists mail and messaging servers outside Safe, hides them inside', async () => {
+      stubSendServers();
+      await withWorkspace(false, async (workspace) => {
+        agentTabManager.bindThread({
+          agentId: 'agent-open', threadId: 'thr_open', callerToken: 'agtok_open',
+          allowedToolNames: allowed, workspacePath: workspace,
+        });
+        const open = await listInterpreterCliTools('agtok_open');
+        expect(open.servers.map((server) => server.id)).toContain('builtin-nylas');
+      });
+      await withWorkspace(true, async (workspace) => {
+        agentTabManager.bindThread({
+          agentId: 'agent-safe', threadId: 'thr_safe', callerToken: 'agtok_safe',
+          allowedToolNames: allowed, workspacePath: workspace,
+        });
+        const safe = await listInterpreterCliTools('agtok_safe');
+        expect(safe.servers.map((server) => server.id)).toEqual(['builtin-docx']);
+      });
+    });
+
+    test.each(['builtin-nylas', 'builtin-whatsapp', 'builtin-telegram'])(
+      'refuses to list, describe or call %s in a Safe workspace',
+      async (serverId) => {
+        stubSendServers();
+        await withWorkspace(true, async (workspace) => {
+          agentTabManager.bindThread({
+            agentId: 'agent-safe2', threadId: 'thr_safe2', callerToken: 'agtok_safe2',
+            allowedToolNames: allowed, workspacePath: workspace,
+          });
+          await expect(listInterpreterCliServerTools('agtok_safe2', serverId)).rejects.toThrow();
+          await expect(describeInterpreterCliTool('agtok_safe2', serverId, 'nylas_list_messages')).rejects.toThrow();
+          await expect(callInterpreterCliTool({
+            callerToken: 'agtok_safe2', serverId, toolName: 'nylas_list_messages', args: {},
+          })).rejects.toThrow();
+        });
+      },
+    );
   });
 
   test('calls visible built-in tools without hydrating MCP server statuses', async () => {
