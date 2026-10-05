@@ -6,6 +6,11 @@ export interface PiiDetection {
   confidence: number;
 }
 
+// Between IBAN groups: a space, a no-break or narrow no-break space (French
+// typography, copy-paste from PDFs), or a line break with its indentation
+// (an IBAN wrapped by a document extractor).
+const IBAN_SEPARATOR = String.raw`(?:[ \u00a0\u202f]|\r?\n[ \t]*)?`;
+
 // A number as written in French or English: groups of three digits split by a
 // space, no-break space, `.` or `,`, then optional decimals (125 000, 1.250,50,
 // $1,250.50), or plain digits with optional decimals (125000, 1,2). The groups
@@ -20,17 +25,26 @@ const AMOUNT_MAGNITUDE = String.raw`(?:\s?(?:k|K|M|Md|mille|millions?|milliards?
  * alternation at module init so `detectRegex` makes one pass over the input.
  *
  * IBAN comes first: it matches the same digit runs as credit_card, and the
- * alternation order lets it win ties at the same position. `amount` follows
- * it, ahead of the digit-based patterns: no NER label covers money, and a
- * number is only an amount next to a currency, so bare numbers stay alone.
+ * alternation order lets it win ties at the same position. An IBAN written with
+ * a lowercase letter must also pass the mod-97 check: lowercase words such as
+ * `en10 mots dans` otherwise fit the shape. `amount` follows it, ahead of the
+ * digit-based patterns: no NER label covers money, and a number is only an
+ * amount next to a currency, so bare numbers stay alone.
  */
 const PATTERNS = {
   email: /[\w.+-]+@[\w-]+\.[\w.]+/g,
-  iban: /\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{4}){2,7}(?:[ ]?[A-Z0-9]{1,3})?\b/g,
+  iban: new RegExp(
+    String.raw`\b[A-Za-z]{2}\d{2}(?:${IBAN_SEPARATOR}[A-Za-z0-9]{4}){2,7}(?:${IBAN_SEPARATOR}[A-Za-z0-9]{1,3})?\b`,
+    'g',
+  ),
   amount: new RegExp(
     String.raw`(?<![\d.,])(?:[$£€]\s?(?:${AMOUNT_NUMBER})|(?:${AMOUNT_NUMBER})${AMOUNT_MAGNITUDE}\s?${AMOUNT_CURRENCY})`,
     'g',
   ),
+  // Cards run before `phone`: its 3-3-4 fallback would otherwise take the first
+  // ten to thirteen digits of a compact card or of an American Express number
+  // (4-6-5, 15 digits) and leave the rest in clear.
+  credit_card: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b|\b3[47]\d{2}[-\s]?\d{6}[-\s]?\d{5}\b/g,
   // E.164 first (`+` + 8–15 digits, separators allowed): the international
   // form wins over the US-centric fallback below (+33 …, +1-800-…). Then the
   // French national form, ten digits in pairs (06 12 34 56 78, 01.23.45.67.89),
@@ -38,7 +52,6 @@ const PATTERNS = {
   // boundaries keep amounts (125 000) and dates (01.02.2024) out.
   phone: /\+\d(?:[ .-]?\d){7,14}|\b0[1-9](?:[ .-]?\d{2}){4}\b|(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
   ipv4: /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g,
-  credit_card: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g,
 } as const;
 
 /**
@@ -52,6 +65,18 @@ const COMBINED = (() => {
   }
   return new RegExp(parts.join('|'), 'g');
 })();
+
+/** ISO 7064 mod-97-10 check of an IBAN, separators ignored. */
+function hasValidIbanChecksum(candidate: string): boolean {
+  const compact = candidate.replace(/[\s\u00a0\u202f]/g, '').toUpperCase();
+  const rearranged = compact.slice(4) + compact.slice(0, 4);
+  let remainder = 0;
+  for (const char of rearranged) {
+    const digits = char >= 'A' && char <= 'Z' ? String(char.charCodeAt(0) - 55) : char;
+    for (const digit of digits) remainder = (remainder * 10 + Number(digit)) % 97;
+  }
+  return remainder === 1;
+}
 
 export function detectRegex(text: string): PiiDetection[] {
   const detections: PiiDetection[] = [];
@@ -68,6 +93,13 @@ export function detectRegex(text: string): PiiDetection[] {
       if (m.groups?.[name] !== undefined) { category = name; break; }
     }
     if (!category) { COMBINED.lastIndex = m.index + 1; continue; }
+
+    // Lowercase letters make the IBAN shape ambiguous with ordinary words; an
+    // uppercase one keeps matching on shape alone, so a mistyped IBAN is still hidden.
+    if (category === 'iban' && /[a-z]/.test(m[0]) && !hasValidIbanChecksum(m[0])) {
+      COMBINED.lastIndex = m.index + 1;
+      continue;
+    }
 
     const start = m.index;
     const end = start + m[0].length;

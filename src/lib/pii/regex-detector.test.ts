@@ -41,6 +41,51 @@ describe('detectRegex', () => {
     expect(detectRegex('host 192.168.1.10')[0].category).toBe('ipv4');
   });
 
+  test('detects a whole card, compact or American Express (4-6-5)', () => {
+    // `phone`'s 3-3-4 fallback used to run first and take the leading digits,
+    // leaving the rest of the number in clear.
+    const cards = [
+      '4111111111111111',
+      '5555-5555-5555-4444',
+      '3782 822463 10005',
+      '3782-822463-10005',
+      '378282246310005',
+    ];
+    for (const card of cards) {
+      expect(detectRegex(`carte ${card} expire`).map((d) => [d.category, d.text])).toEqual([
+        ['credit_card', card],
+      ]);
+    }
+  });
+
+  test('keeps a card and a French phone number apart', () => {
+    expect(detectRegex('Tel 06 12 34 56 78 puis 4111 1111 1111 1111').map((d) => d.category))
+      .toEqual(['phone', 'credit_card']);
+  });
+
+  test('detects an IBAN split by no-break spaces or a line break', () => {
+    // French typography and PDF extraction produce these; each used to leave
+    // part of the IBAN in clear (or label its middle as a card).
+    const narrow = 'FR76\u202f1234\u202f5678\u202f9012\u202f3456\u202f7890\u202f104';
+    const nbsp = 'FR76\u00a01234\u00a05678\u00a09012\u00a03456\u00a07890\u00a0104';
+    const wrapped = 'FR76 1234 5678 9012\n  3456 7890 104';
+    for (const iban of [narrow, nbsp, wrapped]) {
+      expect(detectRegex(`IBAN : ${iban}.`).map((d) => [d.category, d.text])).toEqual([
+        ['iban', iban],
+      ]);
+    }
+  });
+
+  test('detects a lowercase IBAN only when its checksum is valid', () => {
+    expect(detectRegex('gb82 west 1234 5698 7654 32').map((d) => [d.category, d.text])).toEqual([
+      ['iban', 'gb82 west 1234 5698 7654 32'],
+    ]);
+    // Ordinary words fit the shape but fail mod-97.
+    expect(detectRegex('en10 mots dans cette phrase')).toEqual([]);
+    // Uppercase keeps matching on shape alone: a mistyped IBAN is still hidden.
+    expect(detectRegex('FR76 1234 5678 9012 3456 7890 105').map((d) => d.category)).toEqual(['iban']);
+  });
+
   test('detects E.164 international numbers (FR +33, US +1)', () => {
     expect(detectRegex('call +33 6 12 34 56 78').map((d) => [d.category, d.text])).toEqual([
       ['phone', '+33 6 12 34 56 78'],

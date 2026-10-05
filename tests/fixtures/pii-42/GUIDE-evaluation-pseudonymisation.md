@@ -65,9 +65,9 @@ Attendu : zéro ligne. (`1978` peut légitimement rester dans la « loi n° 78-1
 | 22 | bank_account | `[BANK_ACCOUNT_n]` | NER | `000123456789` | « Account No. » en contexte US. 12 chiffres : classé `phone` par le regex. |
 | 23 | account_number | `[ACCOUNT_NUMBER_n]` | NER | `12345678901` | Numéro de compte du RIB, **contenu dans l'IBAN** (chevauchement : le jeton IBAN doit tout couvrir). Classé `phone` par le regex. |
 | 24 | routing_number | `[ROUTING_NUMBER_n]` | NER | `123456780`, `67890` | ABA 9 chiffres ; code guichet 5 chiffres. Le code banque `12345` est le troisième composant du RIB. |
-| 25 | iban | `[IBAN_n]` | Regex + NER | `FR76 1234 5678 9012 3456 7890 104`, `FR7612345678901234567890104`, `BE68 5390 0754 7034`, `DE89 3704 0044 0532 0130 00`, `gb82 west 1234 5698 7654 32` | Espacé vs compact (2 valeurs, 2 jetons), minuscules (raté), coupé par un retour à la ligne (fuite partielle mesurée, [M]), espaces fines insécables (fuite partielle mesurée, [M]). Même suite de chiffres que `credit_card` : l'IBAN prime. |
+| 25 | iban | `[IBAN_n]` | Regex + NER | `FR76 1234 5678 9012 3456 7890 104`, `FR7612345678901234567890104`, `BE68 5390 0754 7034`, `DE89 3704 0044 0532 0130 00`, `gb82 west 1234 5698 7654 32` | Espacé vs compact (2 valeurs, 2 jetons), minuscules, coupé par un retour à la ligne, espaces fines insécables : ces trois cas fuyaient avant le correctif du regex ([M]) et doivent désormais être masqués en entier (minuscules seulement si la clé mod-97 est valide). Même suite de chiffres que `credit_card` : l'IBAN prime. |
 | 26 | payment_card | `[CREDIT_CARD_n]` | Regex + NER | `4111 1111 1111 1111` | Numéro Visa de test, Luhn valide. |
-| 27 | card_number | `[CREDIT_CARD_n]` | Regex + NER | `5555-5555-5555-4444`, `3782 822463 10005` | Tirets ; **AmEx 4-6-5 : le regex la coupe en deux** et laisse le premier et le dernier chiffre ([M]). Faux positif : `2024 0314 0001 7788` (n° de commande, Luhn invalide). |
+| 27 | card_number | `[CREDIT_CARD_n]` | Regex + NER | `5555-5555-5555-4444`, `3782 822463 10005` | Tirets ; AmEx 4-6-5, que le regex coupait en deux avant le correctif ([M]) ; numéro compact sans séparateur. Faux positif : `2024 0314 0001 7788` (n° de commande, Luhn invalide). |
 | 28 | card_expiry | `[CARD_EXPIRY_n]` | NER | `09/27`, `11/2026` | `09/27` ressemble à une date jj/mm. |
 | 29 | card_cvv | `[CARD_CVV_n]` | NER | `737`, `091` | 3 chiffres sans autre indice que « CVV » / « cryptogramme » ; zéro initial. Le plus difficile. |
 | 30 | username | `[USERNAME_n]` | NER | `hdubreuil78` | Initiale + nom + chiffres ; apparaît dans la config, le tableau et le JWT. |
@@ -90,15 +90,18 @@ Hors des 42 mais présents (le moteur les traite aussi) : montants (`AMOUNT`, re
 
 J'ai exécuté `detectRegex` + `buildRedactedText` sur le fichier. C'est le plancher : ce qui reste si le NER ne tourne pas (mode cabinet désactivé et NER indisponible). Avec le NER prêt, les résultats peuvent différer (il l'emporte sur le regex en cas de chevauchement).
 
-**Bien attrapé** : e-mails, téléphones `06 39 98 12 34`, `+33 6 …`, `06.39.98.12.34`, `0639981234`, `+84 …`, `+1 (415) …`, IBAN espacé/compact/BE/DE, cartes Visa et Mastercard, IPv4 `203.0.113.42`, les 4 montants. Les dates au format `01.02.2024` et `125000` ne sont **pas** pris pour des téléphones ou des montants.
+**Bien attrapé** : e-mails, téléphones `06 39 98 12 34`, `+33 6 …`, `06.39.98.12.34`, `0639981234`, `+84 …`, `+1 (415) …`, IBAN espacé/compact/BE/DE, IBAN à espaces insécables ou fines insécables, coupé par un retour à la ligne, ou en minuscules (clé valide), cartes Visa, Mastercard et AmEx (groupées ou compactes), IPv4 `203.0.113.42`, les 4 montants. Les dates au format `01.02.2024` et `125000` ne sont **pas** pris pour des téléphones ou des montants.
 
-**Ratés (restent en clair sans NER)** : `+33 (0)4 65 71 20 45`, mobile à espaces insécables, IPv6, `gb82 west …` (minuscules), formes dictées et `[dot]/[at]`, tout ce qui est NER seul (noms, adresses, dates, identifiants, secrets).
+**Ratés (restent en clair sans NER)** : `+33 (0)4 65 71 20 45`, mobile à espaces insécables, IPv6, formes dictées et `[dot]/[at]`, tout ce qui est NER seul (noms, adresses, dates, identifiants, secrets).
 
-**Fuites partielles (les plus graves)** :
-- AmEx `3782 822463 10005` devient `3[PHONE_n]5` : premier et dernier chiffre en clair.
-- IBAN à espaces fines insécables devient `FR76␣[CREDIT_CARD_n]␣7890␣104` : pays, clé et fin en clair, et le milieu est étiqueté carte.
-- IBAN coupé par un retour à la ligne : `[IBAN_n]` puis `3456 7890 104` en clair.
-- OID `1.3.6.1.4.1` : `[IP_n].4.1`.
+**Fuites partielles corrigées** (regex, `src/lib/pii/regex-detector.ts`). Avant correctif, la mesure donnait :
+- AmEx `3782 822463 10005` → `3[PHONE_n]5` (premier et dernier chiffre en clair). Une carte **compacte** `4111111111111111` fuyait aussi : le motif `phone` en prenait 13 chiffres et en laissait 3.
+- IBAN à espaces fines insécables → `FR76␣[CREDIT_CARD_n]␣7890␣104` (pays, clé et fin en clair).
+- IBAN coupé par un retour à la ligne → `[IBAN_n]` puis `3456 7890 104` en clair ; IBAN en minuscules : non détecté.
+
+Après correctif, ces cinq cas sont masqués en entier (tests dans `regex-detector.test.ts`). À re-vérifier dans l'app : un IBAN en fin de ligne suivi d'un mot de 4 caractères en capitales peut désormais l'absorber (sur-masquage rare, sans fuite).
+
+**Fuite partielle restante** : OID `1.3.6.1.4.1` → `[IP_n].4.1` (faux positif, sans PII).
 
 **Mauvais étiquetage** : tout nombre de 10 chiffres ou plus est classé `phone` (CNI, permis, n° de compte `12345678901`, `Account No. 000123456789`). Le masquage tient, mais le modèle voit `[PHONE_n]` pour un numéro de compte, et un SIREN ou un autre nombre long peut devenir « téléphone ».
 
