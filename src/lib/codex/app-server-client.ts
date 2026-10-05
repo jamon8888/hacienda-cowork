@@ -53,6 +53,12 @@ import { getInterpreterCliShellRuntimeDir } from "../../../server/utils/interpre
 import { findSafeWorkspaceForCwd, resolveSafeRuntimeConfinement } from "../../../server/utils/safeWorkspace";
 import { getGlobalSkillsRoot, getInterpreterUserDataDir } from "../../../server/utils/skillsPaths";
 import { probeSandboxEnforced } from "../../../server/utils/sandboxProbe";
+import { isLocalOnlyRoute, routeFromThreadConfig } from "../../../server/services/localModelBypass";
+import {
+  isLocalOnlyThread,
+  recordLocalOnlyThread,
+  refuseLocalOnlyThread,
+} from "../../../server/services/localOnlyThreads";
 import {
   getStrippedSystemSkillPathsInCurrentApp,
   isBundledSkillEnabledInCurrentApp,
@@ -2071,6 +2077,8 @@ export class CodexAppServerClient {
   private readonly events = new EventEmitter<ClientEvents>();
   private readonly runtimeAccessSnapshotLoader: () => Promise<CodexRuntimeAccessSnapshot>;
   private readonly workspaceScopedThreads = new Set<string>();
+  /** Threads whose current route (last start/resume/fork) is local-only. */
+  private readonly localOnlyRouteThreads = new Set<string>();
   private listenersAttached = false;
   private unsubscribeMcpServerNotifications: (() => void) | null = null;
   // NOTE(victor): `json-rpc-2.0` turns `rejectAllPendingRequests(message)` into
@@ -2133,17 +2141,42 @@ export class CodexAppServerClient {
   private async resolveThreadWorkspaceAccess(
     runtimeAccess: CodexRuntimeAccessSnapshot,
     cwd: string | null | undefined,
+    localOnly = false,
   ): Promise<{
     cwd: string | null | undefined;
     workspacePermission: CodexWorkspacePermissionSelection | null;
   }> {
-    const safe = findSafeWorkspaceForCwd(cwd)
-      ? resolveSafeRuntimeConfinement(cwd, [
+    const safeWorkspace = findSafeWorkspaceForCwd(cwd);
+    const safeReadableRoots = safeWorkspace
+      ? [
           getGlobalSkillsRoot(),
           ...(await getConfigVerticalPackSkillRoots()),
           ...(await this.getRuntimeInstallRoots()),
-        ])
-      : null;
+        ]
+      : [];
+    if (safeWorkspace && localOnly) {
+      // Local-only Safe work (services/localModelBypass): the originals, on a
+      // model on this machine, with no network so nothing read leaves it.
+      // This path reads originals rather than the mirror, so it is strictly
+      // more privileged than the confined path below and must clear the same
+      // sandbox proof (#63) before it runs.
+      if (!(await this.verifySafeSandbox({ networkAccess: false }))) {
+        throw new SafeSandboxUnavailableError(await safeSandboxUnavailableMessage());
+      }
+      return {
+        cwd: safeWorkspace,
+        workspacePermission: buildCodexWorkspacePermissionSelection({
+          sandboxMode: runtimeAccess.sandboxMode,
+          readAccessMode: "workspace-only",
+          networkAccess: false,
+          allowTempAccess: process.platform === "darwin" ? runtimeAccess.macosTempAccess : true,
+          cwd: safeWorkspace,
+          additionalReadableRoots: [...getInterpreterCliSandboxReadableRoots(), ...safeReadableRoots],
+          additionalWritableRoots: getInterpreterCliSandboxWritableRoots(),
+        }),
+      };
+    }
+    const safe = safeWorkspace ? resolveSafeRuntimeConfinement(cwd, safeReadableRoots) : null;
     // The user can leave the network off in Safe folders; the sandbox then has none.
     const networkAccess = safe && await isSafeNetworkSurfaceOff() ? false : runtimeAccess.networkAccess;
     // Probe the configuration this thread will run in, network setting included.
@@ -2176,6 +2209,30 @@ export class CodexAppServerClient {
       (params) => this.rpcRequest(CLIENT_METHOD.commandExec, params),
       { dir: path.join(getInterpreterUserDataDir(), "sandbox-probe"), networkAccess: options.networkAccess },
     );
+  }
+
+  /**
+   * Whether a thread started or resumed on this route runs local-only. A
+   * thread already marked local-only that is resumed on any other route stays
+   * confined, and its next turn is refused (startTurn).
+   */
+  private async resolveLocalOnlyRoute(
+    cwd: string | null | undefined,
+    modelProvider: string | null | undefined,
+    config: Record<string, JsonValue> | null | undefined,
+  ): Promise<boolean> {
+    if (!findSafeWorkspaceForCwd(cwd)) return false;
+    return isLocalOnlyRoute(cwd, routeFromThreadConfig(modelProvider, config as Record<string, unknown> | null));
+  }
+
+  /** Record the thread's route; a local-only one is marked (and audited) for good. */
+  private async trackLocalOnlyRoute(threadId: string, localOnly: boolean): Promise<void> {
+    if (localOnly) {
+      await recordLocalOnlyThread(threadId);
+      this.localOnlyRouteThreads.add(threadId);
+    } else {
+      this.localOnlyRouteThreads.delete(threadId);
+    }
   }
 
   private async getRuntimeInstallRoots(): Promise<string[]> {
@@ -2274,7 +2331,8 @@ export class CodexAppServerClient {
   ) {
     const threadApprovalPolicy = await getConfigApprovalPolicy();
     const runtimeAccess = await this.getRuntimeAccessSnapshot();
-    const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, cwd);
+    const localOnly = await this.resolveLocalOnlyRoute(cwd, modelProvider, config);
+    const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, cwd, localOnly);
     const workspacePermission = workspaceAccess.workspacePermission;
     cwd = workspaceAccess.cwd;
     const nextConfig = withWorkspacePermissionConfig(config, workspacePermission);
@@ -2304,6 +2362,8 @@ export class CodexAppServerClient {
     } else {
       this.workspaceScopedThreads.delete(result.thread.id);
     }
+
+    await this.trackLocalOnlyRoute(result.thread.id, localOnly);
 
     return result.thread.id;
   }
@@ -2348,6 +2408,8 @@ export class CodexAppServerClient {
       this.workspaceScopedThreads.delete(result.thread.id);
     }
 
+    this.localOnlyRouteThreads.delete(result.thread.id);
+
     return result.thread.id;
   }
 
@@ -2361,7 +2423,10 @@ export class CodexAppServerClient {
     developerInstructions?: string | null,
   ) {
     const runtimeAccess = await this.getRuntimeAccessSnapshot();
-    const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, cwd);
+    const localOnly = await this.resolveLocalOnlyRoute(cwd, modelProvider, config);
+    // Marked before the runtime reopens it unconfined: no mark, no resume.
+    if (localOnly) await recordLocalOnlyThread(threadId);
+    const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, cwd, localOnly);
     const workspacePermission = workspaceAccess.workspacePermission;
     cwd = workspaceAccess.cwd;
     const nextConfig = withWorkspacePermissionConfig(config, workspacePermission);
@@ -2392,6 +2457,8 @@ export class CodexAppServerClient {
       this.workspaceScopedThreads.delete(result.thread.id);
     }
 
+    await this.trackLocalOnlyRoute(result.thread.id, localOnly);
+
     return result.thread.id;
   }
 
@@ -2404,7 +2471,8 @@ export class CodexAppServerClient {
     config?: Record<string, JsonValue> | null,
   ) {
     const runtimeAccess = await this.getRuntimeAccessSnapshot();
-    const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, cwd);
+    const localOnly = await this.resolveLocalOnlyRoute(cwd, modelProvider, config);
+    const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, cwd, localOnly);
     const workspacePermission = workspaceAccess.workspacePermission;
     cwd = workspaceAccess.cwd;
     const nextConfig = withWorkspacePermissionConfig(config, workspacePermission);
@@ -2433,6 +2501,11 @@ export class CodexAppServerClient {
     } else {
       this.workspaceScopedThreads.delete(result.thread.id);
     }
+
+    // A fork carries the source's history: a local-only source makes a
+    // local-only fork, whatever route the fork runs on.
+    if (isLocalOnlyThread(threadId)) await recordLocalOnlyThread(result.thread.id);
+    await this.trackLocalOnlyRoute(result.thread.id, localOnly);
 
     return result.thread.id;
   }
@@ -2566,9 +2639,15 @@ export class CodexAppServerClient {
   }) {
     const input = buildUserInput(params);
 
+    // A conversation that ran on the originals continues only on the local
+    // route it was last opened with (its history holds real values).
+    const localOnly = this.localOnlyRouteThreads.has(params.threadId);
+    if (!localOnly && isLocalOnlyThread(params.threadId)) {
+      await refuseLocalOnlyThread(params.threadId);
+    }
     const turnApprovalPolicy = await getConfigApprovalPolicy();
     const runtimeAccess = await this.getRuntimeAccessSnapshot();
-    const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, params.cwd);
+    const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, params.cwd, localOnly);
     const workspacePermission = workspaceAccess.workspacePermission;
     const effectiveCwd = workspaceAccess.cwd;
     const sandboxPolicy = workspacePermission

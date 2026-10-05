@@ -362,6 +362,33 @@ describe('mainAgentPrompt', () => {
     });
   });
 
+  describe('Local-only workspace', () => {
+    test('a Safe folder on a local model gets the local rules, not the redaction ones', () => {
+      const prompt = getMainAgentDeveloperPrompt(
+        'qwen3',
+        true,
+        '/usr/local/bin/interpreter-app',
+        { localOnlyWorkspace: true, platform: 'linux' },
+      );
+      expect(prompt).toContain('## Local-only workspace');
+      expect(prompt).toContain('you work on the original files directly');
+      expect(prompt).toContain('Nothing may leave this computer');
+      expect(prompt).not.toContain('## Safe workspace');
+      expect(prompt).not.toContain('[PERSON_1]');
+    });
+
+    test('Safe wins if both flags are set', () => {
+      const prompt = getMainAgentDeveloperPrompt(
+        'qwen3',
+        true,
+        '/usr/local/bin/interpreter-app',
+        { safeWorkspace: true, localOnlyWorkspace: true, platform: 'linux' },
+      );
+      expect(prompt).toContain('## Safe workspace');
+      expect(prompt).not.toContain('## Local-only workspace');
+    });
+  });
+
   test('hides the native desktop section when Computer Use is switched off', () => {
     const prompt = (computerUseEnabled?: boolean) => getMainAgentDeveloperPrompt(
       'gpt-5.4-mini',
