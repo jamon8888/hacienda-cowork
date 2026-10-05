@@ -48,7 +48,7 @@ Attendu : zéro ligne. (`1978` peut légitimement rester dans la « loi n° 78-1
 | 5 | last_name | `[LAST_NAME_n]` | NER | `DUBREUIL`, `Vasseur`, `Benali` | Capitales. Nom dans une raison sociale (`Dubreuil Conseil EURL`), un e-mail, une URL. **`Dubreuil` désigne deux personnes (Hélène et son défunt mari) mais n'a qu'un jeton** (même valeur). Variante avec espace de largeur nulle (§6.3). |
 | 6 | date_of_birth | `[DATE_OF_BIRTH_n]` | NER | `14 mars 1978`, `1978-03-14`, `05/09/1985` | Trois formats ; la même date en deux formats = deux valeurs = deux jetons. `sinh ngày` (vietnamien). Voisine de la loi du `6 janvier 1978` (décor public). Un âge est calculable si la date fuit. |
 | 7 | email | `[EMAIL_n]` | Regex + NER | `helene.dubreuil@exemple-client.example`, `helene.dubreuil+litige@exemple-client.example`, `H.DUBREUIL@EXEMPLE-CLIENT.EXAMPLE`, `k.benali@aurea-mobilites.example` | Casse (majuscules ≠ minuscules → 2 jetons), sous-adresse `+litige`, YAML, tableau. Formes obfusquées (`helene [dot] dubreuil [at] exemple-client [dot] example`, dictée) invisibles au regex. Le point final de phrase est avalé dans le jeton (mesuré, [M]). L'e-mail est aussi encodé dans le JWT. |
-| 8 | phone_number | `[PHONE_n]` | Regex + NER | `06 39 98 12 34`, `+33 6 39 98 12 34`, `06.39.98.12.34`, `0639981234`, `04 65 71 20 45`, `+33 (0)4 65 71 20 45`, `+84 90 123 45 67`, `+1 (415) 555-0132` | Séparateurs variés, `(0)` entre parenthèses (raté par le regex), espaces insécables (§6.3, raté), dictée en toutes lettres (ratée). Faux positifs regex sur des nombres longs ([M]). |
+| 8 | phone_number | `[PHONE_n]` | Regex + NER | `06 39 98 12 34`, `+33 6 39 98 12 34`, `06.39.98.12.34`, `0639981234`, `04 65 71 20 45`, `+33 (0)4 65 71 20 45`, `+84 90 123 45 67`, `+1 (415) 555-0132` | Séparateurs variés, `(0)` entre parenthèses et espaces insécables (§6.3) : ratés par le regex avant le correctif ([M]), désormais attendus masqués ; dictée en toutes lettres : toujours ratée. Faux positifs regex sur des nombres longs ([M]). |
 | 9 | address | `[ADDRESS_n]` | NER | `12 rue des Tilleuls, Résidence Les Mimosas, Bât. B, 69003 Lyon` | Adresse multi-segments (résidence, bâtiment). Fragment `Bât. B, 69003 Lyon` en note de bas de page. `rue Victor-Hugo` (nom de personne dans la voie). |
 | 10 | street_address | `[ADDRESS_n]` | NER | `Appartement 4B, 27 bis avenue du Général-Leclerc, 69100 Villeurbanne`, `100 Example Plaza, Austin, Texas 78701`, `25 Lê Lợi, Quận 1, Thành phố Hồ Chí Minh` | `bis`, appartement, « Général-Leclerc » (personne dans la voie). Formats US et vietnamien. Doit se replier sur `ADDRESS`. |
 | 11 | city | `[CITY_n]` | NER | `Villeurbanne`, `Caluire-et-Cuire`, `Hanoï` | Ville dans une institution (« tribunal judiciaire de Lyon », « CCI de Lyon », « Part-Dieu »). Lieu de naissance = donnée sensible. `Nantes` (handball) = indice indirect. |
@@ -71,7 +71,7 @@ Attendu : zéro ligne. (`1978` peut légitimement rester dans la « loi n° 78-1
 | 28 | card_expiry | `[CARD_EXPIRY_n]` | NER | `09/27`, `11/2026` | `09/27` ressemble à une date jj/mm. |
 | 29 | card_cvv | `[CARD_CVV_n]` | NER | `737`, `091` | 3 chiffres sans autre indice que « CVV » / « cryptogramme » ; zéro initial. Le plus difficile. |
 | 30 | username | `[USERNAME_n]` | NER | `hdubreuil78` | Initiale + nom + chiffres ; apparaît dans la config, le tableau et le JWT. |
-| 31 | ip_address | `[IP_n]` | Regex (IPv4) + NER | `203.0.113.42`, `2001:db8:85a3::8a2e:370:7334` | IPv6 invisible au regex. Faux positifs : `3.1.4.2` (version), `1.3.6.1.4.1` (OID, coupé en `1.3.6.1` + `.4.1`). |
+| 31 | ip_address | `[IP_n]` | Regex (IPv4) + NER | `203.0.113.42`, `2001:db8:85a3::8a2e:370:7334` | IPv6 : invisible au regex avant le correctif ([M]), désormais attendue masquée en `[IP_n]` (même jeton `IP` que l'IPv4, numérotation distincte). Piège inverse : `std::vector`, `09:41:00` et une adresse MAC ne doivent pas l'être. Faux positifs : `3.1.4.2` (version), `1.3.6.1.4.1` (OID, coupé en `1.3.6.1` + `.4.1`). |
 | 32 | account_id | `[ACCOUNT_ID_n]` | NER | `CLI-2291-0457`, `4482-9915-03` | Identifiants clients, pas de format standard. |
 | 33 | sensitive_account_id | `[SENSITIVE_ACCOUNT_ID_n]` | NER | `SEQ-2024-0731-77A`, `PAT-77412-X` | Compte séquestre CARPA ; identifiant patient (santé, art. 9 RGPD). |
 | 34 | password | `[PASSWORD_n]` | NER | `Tilleul!2024#Lyon`, `Mirabelle2019!` | `#` (commentaire INI/Markdown), mot de passe dans un **commentaire HTML invisible** une fois rendu. |
@@ -90,16 +90,17 @@ Hors des 42 mais présents (le moteur les traite aussi) : montants (`AMOUNT`, re
 
 J'ai exécuté `detectRegex` + `buildRedactedText` sur le fichier. C'est le plancher : ce qui reste si le NER ne tourne pas (mode cabinet désactivé et NER indisponible). Avec le NER prêt, les résultats peuvent différer (il l'emporte sur le regex en cas de chevauchement).
 
-**Bien attrapé** : e-mails, téléphones `06 39 98 12 34`, `+33 6 …`, `06.39.98.12.34`, `0639981234`, `+84 …`, `+1 (415) …`, IBAN espacé/compact/BE/DE, IBAN à espaces insécables ou fines insécables, coupé par un retour à la ligne, ou en minuscules (clé valide), cartes Visa, Mastercard et AmEx (groupées ou compactes), IPv4 `203.0.113.42`, les 4 montants. Les dates au format `01.02.2024` et `125000` ne sont **pas** pris pour des téléphones ou des montants.
+**Bien attrapé** : e-mails, téléphones `06 39 98 12 34`, `+33 6 …`, `06.39.98.12.34`, `0639981234`, `+84 …`, `+1 (415) …`, IBAN espacé/compact/BE/DE, IBAN à espaces insécables ou fines insécables, coupé par un retour à la ligne, ou en minuscules (clé valide), cartes Visa, Mastercard et AmEx (groupées ou compactes), IPv4 `203.0.113.42` et IPv6 `2001:db8:85a3::8a2e:370:7334`, téléphones `+33 (0)4 65 71 20 45` et mobile à espaces insécables, les 4 montants. Les dates au format `01.02.2024` et `125000` ne sont **pas** pris pour des téléphones ou des montants.
 
-**Ratés (restent en clair sans NER)** : `+33 (0)4 65 71 20 45`, mobile à espaces insécables, IPv6, formes dictées et `[dot]/[at]`, tout ce qui est NER seul (noms, adresses, dates, identifiants, secrets).
+**Ratés (restent en clair sans NER)** : formes dictées et `[dot]/[at]`, tout ce qui est NER seul (noms, adresses, dates, identifiants, secrets).
 
 **Fuites partielles corrigées** (regex, `src/lib/pii/regex-detector.ts`). Avant correctif, la mesure donnait :
 - AmEx `3782 822463 10005` → `3[PHONE_n]5` (premier et dernier chiffre en clair). Une carte **compacte** `4111111111111111` fuyait aussi : le motif `phone` en prenait 13 chiffres et en laissait 3.
 - IBAN à espaces fines insécables → `FR76␣[CREDIT_CARD_n]␣7890␣104` (pays, clé et fin en clair).
 - IBAN coupé par un retour à la ligne → `[IBAN_n]` puis `3456 7890 104` en clair ; IBAN en minuscules : non détecté.
+- Téléphone `+33 (0)4 65 71 20 45` et téléphones à espaces insécables ou fines insécables (national et `+33`) : non détectés. IPv6 : non détectée.
 
-Après correctif, ces cinq cas sont masqués en entier (tests dans `regex-detector.test.ts`). À re-vérifier dans l'app : un IBAN en fin de ligne suivi d'un mot de 4 caractères en capitales peut désormais l'absorber (sur-masquage rare, sans fuite).
+Après correctif, ces cas sont masqués en entier (tests dans `regex-detector.test.ts`, faux positifs `std::vector`, heures et adresses MAC exclus). À re-vérifier dans l'app : un IBAN en fin de ligne suivi d'un mot de 4 caractères en capitales peut désormais l'absorber (sur-masquage rare, sans fuite).
 
 **Fuite partielle restante** : OID `1.3.6.1.4.1` → `[IP_n].4.1` (faux positif, sans PII).
 

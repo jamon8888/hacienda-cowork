@@ -97,6 +97,52 @@ describe('detectRegex', () => {
     expect(detectRegex('call 0612345678')[0].category).toBe('phone');
   });
 
+  test('detects a phone number with the trunk zero in parentheses', () => {
+    // The plain E.164 form stops at the `(`, so these used to stay in clear.
+    for (const phone of ['+33 (0)4 65 71 20 45', '+33(0)6 39 98 12 34', '+44 (0)20 7946 0958']) {
+      expect(detectRegex(`tel ${phone} merci`).map((d) => [d.category, d.text])).toEqual([
+        ['phone', phone],
+      ]);
+    }
+  });
+
+  test('detects phone numbers separated by no-break or narrow no-break spaces', () => {
+    // French typography writes numbers this way; only ASCII separators matched.
+    for (const space of ['\u00a0', '\u202f']) {
+      const national = ['06', '39', '98', '12', '34'].join(space);
+      const international = ['+33', '6', '39', '98', '12', '34'].join(space);
+      for (const phone of [national, international]) {
+        expect(detectRegex(`tel ${phone} merci`).map((d) => [d.category, d.text])).toEqual([
+          ['phone', phone],
+        ]);
+      }
+    }
+  });
+
+  test('detects full and compressed IPv6 addresses', () => {
+    for (const address of [
+      '2001:db8:85a3::8a2e:370:7334',
+      '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+      'fe80::1',
+      '2001:db8::ff00:42:8329',
+    ]) {
+      expect(detectRegex(`host ${address}.`).map((d) => [d.category, d.text])).toEqual([
+        ['ipv6', address],
+      ]);
+    }
+    // Brackets and a port are not part of the address.
+    expect(detectRegex('[2001:db8::1]:443').map((d) => d.text)).toEqual(['2001:db8::1']);
+  });
+
+  test('does not take code paths, times or MAC addresses for IPv6', () => {
+    for (const text of [
+      'std::vector', 'Foo::Bar', 'Dead::beef', 'a::b', '::1',
+      'Heure 09:41:00', 'ratio 12:30', 'MAC 00:1a:2b:3c:4d:5e',
+    ]) {
+      expect(detectRegex(text)).toEqual([]);
+    }
+  });
+
   test('detects French national numbers written in pairs', () => {
     // The everyday French form. With NER down (or cabinet mode off) this
     // pass is all that runs, and it let "06 12 34 56 78" reach the provider.

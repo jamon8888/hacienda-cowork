@@ -11,6 +11,27 @@ export interface PiiDetection {
 // (an IBAN wrapped by a document extractor).
 const IBAN_SEPARATOR = String.raw`(?:[ \u00a0\u202f]|\r?\n[ \t]*)?`;
 
+// Between the digits of a phone number: a space, a no-break or narrow no-break
+// space (French typography), `.` or `-`.
+const PHONE_SEPARATOR = String.raw`[ \u00a0\u202f.-]?`;
+
+// IPv6 in full (eight groups) or compressed (`::`, which every shortened form
+// needs). A leading `::` (`::1`, `::ffff`) is left out and so is a bare `::`:
+// they read as C++/Rust paths (`std::vector`). The lookahead asks for a digit
+// somewhere, so `Dead::beef` stays alone; times (`09:41:00`) and MAC addresses
+// (six groups) have no `::` and too few groups.
+const IPV6_GROUP = '[A-Fa-f0-9]{1,4}';
+const IPV6 = [
+  `(?:${IPV6_GROUP}:){7}${IPV6_GROUP}`,
+  `(?:${IPV6_GROUP}:){1,7}:`,
+  `(?:${IPV6_GROUP}:){1,6}:${IPV6_GROUP}`,
+  `(?:${IPV6_GROUP}:){1,5}(?::${IPV6_GROUP}){1,2}`,
+  `(?:${IPV6_GROUP}:){1,4}(?::${IPV6_GROUP}){1,3}`,
+  `(?:${IPV6_GROUP}:){1,3}(?::${IPV6_GROUP}){1,4}`,
+  `(?:${IPV6_GROUP}:){1,2}(?::${IPV6_GROUP}){1,5}`,
+  `${IPV6_GROUP}:(?::${IPV6_GROUP}){1,6}`,
+].join('|');
+
 // A number as written in French or English: groups of three digits split by a
 // space, no-break space, `.` or `,`, then optional decimals (125 000, 1.250,50,
 // $1,250.50), or plain digits with optional decimals (125000, 1,2). The groups
@@ -46,12 +67,23 @@ const PATTERNS = {
   // (4-6-5, 15 digits) and leave the rest in clear.
   credit_card: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b|\b3[47]\d{2}[-\s]?\d{6}[-\s]?\d{5}\b/g,
   // E.164 first (`+` + 8–15 digits, separators allowed): the international
-  // form wins over the US-centric fallback below (+33 …, +1-800-…). Then the
+  // form wins over the US-centric fallback below (+33 …, +1-800-…). Written
+  // with the trunk zero in parentheses (+33 (0)4 65 71 20 45), it is the
+  // first alternative, since the plain form stops at the `(`. Then the
   // French national form, ten digits in pairs (06 12 34 56 78, 01.23.45.67.89),
   // which the 3-3-4 fallback never matched; the leading 0 and the word
   // boundaries keep amounts (125 000) and dates (01.02.2024) out.
-  phone: /\+\d(?:[ .-]?\d){7,14}|\b0[1-9](?:[ .-]?\d{2}){4}\b|(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
+  phone: new RegExp(
+    [
+      String.raw`\+\d{1,3}${PHONE_SEPARATOR}\(0\)(?:${PHONE_SEPARATOR}\d){6,12}`,
+      String.raw`\+\d(?:${PHONE_SEPARATOR}\d){7,14}`,
+      String.raw`\b0[1-9](?:${PHONE_SEPARATOR}\d{2}){4}\b`,
+      String.raw`(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}`,
+    ].join('|'),
+    'g',
+  ),
   ipv4: /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g,
+  ipv6: new RegExp(String.raw`(?<![\w:])(?=[A-Fa-f0-9:]*\d)(?:${IPV6})(?![\w:])`, 'g'),
 } as const;
 
 /**
