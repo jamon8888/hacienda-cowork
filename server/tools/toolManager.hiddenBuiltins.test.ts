@@ -70,3 +70,14 @@ describe('ToolManager hidden builtin discovery', () => {
     expect(hiddenServerIds).not.toContain('builtin-echo-secret');
   });
 });
+
+describe('ToolManager basemind plumbing', () => {
+  test.each(['vault', 'redact_text', 'admin'])(
+    'refuses a model-bound basemind %s call before any redaction or dispatch',
+    async (toolName) => {
+      await expect(new ToolManager().callTool('basemind', toolName, {})).rejects.toThrow(
+        `basemind__${toolName}' is not available to agents`,
+      );
+    },
+  );
+});

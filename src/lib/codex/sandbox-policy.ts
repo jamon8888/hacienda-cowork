@@ -12,6 +12,21 @@ export type CodexWorkspacePermissionSelection = {
   permissionProfileId: string;
   runtimeWorkspaceRoots: string[];
   config: Record<string, unknown>;
+  /** Thread config keys the profile requires beside `permissions`. */
+  threadConfig?: Record<string, unknown>;
+};
+
+/**
+ * Confinement for a Safe workspace (`<workspace>/safe/` exists). The runtime
+ * root is the redacted mirror, read-only; the agent writes only its drafts
+ * directory. Originals sit outside every readable root, so neither the shell
+ * nor Python can read them.
+ */
+export type SafeWorkspaceConfinement = {
+  safeRoot: string;
+  draftsRoot: string;
+  /** Read-only roots outside the mirror the agent still needs (skills). */
+  readableRoots?: string[];
 };
 
 /**
@@ -71,12 +86,17 @@ export function buildCodexWorkspacePermissionSelection(options: {
   cwd?: string | null;
   additionalReadableRoots?: string[];
   additionalWritableRoots?: string[];
+  /** Set in a Safe workspace: overrides the read scope and sandbox mode. */
+  safe?: SafeWorkspaceConfinement | null;
 }): CodexWorkspacePermissionSelection | null {
-  if (options.readAccessMode !== 'workspace-only') {
+  const safe = options.safe ?? null;
+  // A Safe workspace is always confined, whatever the persisted read scope:
+  // `full-system` uses the legacy sandbox policy, which grants broad reads.
+  if (!safe && options.readAccessMode !== 'workspace-only') {
     return null;
   }
 
-  const workspaceAccess = options.sandboxMode === 'read-only' ? 'read' : 'write';
+  const workspaceAccess = safe || options.sandboxMode === 'read-only' ? 'read' : 'write';
   const filesystem: Record<string, unknown> = {
     ':minimal': 'read',
     ':workspace_roots': {
@@ -85,7 +105,8 @@ export function buildCodexWorkspacePermissionSelection(options: {
   };
 
   if (options.allowTempAccess ?? true) {
-    filesystem[':tmpdir'] = workspaceAccess;
+    // Scratch space stays writable in a Safe workspace: it holds no original.
+    filesystem[':tmpdir'] = safe ? 'write' : workspaceAccess;
   }
 
   for (const readableRoot of options.additionalReadableRoots ?? []) {
@@ -102,9 +123,21 @@ export function buildCodexWorkspacePermissionSelection(options: {
     }
   }
 
+  if (safe) {
+    for (const readableRoot of safe.readableRoots ?? []) {
+      const normalizedRoot = readableRoot.trim();
+      if (normalizedRoot) {
+        filesystem[normalizedRoot] = 'read';
+      }
+    }
+    filesystem[safe.draftsRoot] = 'write';
+  }
+
   return {
     permissionProfileId: WORKSTATION_WORKSPACE_PERMISSION_PROFILE_ID,
-    runtimeWorkspaceRoots: options.cwd?.trim() ? [options.cwd.trim()] : [],
+    runtimeWorkspaceRoots: safe
+      ? [safe.safeRoot]
+      : options.cwd?.trim() ? [options.cwd.trim()] : [],
     config: {
       permissions: {
         [WORKSTATION_WORKSPACE_PERMISSION_PROFILE_ID]: {
@@ -115,5 +148,8 @@ export function buildCodexWorkspacePermissionSelection(options: {
         },
       },
     },
+    // OIX loads AGENTS.md from the git root down to the cwd, and the root one
+    // is an original: a lawyer's notes would reach the provider in clear.
+    ...(safe ? { threadConfig: { project_doc_max_bytes: 0 } } : {}),
   };
 }

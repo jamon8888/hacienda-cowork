@@ -127,6 +127,113 @@ describe('codexServerRequestApprovals', () => {
     }
   });
 
+  describe('in a Safe workspace', () => {
+    function bindSafeThread(threadId: string) {
+      agentTabManager.bindThread({
+        agentId: `agent-${threadId}`,
+        threadId,
+        callerToken: `agtok_${threadId}`,
+        workspacePath,
+      });
+    }
+
+    async function armSafe() {
+      await mkdir(path.join(workspacePath, 'safe'), { recursive: true });
+      await writeFile(path.join(workspacePath, 'scan.png'), 'original image');
+      await writeFile(path.join(workspacePath, 'safe', 'chart.png'), 'mirror image');
+    }
+
+    async function decide(request: ServerRequest, approved = true) {
+      const created = createDeps(approved);
+      let response: unknown;
+      await handleCodexServerRequest(request, (result) => {
+        response = result;
+      }, created.deps);
+      return { response, ...created };
+    }
+
+    test('declines an escalated command without asking', async () => {
+      await armSafe();
+      bindSafeThread('thr_safe_cmd');
+      const { response, approvalCalls, questionCalls } = await decide({
+        id: 1,
+        method: SERVER_REQUEST_METHOD.commandExecutionApproval,
+        params: {
+          threadId: 'thr_safe_cmd',
+          turnId: 'turn_1',
+          itemId: 'item_1',
+          command: `cat ${path.join(workspacePath, 'contrat.docx')}`,
+          cwd: path.join(workspacePath, 'safe'),
+          reason: 'needs access outside the sandbox',
+        },
+      } as ServerRequest);
+
+      assert.deepEqual(response, { decision: 'decline' });
+      assert.equal(approvalCalls.length + questionCalls.length, 0);
+    });
+
+    test('declines viewing an original image and accepts one inside the mirror', async () => {
+      await armSafe();
+      bindSafeThread('thr_safe_img');
+      const view = (imagePath: string) => decide({
+        id: 2,
+        method: SERVER_REQUEST_METHOD.commandExecutionApproval,
+        params: {
+          threadId: 'thr_safe_img',
+          turnId: 'turn_1',
+          itemId: 'item_2',
+          reason: `view_image: ${imagePath}`,
+          command: `view_image ${imagePath}`,
+          cwd: path.join(workspacePath, 'safe'),
+        },
+      } as ServerRequest);
+
+      const original = await view(path.join(workspacePath, 'scan.png'));
+      assert.deepEqual(original.response, { decision: 'decline' });
+      assert.equal(original.approvalCalls.length, 0);
+      const relativeEscape = await view('../scan.png');
+      assert.deepEqual(relativeEscape.response, { decision: 'decline' });
+      const mirror = await view('chart.png');
+      assert.deepEqual(mirror.response, { decision: 'accept' });
+    });
+
+    test('declines a file change outside the sandbox', async () => {
+      await armSafe();
+      bindSafeThread('thr_safe_patch');
+      const { response, questionCalls } = await decide({
+        id: 3,
+        method: SERVER_REQUEST_METHOD.fileChangeApproval,
+        params: {
+          threadId: 'thr_safe_patch',
+          turnId: 'turn_1',
+          itemId: 'item_3',
+          reason: 'write outside the workspace',
+          grantRoot: workspacePath,
+        },
+      } as ServerRequest);
+
+      assert.deepEqual(response, { decision: 'decline' });
+      assert.equal(questionCalls.length, 0);
+    });
+
+    test('leaves a workspace without safe/ on the normal approval flow', async () => {
+      bindSafeThread('thr_open');
+      const { approvalCalls } = await decide({
+        id: 4,
+        method: SERVER_REQUEST_METHOD.commandExecutionApproval,
+        params: {
+          threadId: 'thr_open',
+          turnId: 'turn_1',
+          itemId: 'item_4',
+          reason: 'view_image: /tmp/image.png',
+          command: 'view_image /tmp/image.png',
+          cwd: '/tmp',
+        },
+      } as ServerRequest);
+      assert.equal(approvalCalls.length, 1);
+    });
+  });
+
   test('handles view_image command approval via approval manager', async () => {
     agentTabManager.bindThread({
       agentId: 'agent-view-image-1',

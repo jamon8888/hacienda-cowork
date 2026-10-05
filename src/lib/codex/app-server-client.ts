@@ -50,6 +50,8 @@ import {
   type CodexSandboxMode,
 } from "./sandbox-policy";
 import { getInterpreterCliShellRuntimeDir } from "../../../server/utils/interpreterCliRuntime";
+import { findSafeWorkspaceForCwd, resolveSafeRuntimeConfinement } from "../../../server/utils/safeWorkspace";
+import { getGlobalSkillsRoot } from "../../../server/utils/skillsPaths";
 import {
   getStrippedSystemSkillPathsInCurrentApp,
   isBundledSkillEnabledInCurrentApp,
@@ -628,6 +630,8 @@ export interface JsonRpcTransport {
   onClose(handler: (error?: Error) => void): void;
   stop(): void | Promise<void>;
   getStderrSnapshot?(): string;
+  /** Install root of the runtime binary, kept readable inside the sandbox. */
+  getRuntimeInstallRoot?(): Promise<string>;
 }
 
 export interface CodexCliRunner {
@@ -1419,6 +1423,7 @@ function withWorkspacePermissionConfig(
 
   return withRequiredThreadConfig({
     ...(config ?? {}),
+    ...((selection.threadConfig ?? {}) as Record<string, JsonValue>),
     permissions: {
       ...existingPermissions,
       ...selectedPermissions,
@@ -1689,6 +1694,11 @@ export class StdioJsonRpcTransport implements JsonRpcTransport {
     });
 
     return { stdout, stderr };
+  }
+
+  /** The OIX install root (the folder holding `bin/` and `codex-resources/`). */
+  async getRuntimeInstallRoot(): Promise<string> {
+    return path.dirname(path.dirname(await this.resolveInterpreterCliBinary()));
   }
 
   private async resolveInterpreterCliBinary(): Promise<string> {
@@ -2067,6 +2077,47 @@ export class CodexAppServerClient {
     this.options = options;
   }
 
+  /**
+   * Access for a thread or turn started at `cwd`. In a Safe workspace the
+   * runtime cwd becomes the redacted `safe/` mirror and the profile confines
+   * reads to it (spec 2026-09-22 §7 known limit: native reads bypassed the
+   * redaction gate). The OIX install root stays readable: its Linux sandbox
+   * helper re-executes the runtime binary inside bubblewrap.
+   */
+  private async resolveThreadWorkspaceAccess(
+    runtimeAccess: CodexRuntimeAccessSnapshot,
+    cwd: string | null | undefined,
+  ): Promise<{
+    cwd: string | null | undefined;
+    workspacePermission: CodexWorkspacePermissionSelection | null;
+  }> {
+    const safe = findSafeWorkspaceForCwd(cwd)
+      ? resolveSafeRuntimeConfinement(cwd, [
+          getGlobalSkillsRoot(),
+          ...(await this.getRuntimeInstallRoots()),
+        ])
+      : null;
+    const effectiveCwd = safe ? safe.safeRoot : cwd;
+    return {
+      cwd: effectiveCwd,
+      workspacePermission: buildCodexWorkspacePermissionSelection({
+        sandboxMode: runtimeAccess.sandboxMode,
+        readAccessMode: runtimeAccess.readAccessMode,
+        networkAccess: runtimeAccess.networkAccess,
+        allowTempAccess: process.platform === "darwin" ? runtimeAccess.macosTempAccess : true,
+        cwd: effectiveCwd,
+        additionalReadableRoots: getInterpreterCliSandboxReadableRoots(),
+        additionalWritableRoots: getInterpreterCliSandboxWritableRoots(),
+        safe,
+      }),
+    };
+  }
+
+  private async getRuntimeInstallRoots(): Promise<string[]> {
+    const root = await this.transport.getRuntimeInstallRoot?.();
+    return root ? [root] : [];
+  }
+
   async ensureConnected() {
     const requestId = ++codexEnsureConnectedRequestId;
     console.log(
@@ -2158,15 +2209,9 @@ export class CodexAppServerClient {
   ) {
     const threadApprovalPolicy = await getConfigApprovalPolicy();
     const runtimeAccess = await this.getRuntimeAccessSnapshot();
-    const workspacePermission = buildCodexWorkspacePermissionSelection({
-      sandboxMode: runtimeAccess.sandboxMode,
-      readAccessMode: runtimeAccess.readAccessMode,
-      networkAccess: runtimeAccess.networkAccess,
-      allowTempAccess: process.platform === "darwin" ? runtimeAccess.macosTempAccess : true,
-      cwd,
-      additionalReadableRoots: getInterpreterCliSandboxReadableRoots(),
-      additionalWritableRoots: getInterpreterCliSandboxWritableRoots(),
-    });
+    const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, cwd);
+    const workspacePermission = workspaceAccess.workspacePermission;
+    cwd = workspaceAccess.cwd;
     const nextConfig = withWorkspacePermissionConfig(config, workspacePermission);
 
     console.log(
@@ -2205,28 +2250,22 @@ export class CodexAppServerClient {
   }): Promise<string> {
     const threadApprovalPolicy = await getConfigApprovalPolicy();
     const runtimeAccess = await this.getRuntimeAccessSnapshot();
-    const workspacePermission = buildCodexWorkspacePermissionSelection({
-      sandboxMode: runtimeAccess.sandboxMode,
-      readAccessMode: runtimeAccess.readAccessMode,
-      networkAccess: runtimeAccess.networkAccess,
-      allowTempAccess: process.platform === "darwin" ? runtimeAccess.macosTempAccess : true,
-      cwd: params.cwd,
-      additionalReadableRoots: getInterpreterCliSandboxReadableRoots(),
-      additionalWritableRoots: getInterpreterCliSandboxWritableRoots(),
-    });
+    const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, params.cwd);
+    const workspacePermission = workspaceAccess.workspacePermission;
+    const effectiveCwd = workspaceAccess.cwd;
     const config = withWorkspacePermissionConfig({
       include_apply_patch_tool: false,
       include_permissions_instructions: false,
     }, workspacePermission);
 
     console.log(
-      `[interpreter-thread] startMcpToolThread model=${params.model ?? ""} modelProvider=${params.modelProvider ?? "default"} cwd=${params.cwd ?? ""} access=${workspacePermission?.permissionProfileId ?? runtimeAccess.sandboxMode} approvalPolicy=${threadApprovalPolicy}`,
+      `[interpreter-thread] startMcpToolThread model=${params.model ?? ""} modelProvider=${params.modelProvider ?? "default"} cwd=${effectiveCwd ?? ""} access=${workspacePermission?.permissionProfileId ?? runtimeAccess.sandboxMode} approvalPolicy=${threadApprovalPolicy}`,
     );
 
     const request: v2.ThreadStartParams & ExperimentalThreadAccessFields = {
       ...(params.model ? { model: params.model } : {}),
       modelProvider: params.modelProvider ?? null,
-      ...(params.cwd ? { cwd: params.cwd } : {}),
+      ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
       config,
       approvalPolicy: threadApprovalPolicy as v2.ThreadStartParams["approvalPolicy"],
       ...(workspacePermission
@@ -2257,15 +2296,9 @@ export class CodexAppServerClient {
     developerInstructions?: string | null,
   ) {
     const runtimeAccess = await this.getRuntimeAccessSnapshot();
-    const workspacePermission = buildCodexWorkspacePermissionSelection({
-      sandboxMode: runtimeAccess.sandboxMode,
-      readAccessMode: runtimeAccess.readAccessMode,
-      networkAccess: runtimeAccess.networkAccess,
-      allowTempAccess: process.platform === "darwin" ? runtimeAccess.macosTempAccess : true,
-      cwd,
-      additionalReadableRoots: getInterpreterCliSandboxReadableRoots(),
-      additionalWritableRoots: getInterpreterCliSandboxWritableRoots(),
-    });
+    const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, cwd);
+    const workspacePermission = workspaceAccess.workspacePermission;
+    cwd = workspaceAccess.cwd;
     const nextConfig = withWorkspacePermissionConfig(config, workspacePermission);
 
     console.log(
@@ -2306,15 +2339,9 @@ export class CodexAppServerClient {
     config?: Record<string, JsonValue> | null,
   ) {
     const runtimeAccess = await this.getRuntimeAccessSnapshot();
-    const workspacePermission = buildCodexWorkspacePermissionSelection({
-      sandboxMode: runtimeAccess.sandboxMode,
-      readAccessMode: runtimeAccess.readAccessMode,
-      networkAccess: runtimeAccess.networkAccess,
-      allowTempAccess: process.platform === "darwin" ? runtimeAccess.macosTempAccess : true,
-      cwd,
-      additionalReadableRoots: getInterpreterCliSandboxReadableRoots(),
-      additionalWritableRoots: getInterpreterCliSandboxWritableRoots(),
-    });
+    const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, cwd);
+    const workspacePermission = workspaceAccess.workspacePermission;
+    cwd = workspaceAccess.cwd;
     const nextConfig = withWorkspacePermissionConfig(config, workspacePermission);
 
     console.log(
@@ -2469,15 +2496,9 @@ export class CodexAppServerClient {
 
     const turnApprovalPolicy = await getConfigApprovalPolicy();
     const runtimeAccess = await this.getRuntimeAccessSnapshot();
-    const workspacePermission = buildCodexWorkspacePermissionSelection({
-      sandboxMode: runtimeAccess.sandboxMode,
-      readAccessMode: runtimeAccess.readAccessMode,
-      networkAccess: runtimeAccess.networkAccess,
-      allowTempAccess: process.platform === "darwin" ? runtimeAccess.macosTempAccess : true,
-      cwd: params.cwd,
-      additionalReadableRoots: getInterpreterCliSandboxReadableRoots(),
-      additionalWritableRoots: getInterpreterCliSandboxWritableRoots(),
-    });
+    const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, params.cwd);
+    const workspacePermission = workspaceAccess.workspacePermission;
+    const effectiveCwd = workspaceAccess.cwd;
     const sandboxPolicy = workspacePermission
       ? undefined
       : params.sandboxPolicy ?? buildCodexSandboxPolicy({
@@ -2494,7 +2515,7 @@ export class CodexAppServerClient {
     const request: v2.TurnStartParams & ExperimentalTurnAccessFields = {
       threadId: params.threadId,
       input,
-      ...(params.cwd ? { cwd: params.cwd } : {}),
+      ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
       approvalPolicy: turnApprovalPolicy as v2.TurnStartParams["approvalPolicy"],
       ...(workspacePermission
         ? {
@@ -2512,7 +2533,7 @@ export class CodexAppServerClient {
     const result = await this.rpcRequest(CLIENT_METHOD.turnStart, request);
 
     console.log(
-      `[interpreter-turn] start threadId=${params.threadId} cwd=${params.cwd ?? ""} approvalPolicy=${turnApprovalPolicy} access=${workspacePermission?.permissionProfileId ?? JSON.stringify(sandboxPolicy)}`,
+      `[interpreter-turn] start threadId=${params.threadId} cwd=${effectiveCwd ?? ""} approvalPolicy=${turnApprovalPolicy} access=${workspacePermission?.permissionProfileId ?? JSON.stringify(sandboxPolicy)}`,
     );
 
     return result.turn;

@@ -289,22 +289,7 @@ describe('maybeRedactToolResult', () => {
     expect(result).toBe(raw);
   });
 
-  test('exempts basemind redact_text (the hook re-enters itself through it)', async () => {
-    const raw = { content: [{ type: 'text', text: `mail ${PROBE_EMAIL}` }] };
-    const result = await maybeRedactToolResult(
-      {
-        serverId: 'basemind',
-        toolName: 'redact_text',
-        result: raw,
-        workspacePath: workspace(true),
-        threadKey: 'thread-rt',
-      },
-      stubDeps,
-    );
-    expect(result).toBe(raw);
-  });
-
-  test('exempts basemind vault (returns originals for Show Originals)', async () => {
+  test('redacts a basemind vault result: a model-bound decrypt must not return originals', async () => {
     const raw = { content: [{ type: 'text', text: `mail ${PROBE_EMAIL}` }] };
     const result = await maybeRedactToolResult(
       {
@@ -316,7 +301,25 @@ describe('maybeRedactToolResult', () => {
       },
       stubDeps,
     );
-    expect(result).toBe(raw);
+    const text = (result as { content: Array<{ text: string }> }).content[0].text;
+    expect(text).not.toContain(PROBE_EMAIL);
+    expect(text).toMatch(/\[EMAIL_\d+\]/);
+  });
+
+  test('redacts a basemind redact_text result', async () => {
+    const raw = { content: [{ type: 'text', text: `mail ${PROBE_EMAIL}` }] };
+    const result = await maybeRedactToolResult(
+      {
+        serverId: 'basemind',
+        toolName: 'redact_text',
+        result: raw,
+        workspacePath: workspace(true),
+        threadKey: 'thread-rt',
+      },
+      stubDeps,
+    );
+    const text = (result as { content: Array<{ text: string }> }).content[0].text;
+    expect(text).not.toContain(PROBE_EMAIL);
   });
 
   test('redacts without storing when no thread key exists', async () => {

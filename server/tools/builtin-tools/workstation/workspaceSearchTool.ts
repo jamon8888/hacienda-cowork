@@ -10,6 +10,7 @@ import { basemindSearchCode, type SearchHit } from '../../../handlers/search';
 import { isDaemonRunning } from '../../../utils/basemindManager';
 import { checkFileAccessPermissionAsync } from '../../../utils/permissions';
 import { getCurrentWorkspace } from '../../../utils/workspace';
+import { findSafeWorkspaceForCwd, isInsideSafeMirror } from '../../../utils/safeWorkspace';
 
 /**
  * basemind indexes the whole workspace, so a hit's `path` can name anything in
@@ -20,6 +21,21 @@ import { getCurrentWorkspace } from '../../../utils/workspace';
  * path, so pointing `pathArg` at it would be a no-op at best. Filtering has to
  * happen here, the same way `vaultTool.ts` filters `VaultSnapshot.notes`.
  */
+/**
+ * In a Safe workspace the conversation searches the redacted mirror only
+ * (integration spec §6): a hit on an original names a file the agent cannot
+ * open and whose line numbers do not match its mirror, so it is dropped. The
+ * mirror files are indexed themselves (safe-sync rescans them).
+ */
+export function keepMirrorHitsInSafeWorkspace<T extends { path: string }>(
+  hits: T[],
+  workspace: string | null,
+): T[] {
+  const safeWorkspace = findSafeWorkspaceForCwd(workspace);
+  if (!safeWorkspace) return hits;
+  return hits.filter((hit) => isInsideSafeMirror(safeWorkspace, hit.path));
+}
+
 async function filterHitsByAgentScope(
   hits: SearchHit[],
   agentId: string | undefined,
@@ -91,7 +107,11 @@ export const workspaceSearchTool: BuiltinToolDefinition = {
       });
 
       const workspace = context?.workspace ?? getCurrentWorkspace();
-      const hits = await filterHitsByAgentScope(result.hits, context?.agentId, workspace);
+      const hits = await filterHitsByAgentScope(
+        keepMirrorHitsInSafeWorkspace(result.hits, workspace),
+        context?.agentId,
+        workspace,
+      );
 
       if (hits.length === 0) {
         return {

@@ -74,4 +74,51 @@ describe("OIX workspace-only permission profiles", () => {
       cwd: "/workspace/project",
     })).toBeNull();
   });
+
+  test("confines a Safe workspace: mirror read-only, drafts and scratch writable", () => {
+    const selection = buildCodexWorkspacePermissionSelection({
+      sandboxMode: "danger-full-access",
+      readAccessMode: "full-system",
+      networkAccess: true,
+      allowTempAccess: true,
+      cwd: "/workspace/project/safe",
+      additionalReadableRoots: ["/runtime/interpreter-cli"],
+      additionalWritableRoots: ["/runtime/interpreter-cli/bridge"],
+      safe: {
+        safeRoot: "/workspace/project/safe",
+        draftsRoot: "/workspace/project/safe/_drafts",
+        readableRoots: ["/home/u/.openinterpreter/skills", " "],
+      },
+    });
+
+    expect(selection?.runtimeWorkspaceRoots).toEqual(["/workspace/project/safe"]);
+    expect(selection?.threadConfig).toEqual({ project_doc_max_bytes: 0 });
+    expect(selection?.config).toEqual({
+      permissions: {
+        [WORKSTATION_WORKSPACE_PERMISSION_PROFILE_ID]: {
+          filesystem: {
+            ":minimal": "read",
+            ":workspace_roots": { ".": "read" },
+            ":tmpdir": "write",
+            "/runtime/interpreter-cli": "read",
+            "/runtime/interpreter-cli/bridge": "write",
+            "/home/u/.openinterpreter/skills": "read",
+            "/workspace/project/safe/_drafts": "write",
+          },
+          network: { enabled: true },
+        },
+      },
+    });
+  });
+
+  test("adds no thread config outside a Safe workspace", () => {
+    const selection = buildCodexWorkspacePermissionSelection({
+      sandboxMode: "workspace-write",
+      readAccessMode: "workspace-only",
+      networkAccess: false,
+      cwd: "/workspace/project",
+    });
+    expect(selection?.threadConfig).toBeUndefined();
+  });
 });
+

@@ -728,6 +728,71 @@ describe("CodexAppServerClient", () => {
     assert.equal(turn.id, "turn_override");
   });
 
+  test("confines a Safe workspace to its mirror whatever the persisted access", async () => {
+    setConfigOverride({
+      agents: {},
+      globalDisabledTools: [],
+      codexApprovalPolicy: "on-request",
+      codexSandboxMode: "danger-full-access",
+      codexReadAccessMode: "full-system",
+      codexNetworkAccess: true,
+    });
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "client-safe-"));
+    try {
+      await mkdir(path.join(workspace, "safe"));
+      const safeRoot = path.join(workspace, "safe");
+      const draftsRoot = path.join(safeRoot, "_drafts");
+
+      const transport = new FakeTransport() as FakeTransport & {
+        getRuntimeInstallRoot: () => Promise<string>;
+      };
+      transport.getRuntimeInstallRoot = async () => "/opt/oix/linux-x64";
+      const client = new CodexAppServerClient(transport, null, async () => ({
+        sandboxMode: "danger-full-access",
+        readAccessMode: "full-system",
+        networkAccess: true,
+        macosTempAccess: true,
+        macosScreenshotAccess: true,
+      }));
+
+      const threadPromise = client.startThread("gpt-5.4-mini", null, null, workspace);
+      await waitFor(() => transport.sent.length >= 1);
+      completeInitHandshake(transport);
+      await waitFor(() => transport.sent.length >= 3);
+
+      const threadReq = assertSentRequest(transport, 2, CLIENT_METHOD.threadStart);
+      const params = threadReq.params as typeof threadReq.params & {
+        permissions?: string;
+        runtimeWorkspaceRoots?: string[];
+        config?: Record<string, any>;
+      };
+      assert.equal(params.cwd, safeRoot);
+      assert.equal(params.sandbox, undefined);
+      assert.equal(params.permissions, "interpreter-workspace-scope");
+      assert.deepEqual(params.runtimeWorkspaceRoots, [safeRoot]);
+      assert.equal(params.config?.project_doc_max_bytes, 0);
+      const filesystem = params.config?.permissions?.["interpreter-workspace-scope"]?.filesystem;
+      assert.deepEqual(filesystem[":workspace_roots"], { ".": "read" });
+      assert.equal(filesystem[draftsRoot], "write");
+      assert.equal(filesystem["/opt/oix/linux-x64"], "read");
+      assert.equal(existsSync(draftsRoot), true);
+      transport.respond(threadReq, makeThreadStartResponse("thr_safe"));
+      const threadId = await threadPromise;
+
+      const turnPromise = client.startTurn({ threadId, message: "hello", cwd: workspace });
+      await waitFor(() => transport.sent.length >= 4);
+      const turnReq = assertSentRequest(transport, 3, CLIENT_METHOD.turnStart);
+      const turnParams = turnReq.params as typeof turnReq.params & { runtimeWorkspaceRoots?: string[] };
+      assert.equal(turnParams.cwd, safeRoot);
+      assert.equal(turnParams.sandboxPolicy, undefined);
+      assert.deepEqual(turnParams.runtimeWorkspaceRoots, [safeRoot]);
+      transport.respond(turnReq, makeTurnStartResponse("turn_safe"));
+      await turnPromise;
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
+  });
+
   test("reloads runtime access snapshot for later turns", async () => {
     setConfigOverride({
       agents: {},

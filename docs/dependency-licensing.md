@@ -45,9 +45,8 @@ Known items requiring explicit release review:
   resolves it to MIT using Debian's reviewed source record and upstream commit,
   and the complete MIT notice is packaged. Any additional `Unknown` entry fails
   CI.
-- JSZip 3.10.2 is used under its MIT option. node-forge 1.4.0 is used under its
-  BSD-3-Clause option. Their complete selected notices are packaged; CI fails if
-  either package or license expression drifts.
+- JSZip 3.10.2 is used under its MIT option. Its complete selected notice is
+  packaged; CI fails if the package or its license expression drifts.
 - The browser extension and computer-use submodules carry independent MIT
   licenses and preserved upstream histories.
 
