@@ -162,7 +162,9 @@ What a pack does: its identity and rules are added to the prompt as a
 `Practice pack` section, after the core prompt and before the user's own custom
 instructions, and its `skills/` folder is registered with the runtime. The text
 is not run through the Safe redaction (it is written by the firm and holds no
-client data). What a pack never does: unlock a client feature, change a
+client data). Its `suggestionPills` appear on the new-tab screen as a first category named after the pack; picking one fills the composer with its prompt. Without pills nothing is added.
+
+What a pack never does: unlock a client feature, change a
 permission, or reach a hosted service. Skills are read-only to the agent in a
 Safe workspace like any other skill.
 

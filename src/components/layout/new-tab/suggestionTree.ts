@@ -41,7 +41,16 @@ export interface PillOption {
   subtitle?: string;
 }
 
+/** The vertical pack in force, as far as the suggestion screen is concerned. */
+export interface PackSuggestions {
+  id: string;
+  name: string;
+  suggestionPills: Array<{ label: string; prompt: string }>;
+}
+
 export interface BuildTreeInput {
+  /** Starter prompts of the active vertical pack; absent or empty adds nothing. */
+  activePack?: PackSuggestions | null;
   workspace: WorkspaceTypeInfo | null;
   activity: ActivitySignals | null;
   availableSkills: PillSkillRef[];
@@ -427,8 +436,34 @@ function buildMore(input: BuildTreeInput): PillOption {
 // Main builder
 // ---------------------------------------------------------------------------
 
+/**
+ * The pack's own starter prompts, as one category named after the pack. Ids
+ * are stable (`pack:<id>:<n>`) so click history can still rank them.
+ */
+function buildPackCategory(input: BuildTreeInput): PillOption | null {
+  const pack = input.activePack;
+  if (!pack || pack.suggestionPills.length === 0) return null;
+  return {
+    id: `cat:pack:${pack.id}`,
+    title: pack.name,
+    icon: 'Notebook',
+    children: sortByBoost(
+      pack.suggestionPills.map((pill, index): PillOption => ({
+        id: `pack:${pack.id}:${index}`,
+        title: pill.label,
+        icon: 'Notebook',
+        actionType: 'prompt',
+        prompt: pill.prompt,
+      })),
+      input.activity?.cardClicks,
+    ),
+  };
+}
+
 export function buildSuggestionTree(input: BuildTreeInput): PillOption[] {
+  const packCategory = buildPackCategory(input);
   return [
+    ...(packCategory ? [packCategory] : []),
     buildCreate(input),
     buildLlmWiki(input),
     buildAskWorkspace(input),

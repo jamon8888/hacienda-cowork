@@ -358,4 +358,50 @@ describe('buildSuggestionTree', () => {
     const more = tree.find((option) => option.id === 'cat:more');
     expect(more?.children?.some((option) => option.id === 'more:bootstrap-wiki')).toBe(false);
   });
+
+  describe('vertical pack starter prompts', () => {
+    const baseInput = {
+      workspace: null,
+      activity: null,
+      availableSkills: [],
+      hourOfDay: 9,
+    };
+    const pack = {
+      id: 'droit',
+      name: 'Droit des affaires',
+      suggestionPills: [
+        { label: 'Relire un contrat', prompt: 'Relis ce contrat et liste les clauses à risque.' },
+        { label: 'Chronologie du dossier', prompt: 'Établis la chronologie du dossier.' },
+      ],
+    };
+
+    test('adds a category named after the pack, first, with each prompt ready to use', () => {
+      const tree = buildTree({ ...baseInput, activePack: pack });
+      expect(tree[0]).toMatchObject({ id: 'cat:pack:droit', title: 'Droit des affaires' });
+      expect(tree[0].children?.map((option) => [option.id, option.title, option.actionType, option.prompt])).toEqual([
+        ['pack:droit:0', 'Relire un contrat', 'prompt', 'Relis ce contrat et liste les clauses à risque.'],
+        ['pack:droit:1', 'Chronologie du dossier', 'prompt', 'Établis la chronologie du dossier.'],
+      ]);
+      // The ordinary suggestions are all still there, after it.
+      expect(tree.slice(1).map((option) => option.title)).toEqual(
+        buildTree(baseInput).map((option) => option.title),
+      );
+    });
+
+    test('no pack, or a pack without prompts, leaves the tree as it was', () => {
+      const plain = buildTree(baseInput);
+      expect(buildTree({ ...baseInput, activePack: null })).toEqual(plain);
+      expect(buildTree({ ...baseInput, activePack: { ...pack, suggestionPills: [] } })).toEqual(plain);
+    });
+
+    test('click history can still rank the pack prompts', () => {
+      const tree = buildTree({
+        ...baseInput,
+        activePack: pack,
+        activity: { cardClicks: { 'pack:droit:1': { count: 5 } } } as never,
+      });
+      expect(tree[0].children?.map((option) => option.id)).toEqual(['pack:droit:1', 'pack:droit:0']);
+    });
+  });
 });
+
