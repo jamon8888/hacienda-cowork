@@ -363,6 +363,12 @@
       "ws": "8.21.3",
       "underscore@<1.13.8": "1.13.8"
     },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-ch52-4w7c-c8xp",
+        "GHSA-vfj7-8cjw-p6xm"
+      ]
+    },
     "onlyBuiltDependencies": [
       "@parcel/watcher",
       "@nut-tree-fork/nut-js",
