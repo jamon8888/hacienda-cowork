@@ -189,6 +189,8 @@ Pour chaque question : regarder la réponse en mode normal **et** en « Masquer 
 
 ## 7. Grille de notation
 
+**Version de basemind testée : ______** (cible de ce test : **v0.32.3**). À noter avant de commencer : à la date de rédaction, `scripts/download-basemind.mjs` épingle encore `v0.32.2` sur cette branche et sur `main`. Tant que ce pin n'est pas passé à `v0.32.3`, un build télécharge la 0.32.2 : vérifier la version réellement embarquée dans l'app, et non la version visée.
+
 Remplir une ligne par label (copier le tableau §2 ou utiliser les numéros). Pour chaque valeur : **masquée entièrement / masquée en partie / non masquée**, **jeton obtenu**, **ré-hydratation fidèle (oui/non)**.
 
 Critères que je propose (à valider) :
@@ -205,3 +207,5 @@ Outils natifs du runtime (shell, lecture de fichiers de l'agent) non analysés ;
 ## 9. Ce qui n'a pas été vérifié
 
 Je n'ai exécuté que la couche regex. Tout ce qui dépend du NER (GLiNER2 ; 36 labels sur 42 n'ont aucun détecteur regex), du daemon basemind (sous-module vide dans ce conteneur), de la forme exacte des jetons renvoyés par basemind, de l'extraction du commentaire HTML par xberg et de l'UI Electron est **attendu**, non constaté : c'est ce que votre test local doit trancher.
+
+La version de basemind visée pour ce test est la **v0.32.3** (release terminée). Je ne l'ai pas exécutée, et le dépôt épingle encore `v0.32.2` (`scripts/download-basemind.mjs`) : les résultats attendus ci-dessus ne valent que pour la version réellement embarquée dans le build testé.
