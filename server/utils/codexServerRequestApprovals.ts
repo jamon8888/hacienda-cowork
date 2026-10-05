@@ -4,6 +4,8 @@ import { SERVER_REQUEST_METHOD, type ServerRequest } from '../../src/lib/codex/p
 import { prefixToolName } from '../../shared/utils/mcpToolName';
 import {
   checkFileAccessPermissionAsync,
+  isSamePathOrDescendant,
+  resolvePathForSecurityCheck,
   resolvePathWithWorkspace,
 } from './permissions';
 import { getCurrentWorkspace } from './workspace';
@@ -17,6 +19,7 @@ import {
 import { isPathInCodexMacosTrustedReadZone } from './codexTrustedPaths';
 import { shouldPromptForWorkspaceWriteSync } from './agentFilePermissions';
 import { getGlobalSkillsRoot } from './skillsPaths';
+import { findSafeWorkspaceForCwd, getSafeRoots } from './safeWorkspace';
 import type { CommandExecutionApprovalDecision } from '../handlers/codex-generated-types/v2/CommandExecutionApprovalDecision';
 import type { CommandExecutionRequestApprovalParams } from '../handlers/codex-generated-types/v2/CommandExecutionRequestApprovalParams';
 import type { FileChangeApprovalDecision } from '../handlers/codex-generated-types/v2/FileChangeApprovalDecision';
@@ -1632,12 +1635,66 @@ async function handleMcpServerElicitationRequest(
   respond(questionFlow.resolveResult(result));
 }
 
+function getRequestThreadAndCwd(request: ServerRequest): { threadId: string | null; cwd: string | null } {
+  const params = request.params as { threadId?: unknown; conversationId?: unknown; cwd?: unknown };
+  const threadId = typeof params.threadId === 'string'
+    ? params.threadId
+    : typeof params.conversationId === 'string' ? params.conversationId : null;
+  return { threadId, cwd: typeof params.cwd === 'string' ? params.cwd : null };
+}
+
+/**
+ * Safe workspace gate (spec 2026-09-22 §7). The OIX profile confines the
+ * agent to `safe/`, but an approved command or patch runs outside the
+ * sandbox, so approving one would reopen the originals. In a Safe workspace
+ * nothing escalates: only Interpreter CLI discovery goes on to the normal
+ * policy, an image is viewable only inside the mirror, and every other
+ * request is declined without asking. Returns null outside a Safe workspace
+ * or for requests that carry no file access (MCP elicitations).
+ */
+async function resolveSafeWorkspaceDecision(
+  request: ServerRequest,
+): Promise<'accept' | 'decline' | null> {
+  if (isMcpServerElicitationRequest(request)) return null;
+  const { threadId, cwd } = getRequestThreadAndCwd(request);
+  const workspace = findSafeWorkspaceForCwd(getBoundWorkspacePath(threadId))
+    ?? findSafeWorkspaceForCwd(cwd);
+  if (!workspace) return null;
+
+  if (isCommandExecutionApproval(request)) {
+    if (isViewImageCommandApproval(request)) {
+      const reason = request.params.reason ?? '';
+      const imagePath = reason.slice('view_image: '.length);
+      const { safeRoot } = getSafeRoots(workspace);
+      const [realImage, realSafeRoot] = await Promise.all([
+        resolvePathForSecurityCheck(path.resolve(cwd ?? safeRoot, imagePath)),
+        resolvePathForSecurityCheck(safeRoot),
+      ]);
+      return isSamePathOrDescendant(realImage, realSafeRoot) ? 'accept' : 'decline';
+    }
+    return isSafeInterpreterCliDiscoveryCommand(extractCommandPattern(request.params.command))
+      ? null
+      : 'decline';
+  }
+  return 'decline';
+}
+
 export async function handleCodexServerRequest(
   request: ServerRequest,
   respond: ServerRequestResponder,
   deps: CodexServerRequestApprovalDeps = defaultDeps(),
 ): Promise<void> {
   try {
+    const safeDecision = await resolveSafeWorkspaceDecision(request);
+    if (safeDecision === 'accept') {
+      respond({ decision: 'accept' });
+      return;
+    }
+    if (safeDecision === 'decline') {
+      respond(isLegacyExecCommandApproval(request) ? { decision: 'denied' } : deniedDecisionForRequest(request));
+      return;
+    }
+
     if (isCommandExecutionApproval(request)) {
       const agentId = getBoundAgentId(request.params.threadId);
 

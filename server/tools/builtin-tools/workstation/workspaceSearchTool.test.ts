@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 /**
  * Seams F+H: the tool is registered under the documented name, degrades when
@@ -109,5 +112,22 @@ describe('workspaceSearchTool', () => {
     const text = String(result.content[0]?.text);
     expect(text).toContain('src/ok.ts');
     expect(text).not.toContain('src/denied.ts');
+  });
+
+  test('keeps only mirror hits in a Safe workspace', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'search-safe-'));
+    try {
+      mkdirSync(join(workspace, 'safe'));
+      const hit = (path: string) => ({ path, chunkId: path, symbol: '', kind: '', lang: '', lineStart: 1, lineEnd: 2, byteStart: 0, byteEnd: 1, matchedLanes: [] });
+      searchHits = [hit('contrat.docx'), hit('safe/contrat.docx.md'), hit(join(workspace, 'note.pdf'))];
+      const { workspaceSearchTool } = await loadTool();
+      const result = await workspaceSearchTool.handler({ query: 'x' }, { workspace } as never);
+      const text = String(result.content[0]?.text);
+      expect(text).toContain('safe/contrat.docx.md');
+      expect(text).not.toContain('contrat.docx:');
+      expect(text).not.toContain('note.pdf');
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
   });
 });
