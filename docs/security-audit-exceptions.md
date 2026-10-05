@@ -39,6 +39,12 @@ Stack-exhaustion denial of service through deeply nested brace patterns.
   `devDependencies`.
 - **Reachable?** Only with attacker-controlled glob patterns in developer tooling.
   The worst case is a crashed local build.
+- **Where it applies:** both projects CI audits, the root project and
+  `shadcn-preset/preset-app` (its own `package.json` carries the same exception).
+  The preset app is a standalone Next app, not packaged with the desktop app. There
+  `braces` comes in through `shadcn` (declared in `dependencies`, but a CLI) and
+  `eslint-config-next` (`devDependencies`). I did not check that the Next server never
+  calls `shadcn` at runtime; its exposure is assumed nil, not proven.
 - **Review:** when `braces` publishes a fixed version (3.0.3 is the latest), or when
   `micromatch` moves to another matcher.
 
