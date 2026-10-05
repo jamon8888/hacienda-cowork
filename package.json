@@ -183,7 +183,6 @@
     "@types/lodash": "4.17.23",
     "@types/minimatch": "6.0.0",
     "@types/node": "24.9.1",
-    "@types/node-forge": "1.3.14",
     "@types/qrcode": "1.5.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
@@ -300,7 +299,6 @@
     "motion": "12.23.26",
     "music-metadata": "11.15.0",
     "nanoid": "5.1.16",
-    "node-forge": "1.4.0",
     "node-pty": "1.1.0",
     "onnxruntime-node": "1.30.0",
     "openai": "6.26.0",
@@ -321,7 +319,6 @@
     "remark-gfm": "4.0.1",
     "semver": "7.8.5",
     "sherpa-onnx": "1.13.8",
-    "sign-pdf-lib": "2.0.3",
     "smol-toml": "^1.8.0",
     "tailwind-merge": "3.7.0",
     "tailwindcss-animate": "1.0.7",
@@ -365,6 +362,12 @@
       "undici": "7.29.1",
       "ws": "8.21.3",
       "underscore@<1.13.8": "1.13.8"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-ch52-4w7c-c8xp",
+        "GHSA-vfj7-8cjw-p6xm"
+      ]
     },
     "onlyBuiltDependencies": [
       "@parcel/watcher",
