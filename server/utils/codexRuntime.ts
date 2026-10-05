@@ -817,6 +817,18 @@ export function resolveCodexProfileFromModelConfig(
   throw new Error(`Provider "${modelConfig.provider}" is not supported by the Codex runtime`);
 }
 
+/**
+ * The active vertical pack's identity and professional rules, after the core
+ * prompt and before the user's own instructions, so the user keeps the last
+ * word. Not run through the outbound redaction: the text is authored by the
+ * firm, holds no client data, and a detector could swap legal terms for tokens.
+ */
+async function appendPracticePack(developerInstructions: string): Promise<string> {
+  const { getActiveVerticalPack } = await import('../services/activeVerticalPack');
+  const { appendPracticePackToPrompt } = await import('../services/verticalPack');
+  return appendPracticePackToPrompt(developerInstructions, await getActiveVerticalPack());
+}
+
 function appendTaskSpecificInstructions(
   developerInstructions: string,
   system: string | undefined,
@@ -880,6 +892,7 @@ export async function buildCodexDeveloperInstructions(options: {
   if (process.env.DEMO_PROMPT) {
     developerInstructions += `\n\n${process.env.DEMO_PROMPT}`;
   }
+  developerInstructions = await appendPracticePack(developerInstructions);
   const customInstructions = await resolveCustomInstructionsForTurn(
     options.customInstructions,
     options.workspacePath,
@@ -894,7 +907,7 @@ export async function buildCodexDeveloperInstructions(options: {
 async function loadRuntimeSkillMetadata(
   workspacePath: string | undefined,
   purpose: string,
-  service: Pick<CodexService, 'listSkills'> = getCodexService(),
+  service: Pick<CodexService, 'listSkills'> & Partial<Pick<CodexService, 'setSkillsExtraRoots'>> = getCodexService(),
 ): Promise<RuntimeSkillMetadata[]> {
   const cwd = workspacePath || getInterpreterUserDataDir();
 
@@ -902,6 +915,7 @@ async function loadRuntimeSkillMetadata(
     return [];
   }
 
+  await syncVerticalPackSkillRoots(service);
   try {
     const response = await service.listSkills({
       cwds: [cwd],
@@ -914,6 +928,27 @@ async function loadRuntimeSkillMetadata(
       error instanceof Error ? error.message : error,
     );
     return [];
+  }
+}
+
+/**
+ * Tell the runtime where the active vertical pack's skills are. Called before
+ * every skills inventory, so a runtime that restarted (and forgot) or a pack
+ * the user just switched is picked up without a separate trigger. A failure
+ * only means the pack's skills are missing this turn; it never stops the turn.
+ */
+async function syncVerticalPackSkillRoots(
+  service: Partial<Pick<CodexService, 'setSkillsExtraRoots'>>,
+): Promise<void> {
+  if (typeof service.setSkillsExtraRoots !== 'function') return;
+  try {
+    const { getVerticalPackSkillRoots } = await import('../services/activeVerticalPack');
+    await service.setSkillsExtraRoots(await getVerticalPackSkillRoots());
+  } catch (error) {
+    console.warn(
+      '[Agent Runtime] Could not register the vertical pack skills.',
+      error instanceof Error ? error.message : error,
+    );
   }
 }
 

@@ -119,6 +119,16 @@ async function getConfigMacosTempAccess(): Promise<boolean> {
   }
 }
 
+/** Lazy, like the other config reads here: a missing config must not break a turn. */
+async function getConfigVerticalPackSkillRoots(): Promise<string[]> {
+  try {
+    const { getVerticalPackSkillRoots } = await import("../../../server/services/activeVerticalPack");
+    return await getVerticalPackSkillRoots();
+  } catch {
+    return [];
+  }
+}
+
 async function getConfigMacosScreenshotAccess(): Promise<boolean> {
   if (process.platform !== "darwin") {
     return true;
@@ -2094,6 +2104,7 @@ export class CodexAppServerClient {
     const safe = findSafeWorkspaceForCwd(cwd)
       ? resolveSafeRuntimeConfinement(cwd, [
           getGlobalSkillsRoot(),
+          ...(await getConfigVerticalPackSkillRoots()),
           ...(await this.getRuntimeInstallRoots()),
         ])
       : null;
@@ -2464,6 +2475,13 @@ export class CodexAppServerClient {
     params: v2.SkillsConfigWriteParams,
   ): Promise<v2.SkillsConfigWriteResponse> {
     return this.rpcRequest(CLIENT_METHOD.skillsConfigWrite, params);
+  }
+
+  /** Replace the extra skill folders the runtime scans (the active vertical pack's). */
+  async skillsExtraRootsSet(
+    params: v2.SkillsExtraRootsSetParams,
+  ): Promise<v2.SkillsExtraRootsSetResponse> {
+    return this.rpcRequest(CLIENT_METHOD.skillsExtraRootsSet, params);
   }
 
   async windowsSandboxSetupStart(
