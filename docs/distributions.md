@@ -168,6 +168,23 @@ What a pack never does: unlock a client feature, change a
 permission, or reach a hosted service. Skills are read-only to the agent in a
 Safe workspace like any other skill.
 
+`requires.app` (optional, `">=MAJOR[.MINOR[.PATCH]]"`) is the oldest app version
+the pack works with. An older app lists the pack with the reason ("needs
+Interpreter 0.2.0 or later") and never uses it; a newer app loads it.
+
+**Working on a pack on its own.** A pack lives in its own repository and does
+not need an app build to change:
+
+- `pnpm run pack:validate <pack folder> [--app-version 1.2.3]` runs the app's
+  loader plus author checks: every `skills/<name>/SKILL.md` has a `name` and a
+  `description`, and in a pack that `requiresSafe`, warns about skills that never
+  mention `safe/`, `_drafts` or `interpreter_safe_export`. It exits 1 on errors,
+  so the pack's CI can run it against the app tag it targets (bun only, no
+  `pnpm install` needed).
+- To try edits live, replace the installed copy with a link to your checkout:
+  `ln -s ~/src/my-pack "<app data>/packs/<id>"`. The pack is read again at every
+  turn, so a new message picks up changed rules and skills without a restart.
+
 **Installing.** Anyone can install a pack from Settings > General > Privacy >
 Professional pack. It is copied to `<app data>/packs/<id>/`; replacing another
 version asks first. The user's pick is stored as `activeVerticalPackId`.
@@ -183,6 +200,28 @@ version asks first. The user's pick is stored as `activeVerticalPackId`.
 leave it. With no pick from the user, the distribution's pack is the active
 one; the user can switch to another or go back to it. The community profile
 ships none.
+
+## Product repositories
+
+A vertical product (for example a build for law firms) is three things with
+their own lifecycles, never a copy of this repository:
+
+| Part | Lives in | Holds |
+|---|---|---|
+| Engine | this repository | the application, generic (Safe, packs, export) |
+| Pack | its own repository | `pack.json`, identity, rules, skills |
+| Product | a thin private repository | product overlay, `electron-builder` profile that `extends` this one, branding, pinned engine and pack versions, signing secrets, release trigger |
+
+The product repository holds no application code. Its CI checks out the
+engine and the pack at their pinned tags, puts the pack under `resources/`,
+and builds with `scripts/with-distribution-config.mjs`. A capability that
+needs application code is generic and belongs here; text, skills and settings
+belong in the pack; name, versions and release belong in the product.
+
+To keep this fork close to Interpreter Workstation, track it as `upstream`
+(`git remote add upstream https://github.com/openinterpreter/interpreter-workstation`)
+and merge it regularly; keep Hacienda changes in their own modules with short
+hooks into upstream files.
 
 ## Privacy contract
 

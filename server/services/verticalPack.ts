@@ -14,6 +14,8 @@
 import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 
+import { APP_VERSION } from '../../shared/version';
+
 export const PACK_MANIFEST_FILE = 'pack.json';
 export const PACK_SKILLS_DIR = 'skills';
 export const PACK_TEXT_MAX_CHARS = 16_000;
@@ -30,6 +32,8 @@ export interface VerticalPack {
   version: string;
   name: string;
   description: string;
+  /** Oldest app version the pack works with (`requires.app`), or null. */
+  minAppVersion: string | null;
   /** The pack only makes sense in a Safe workspace (confidential material). */
   requiresSafe: boolean;
   identity: string;
@@ -94,6 +98,34 @@ function readPills(value: unknown): PackSuggestionPill[] {
   });
 }
 
+const MIN_VERSION = /^>=\s*(\d+)(?:\.(\d+))?(?:\.(\d+))?$/;
+const APP_VERSION_PARTS = /^v?(\d+)\.(\d+)\.(\d+)/;
+
+/**
+ * `requires.app` as `>=MAJOR[.MINOR[.PATCH]]`, normalized to `MAJOR.MINOR.PATCH`.
+ * Only a minimum: a pack states what it needs, and a newer app keeps loading it.
+ */
+function readMinAppVersion(requires: unknown): string | null {
+  if (requires === undefined) return null;
+  if (!isRecord(requires)) throw new Error('"requires" must be an object');
+  if (requires.app === undefined) return null;
+  const match = typeof requires.app === 'string' ? MIN_VERSION.exec(requires.app.trim()) : null;
+  if (!match) throw new Error('"requires.app" must look like ">=1.2.3"');
+  return [match[1], match[2] ?? '0', match[3] ?? '0'].map(Number).join('.');
+}
+
+/** True when `appVersion` is older than `minimum`; an unreadable app version never blocks. */
+function isAppOlderThan(appVersion: string, minimum: string): boolean {
+  const app = APP_VERSION_PARTS.exec(appVersion.trim());
+  if (!app) return false;
+  const have = app.slice(1, 4).map(Number);
+  const need = minimum.split('.').map(Number);
+  for (let index = 0; index < 3; index += 1) {
+    if (have[index] !== need[index]) return have[index] < need[index];
+  }
+  return false;
+}
+
 /** Skills folder of a pack, or null when it has none (or it is not a plain folder). */
 function packSkillsRoot(packDir: string): string | null {
   const skills = path.join(packDir, PACK_SKILLS_DIR);
@@ -106,7 +138,7 @@ function packSkillsRoot(packDir: string): string | null {
   }
 }
 
-export function loadVerticalPack(dir: string): PackLoadResult {
+export function loadVerticalPack(dir: string, options: { appVersion?: string } = {}): PackLoadResult {
   try {
     const packDir = realpathSync(dir);
     const manifestPath = path.join(packDir, PACK_MANIFEST_FILE);
@@ -122,6 +154,11 @@ export function loadVerticalPack(dir: string): PackLoadResult {
     const id = text(manifest.id, 'id', 64);
     if (!PACK_ID.test(id)) throw new Error('"id" must use lowercase letters, digits and dashes');
     if (typeof manifest.requiresSafe !== 'boolean') throw new Error('"requiresSafe" must be true or false');
+    const minAppVersion = readMinAppVersion(manifest.requires);
+    const appVersion = options.appVersion ?? APP_VERSION;
+    if (minAppVersion && isAppOlderThan(appVersion, minAppVersion)) {
+      throw new Error(`needs Interpreter ${minAppVersion} or later (this is ${appVersion})`);
+    }
 
     return {
       ok: true,
@@ -130,6 +167,7 @@ export function loadVerticalPack(dir: string): PackLoadResult {
         version: text(manifest.version, 'version', 40),
         name: text(manifest.name, 'name', 120),
         description: text(manifest.description, 'description', 500, false),
+        minAppVersion,
         requiresSafe: manifest.requiresSafe,
         identity: readPackFile(packDir, manifest.identityFile, 'identityFile'),
         deontology: readPackFile(packDir, manifest.deontologyFile, 'deontologyFile'),

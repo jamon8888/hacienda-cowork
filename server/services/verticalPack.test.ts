@@ -107,6 +107,50 @@ describe('loadVerticalPack', () => {
   });
 });
 
+describe('requires.app', () => {
+  test('a pack without requirement loads on any app version', () => {
+    const result = loadVerticalPack(writePack(tmp()), { appVersion: '0.0.1' });
+    expect(result.ok && result.pack.minAppVersion).toBeNull();
+  });
+
+  test('loads on the minimum version and later, normalized to three parts', () => {
+    const dir = writePack(tmp(), { requires: { app: '>=0.2' } });
+    for (const appVersion of ['0.2.0', '0.2.7', '1.0.0', 'v0.3.0-rc.1']) {
+      const result = loadVerticalPack(dir, { appVersion });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.pack.minAppVersion).toBe('0.2.0');
+    }
+  });
+
+  test('an older app reports which version the pack needs', () => {
+    const dir = writePack(tmp(), { requires: { app: '>=0.10.0' } });
+    const result = loadVerticalPack(dir, { appVersion: '0.9.12' });
+    expect(result).toEqual({ ok: false, error: 'needs Interpreter 0.10.0 or later (this is 0.9.12)' });
+  });
+
+  test('an unreadable app version never blocks a pack', () => {
+    const dir = writePack(tmp(), { requires: { app: '>=9.0.0' } });
+    expect(loadVerticalPack(dir, { appVersion: 'dev' }).ok).toBe(true);
+  });
+
+  test.each([
+    [{ app: '^1.0.0' }],
+    [{ app: '1.0.0' }],
+    [{ app: 3 }],
+    ['>=1.0.0'],
+  ])('rejects a malformed requirement %j', (requires) => {
+    const result = loadVerticalPack(writePack(tmp(), { requires }));
+    expect(result.ok).toBe(false);
+  });
+
+  test('the running app version is used by default', () => {
+    const dir = writePack(tmp(), { requires: { app: '>=999.0.0' } });
+    const result = loadVerticalPack(dir);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain('needs Interpreter 999.0.0 or later');
+  });
+});
+
 describe('renderPracticePackSection', () => {
   test('puts identity first, then the professional rules', () => {
     const result = loadVerticalPack(writePack(tmp()));
