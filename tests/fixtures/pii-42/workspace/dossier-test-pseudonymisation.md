@@ -62,7 +62,7 @@ Banque : Banque Fictive du Rhône (BFR), agence de Lyon Part-Dieu.
 5. **2 septembre 2024** — mise en demeure. Fait à Lyon, le 2 septembre 2024.
 6. **12 novembre 2024, 9 h 30** — audience devant le tribunal judiciaire de Lyon.
 
-Contexte public (à ne pas confondre) : la loi n° 78-17 du 6 janvier 1978 (« Informatique et Libertés ») et le règlement (UE) 2016/679 s'appliquent ; le 14 juillet est férié ; export horodaté du CRM : 2024-08-17T09:41:00Z ; tableau de bord arrêté au 01.02.2024 ; point d'étape au T3 2024. Capital de la société adverse : 125 000 euros (pas 125000 tout court).
+Contexte public (à ne pas confondre) : la loi n° 78-17 du 6 janvier 1978 (« Informatique et Libertés ») et le règlement (UE) 2016/679 s'appliquent ; le 14 juillet est férié ; export horodaté du CRM : 2024-08-17T09:41:00Z ; tableau de bord arrêté au 01.02.2024 ; point d'étape au T3 2024 ; π vaut environ 3.14159265358979. Capital de la société adverse : 125 000 euros (pas 125000 tout court).
 
 ## 4. Extrait d'export de configuration (client extranet du cabinet)
 

@@ -121,6 +121,31 @@ describe('detectRegex', () => {
     }
   });
 
+  test('does not take a long decimal for a phone number or an identifier', () => {
+    // The 3-3-4 fallback matched the first ten digits of these (`3.1415926535`),
+    // and the long-number rule would have masked the fraction.
+    for (const decimal of [
+      '3.14159265358979', '0.1234567890', '12.3456789012', '-122.4194155',
+      '1,2345678901', '2.0.1234567890',
+    ]) {
+      expect(detectRegex(`valeur ${decimal} fin`)).toEqual([]);
+    }
+  });
+
+  test('still detects every US-style phone format after the decimal guard', () => {
+    for (const phone of [
+      '415-555-0132', '(415) 555-0132', '(415)555-0132', '415.555.0132', '415 555 0132',
+      '4155550132', '1-800-555-0199', '1 415 555 0132', '+1 (415) 555-0132', '555-010-0200',
+    ]) {
+      expect(detectRegex(`tel ${phone} merci`).map((d) => [d.category, d.text])).toEqual([
+        ['phone', phone],
+      ]);
+    }
+    // A sentence-final period or a preceding "Tel." is not part of a decimal.
+    expect(detectRegex('(415) 555-0132.').map((d) => d.text)).toEqual(['(415) 555-0132']);
+    expect(detectRegex('Tel.415-555-0132').map((d) => d.text)).toEqual(['415-555-0132']);
+  });
+
   test('detects a phone number with the trunk zero in parentheses', () => {
     // The plain E.164 form stops at the `(`, so these used to stay in clear.
     for (const phone of ['+33 (0)4 65 71 20 45', '+33(0)6 39 98 12 34', '+44 (0)20 7946 0958']) {

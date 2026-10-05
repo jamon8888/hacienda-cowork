@@ -70,8 +70,9 @@ const PATTERNS = {
   // (ID card, licence, account, SIRET), not a phone number: a national number
   // has ten digits, an international one starts with `+`. It runs before
   // `phone`, whose 3-3-4 fallback would label it a phone and, beyond thirteen
-  // digits, stop short and leave the tail in clear.
-  long_number: /(?<![\d+])\d{11,}(?!\d)/g,
+  // digits, stop short and leave the tail in clear. Not after `digit.` or
+  // `digit,`: that is the fraction of a decimal, which is not an identifier.
+  long_number: /(?<![\d+]|\d[.,])\d{11,}(?!\d)/g,
   // E.164 first (`+` + 8–15 digits, separators allowed): the international
   // form wins over the US-centric fallback below (+33 …, +1-800-…). Written
   // with the trunk zero in parentheses (+33 (0)4 65 71 20 45), it is the
@@ -84,7 +85,11 @@ const PATTERNS = {
       String.raw`\+\d{1,3}${PHONE_SEPARATOR}\(0\)(?:${PHONE_SEPARATOR}\d){6,12}`,
       String.raw`\+\d(?:${PHONE_SEPARATOR}\d){7,14}`,
       String.raw`\b0[1-9](?:${PHONE_SEPARATOR}\d{2}){4}\b`,
-      String.raw`(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}`,
+      // US-style 3-3-4 with a separator between the groups, or ten bare digits.
+      // Neither may touch another digit or sit in a decimal (`3.14159265358979`,
+      // `122.4194155`): the old fallback took the first ten digits of those.
+      String.raw`(?<!\d[.,]?)(?:\+?\d{1,3}[-.\s])?(?:\(\d{3}\)[-.\s]?|\d{3}[-.\s])\d{3}[-.\s]\d{4}(?!\d|[.,]\d)`,
+      String.raw`(?<!\d[.,]?)\d{10}(?!\d|[.,]\d)`,
     ].join('|'),
     'g',
   ),

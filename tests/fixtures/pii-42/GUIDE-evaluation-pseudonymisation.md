@@ -106,6 +106,8 @@ Après correctif, ces cas sont masqués en entier (tests dans `regex-detector.te
 
 **Étiquetage des nombres longs, corrigé** : toute suite de 11 chiffres ou plus sans `+` ni séparateur (CNI, permis, n° de compte `12345678901`, `Account No. 000123456789`, SIRET, IMEI) était classée `phone`. Au-delà de 13 chiffres le motif s'arrêtait en route et laissait la fin en clair (SIRET : 1 chiffre, IMEI : 3, suite de 22 chiffres : 9). Ces suites forment maintenant une catégorie à part, masquée en entier : `[NUMBER_n]`. Les vrais téléphones (10 chiffres, `+…`, groupés) restent `[PHONE_n]`. Limite assumée : le regex ne peut pas dire si `[NUMBER_n]` est une CNI, un permis ou un compte ; seul le NER le distingue. Un numéro international à 11 chiffres écrit sans `+` devient aussi `[NUMBER_n]`.
 
+**Décimaux longs, corrigés** : `3.14159265358979`, `0.1234567890` ou une coordonnée GPS comme `-122.4194155` étaient pris pour un téléphone (`3.1415926535`). Le repli `phone` exige maintenant un séparateur entre les trois groupes (ou dix chiffres nus) et refuse un chiffre ou un `chiffre.` collé avant ou après ; les 12 formats de téléphone testés sont conservés. Un décimal n'est plus masqué du tout (la fixture en contient un, §3).
+
 **Faux positifs** : `2024 0314 0001 7788` (carte), `3.1.4.2` et `1.3.6.1` (IP). Un point final de phrase collé à un e-mail est avalé dans le jeton (`[EMAIL_n] Pour la joindre…`).
 
 ## 4. Pièges transverses
@@ -127,7 +129,7 @@ Après correctif, ces cas sont masqués en entier (tests dans `regex-detector.te
 
 ## 5. Décors et faux positifs attendus (ce n'est pas du PII)
 
-`loi n° 78-17 du 6 janvier 1978`, `règlement (UE) 2016/679`, `14 juillet`, `2024-08-17T09:41:00Z`, `01.02.2024`, `T3 2024`, `3.1.4.2`, `1.3.6.1.4.1`, `125000` (sans devise), `2024 0314 0001 7788`, « colibri » (l'oiseau), « la rose blanche », « la petite Marguerite », BIC `BFRHFRP1XXX` (identifiant public de banque), « tribunal judiciaire de Lyon », « CCI de Lyon », `Informatique et Libertés`. Les masquer coûte de l'utilité ; ne pas les masquer n'est pas une fuite. Noter, ne pas pénaliser.
+`loi n° 78-17 du 6 janvier 1978`, `règlement (UE) 2016/679`, `14 juillet`, `2024-08-17T09:41:00Z`, `01.02.2024`, `T3 2024`, `3.1.4.2`, `1.3.6.1.4.1`, `125000` (sans devise), `3.14159265358979` (décimal long : ni téléphone ni identifiant), `2024 0314 0001 7788`, « colibri » (l'oiseau), « la rose blanche », « la petite Marguerite », BIC `BFRHFRP1XXX` (identifiant public de banque), « tribunal judiciaire de Lyon », « CCI de Lyon », `Informatique et Libertés`. Les masquer coûte de l'utilité ; ne pas les masquer n'est pas une fuite. Noter, ne pas pénaliser.
 
 ## 6. Questions à poser en chat
 
