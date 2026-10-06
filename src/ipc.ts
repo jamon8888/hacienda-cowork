@@ -736,6 +736,8 @@ interface PiiIpc {
 }
 
 export interface WorkspaceScanStatus {
+  /** The open workspace has a safe/ folder; the banner's remembered state can be stale. */
+  safeWorkspace: boolean;
   redactionActive: boolean;
   indexing: boolean;
   fileCount: number;
@@ -761,6 +763,37 @@ interface WorkspaceScanIpc {
   /** Cabinet mode (spec 2026-09-29): on by default; turning off needs confirmed=true. */
   getCabinetMode(): Promise<{ enabled: boolean }>;
   setCabinetMode(value: boolean, confirmed: boolean): Promise<{ enabled: boolean; auditRecorded: boolean }>;
+}
+
+export interface PackListEntry {
+  id: string | null;
+  name: string;
+  version: string | null;
+  description: string;
+  source: 'installed' | 'distribution';
+  requiresSafe: boolean;
+  hasSkills: boolean;
+  error: string | null;
+}
+
+export interface PackListView {
+  activeId: string | null;
+  /** The pack in force, with the starter prompts it offers on the new-tab screen. */
+  activePack: { id: string; name: string; suggestionPills: Array<{ label: string; prompt: string }> } | null;
+  chosenId: string | null;
+  packs: PackListEntry[];
+}
+
+export type PackInstallOutcome =
+  | { installed: true; packId: string; replaced: boolean }
+  | { installed: false; error: string; existingVersion: string | null };
+
+interface PacksIpc {
+  list(): Promise<PackListView>;
+  /** null goes back to the distribution default. */
+  setActive(packId: string | null): Promise<PackListView>;
+  install(sourceDir: string, allowReplace: boolean): Promise<PackInstallOutcome>;
+  remove(packId: string): Promise<PackListView>;
 }
 
 interface BasemindDownloadResult {
@@ -859,6 +892,14 @@ export const pii: PiiIpc = isMarketingDemoMode()
     },
   }
   : (client.pii as PiiIpc);
+export const packs: PacksIpc = isMarketingDemoMode()
+  ? {
+    list: async () => ({ activeId: null, activePack: null, chosenId: null, packs: [] }),
+    setActive: async () => { throw new Error('Not available in demo mode'); },
+    install: async () => { throw new Error('Not available in demo mode'); },
+    remove: async () => { throw new Error('Not available in demo mode'); },
+  }
+  : (client.packs as PacksIpc);
 export const workspaceScan: WorkspaceScanIpc = isMarketingDemoMode()
   ? {
     status: async () => { throw new Error('Not available in demo mode'); },

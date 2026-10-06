@@ -30,6 +30,15 @@ export interface DistributionProductConfig {
     releaseRepository: string;
     installDirectoryName: string;
   };
+  /**
+   * A vertical pack the distribution ships (docs/distributions.md). The folder
+   * is relative to the packaged `resources/` directory. It adds prompt text
+   * and skills; it unlocks no client feature.
+   */
+  verticalPack?: {
+    id: string;
+    resourcePath: string;
+  };
 }
 
 type ProductWithDistribution = typeof product & {
@@ -56,3 +65,14 @@ export function hasUpdateFeed(): boolean {
   return updates.provider === 's3'
     && Boolean(updates.bucket && updates.endpoint && updates.path && updates.region);
 }
+
+/** The distribution's pack folder (relative, inside resources/), or null. */
+export function getDistributionVerticalPack(): { id: string; resourcePath: string } | null {
+  const pack = distributionProductConfig.verticalPack;
+  if (!pack?.id || !pack.resourcePath) return null;
+  // A profile is configuration, not code: refuse a path that leaves resources/.
+  const segments = pack.resourcePath.replace(/\\/g, '/').split('/');
+  if (pack.resourcePath.startsWith('/') || segments.includes('..')) return null;
+  return { id: pack.id, resourcePath: pack.resourcePath };
+}
+

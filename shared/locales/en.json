@@ -2500,5 +2500,22 @@
   "errors.ui.demoFileMissing": "Demo file not found: {{path}}",
   "errors.ui.demoProfileMissing": "Demo profile not found: {{id}}",
   "errors.ui.demoServerMissing": "Demo tool server not found: {{id}}",
-  "errors.ui.demoCandidateMissing": "Imported MCP candidate not found: {{id}}"
+  "errors.ui.demoCandidateMissing": "Imported MCP candidate not found: {{id}}",
+  "settings.packs.title": "Professional pack",
+  "settings.packs.description": "A pack gives the assistant the identity, professional rules and skills of a profession. Install one from a folder; it adds instructions only and unlocks nothing else.",
+  "settings.packs.install": "Install a pack…",
+  "settings.packs.none": "No pack is installed.",
+  "settings.packs.invalid": "This pack cannot be used: {{reason}}",
+  "settings.packs.requiresSafe": "Meant for Safe folders.",
+  "settings.packs.active": "In use",
+  "settings.packs.use": "Use",
+  "settings.packs.remove": "Remove",
+  "settings.packs.useDefault": "Go back to the default pack",
+  "settings.packs.installed": "Pack installed.",
+  "settings.packs.replaceBody": "Version {{version}} of this pack is already installed. Installing this one replaces it.",
+  "settings.packs.replaceConfirm": "Replace it",
+  "settings.packs.installFailed": "The pack was not installed: {{reason}}",
+  "settings.packs.changeFailed": "Something went wrong with the packs. Try again.",
+  "basemind.banner.packTitle": "This folder is not Safe",
+  "basemind.banner.packMessage": "The pack “{{pack}}” is meant for confidential documents. Outside Safe, what you ask and the files the assistant reads are sent to the AI provider as written. Make this folder Safe to work on redacted copies."
 }

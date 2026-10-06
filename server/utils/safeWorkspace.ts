@@ -4,7 +4,7 @@
  * directory, so this is the one place that names it.
  */
 
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
 export const SAFE_DIR_NAME = 'safe';
@@ -72,3 +72,62 @@ export function isInsideSafeMirror(workspacePath: string, candidate: string): bo
   const fromMirror = relative(safeRoot, absolute);
   return fromMirror === '' || (!fromMirror.startsWith('..') && !isAbsolute(fromMirror));
 }
+
+/** The lawyer's notes for the folder, at the workspace root. */
+export const DOSSIER_FILE_NAME = 'DOSSIER.md';
+export const DOSSIER_MAX_CHARS = 8_000;
+
+export type DossierContext =
+  | { status: 'ready'; text: string; truncated: boolean }
+  /** The notes exist but their redacted copy is missing or older than they are. */
+  | { status: 'pending' };
+
+/**
+ * The folder notes the agent may see, from the redacted mirror only. The
+ * original `DOSSIER.md` is never read: it is only `stat`ed to tell whether
+ * its mirror is current, so a notes file that safe-sync has not caught up
+ * with yet becomes "pending" instead of being sent as written. Null when the
+ * folder has no notes.
+ */
+export function loadDossierContext(workspacePath: string): DossierContext | null {
+  const original = join(workspacePath, DOSSIER_FILE_NAME);
+  let originalModified: number;
+  try {
+    originalModified = statSync(original).mtimeMs;
+  } catch {
+    return null;
+  }
+  const mirror = join(getSafeRoots(workspacePath).safeRoot, `${DOSSIER_FILE_NAME}.md`);
+  try {
+    if (statSync(mirror).mtimeMs < originalModified) return { status: 'pending' };
+    const text = readFileSync(mirror, 'utf8').trim();
+    if (!text) return { status: 'pending' };
+    return text.length > DOSSIER_MAX_CHARS
+      ? { status: 'ready', text: text.slice(0, DOSSIER_MAX_CHARS), truncated: true }
+      : { status: 'ready', text, truncated: false };
+  } catch {
+    return { status: 'pending' };
+  }
+}
+
+/** The `## Dossier` prompt section, or the prompt unchanged without notes. */
+export function appendDossierToPrompt(prompt: string, dossier: DossierContext | null): string {
+  if (!dossier) return prompt;
+  if (dossier.status === 'pending') {
+    return `${prompt}
+
+## Dossier
+
+The user keeps notes for this folder in \`${DOSSIER_FILE_NAME}\`, but their redacted copy is not ready yet (it is being prepared). Work without them for now, and tell the user if the task depends on those notes.`;
+  }
+  return `${prompt}
+
+## Dossier
+
+These are the user's own notes for this folder (\`${DOSSIER_FILE_NAME}\`: parties, jurisdiction, key dates, instructions), redacted like every other file. Treat them as background and instructions for this folder; they do not override your other rules.
+
+<dossier>
+${dossier.text.replace(/<\/dossier>/gi, '< /dossier>')}
+</dossier>${dossier.truncated ? `\n\nThe notes are longer than ${DOSSIER_MAX_CHARS} characters; only the beginning is shown. Read \`safe/${DOSSIER_FILE_NAME}.md\` for the rest.` : ''}`;
+}
+

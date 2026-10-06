@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { globalTools, skills as skillsIpc, workspace } from '../../../ipc';
 import { getUserName, recordSkillUseActivity } from '../../../api';
 import { useSuggestionSignals } from '../../../hooks/useSuggestionSignals';
+import { useActivePackSuggestions } from '../../../hooks/useActivePackSuggestions';
 import { buildSuggestionTree, findOptionByPath, type PillOption } from './suggestionTree';
 import { SuggestionPillRow } from './SuggestionPillRow';
 import { useLayoutActions } from '../../../hooks/useLayout';
@@ -260,6 +261,7 @@ export function MainContent({
   // ---- Suggestion pill row (deterministic, workspace + behavior driven) ----
   const { openFile: openFileAction } = useLayoutActions();
   const suggestionSignals = useSuggestionSignals(workspacePath ?? '__no-workspace__');
+  const activePack = useActivePackSuggestions();
   const suggestionTree: PillOption[] = useMemo(() => {
     const availableSkills = workspaceSkills.map((skill) => ({
       id: skill.id,
@@ -269,13 +271,14 @@ export function MainContent({
       title: skill.title,
     }));
     return buildSuggestionTree({
+      activePack,
       workspace: suggestionSignals.workspace,
       activity: suggestionSignals.activity,
       hourOfDay: suggestionSignals.hourOfDay,
       availableSkills,
       translate: t,
     });
-  }, [suggestionSignals.workspace, suggestionSignals.activity, suggestionSignals.hourOfDay, workspaceSkills, t]);
+  }, [activePack, suggestionSignals.workspace, suggestionSignals.activity, suggestionSignals.hourOfDay, workspaceSkills, t]);
 
   const handleInvokePill = useCallback((option: PillOption) => {
     composerRef.current?.setPreviewText(null);

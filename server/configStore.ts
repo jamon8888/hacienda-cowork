@@ -214,6 +214,8 @@ export interface AppConfig {
   codeIndexingEnabled?: boolean;
   /** Cabinet mode (spec 2026-09-29): absent = on. Written only by services/cabinetMode. */
   cabinetModeEnabled?: boolean;
+  /** Vertical pack the user picked; absent = the distribution's pack, if it ships one. */
+  activeVerticalPackId?: string | null;
 
   // Onboarding: user email (from Stay Connected screen)
   userEmail?: string;
@@ -2583,6 +2585,24 @@ export async function getCabinetModeEnabled(): Promise<boolean> {
 export async function setCabinetModeEnabledInConfig(value: boolean): Promise<void> {
   const config = await loadConfig();
   config.cabinetModeEnabled = value;
+  await saveConfig(config);
+}
+
+// =============================================================================
+// Vertical pack
+// =============================================================================
+
+export async function getActiveVerticalPackId(): Promise<string | null> {
+  const config = await loadConfig();
+  return typeof config.activeVerticalPackId === 'string' && config.activeVerticalPackId
+    ? config.activeVerticalPackId
+    : null;
+}
+
+export async function setActiveVerticalPackId(packId: string | null): Promise<void> {
+  const config = await loadConfig();
+  if (packId) config.activeVerticalPackId = packId;
+  else delete config.activeVerticalPackId;
   await saveConfig(config);
 }
 

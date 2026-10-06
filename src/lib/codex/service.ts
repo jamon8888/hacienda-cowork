@@ -323,6 +323,9 @@ export type CodexClient = {
   skillsConfigWrite(
     params: v2.SkillsConfigWriteParams,
   ): Promise<v2.SkillsConfigWriteResponse>;
+  skillsExtraRootsSet(
+    params: v2.SkillsExtraRootsSetParams,
+  ): Promise<v2.SkillsExtraRootsSetResponse>;
   windowsSandboxSetupStart(
     params: v2.WindowsSandboxSetupStartParams,
   ): Promise<v2.WindowsSandboxSetupStartResponse>;
@@ -940,6 +943,12 @@ export class CodexService {
   ): Promise<v2.SkillsConfigWriteResponse> {
     await this.client.ensureConnected();
     return this.client.skillsConfigWrite(params);
+  }
+
+  /** Point the runtime at the active vertical pack's skills (an empty list clears them). */
+  async setSkillsExtraRoots(extraRoots: string[]): Promise<void> {
+    await this.client.ensureConnected();
+    await this.client.skillsExtraRootsSet({ extraRoots });
   }
 
   async interrupt(threadId: string, turnId?: string) {

@@ -2500,5 +2500,22 @@
   "errors.ui.demoFileMissing": "デモファイルがありません: {{path}}",
   "errors.ui.demoProfileMissing": "デモプロファイルがありません: {{id}}",
   "errors.ui.demoServerMissing": "デモツールサーバーがありません: {{id}}",
-  "errors.ui.demoCandidateMissing": "インポート候補がありません: {{id}}"
+  "errors.ui.demoCandidateMissing": "インポート候補がありません: {{id}}",
+  "settings.packs.title": "専門職パック",
+  "settings.packs.description": "パックは、ある専門職のアイデンティティ、職業上のルール、スキルをアシスタントに与えます。フォルダからインストールします。追加されるのは指示のみで、他の機能は解放されません。",
+  "settings.packs.install": "パックをインストール…",
+  "settings.packs.none": "インストールされているパックはありません。",
+  "settings.packs.invalid": "このパックは使用できません：{{reason}}",
+  "settings.packs.requiresSafe": "Safe フォルダ向けです。",
+  "settings.packs.active": "使用中",
+  "settings.packs.use": "使用する",
+  "settings.packs.remove": "削除",
+  "settings.packs.useDefault": "既定のパックに戻す",
+  "settings.packs.installed": "パックをインストールしました。",
+  "settings.packs.replaceBody": "このパックのバージョン {{version}} はすでにインストールされています。これをインストールすると置き換えられます。",
+  "settings.packs.replaceConfirm": "置き換える",
+  "settings.packs.installFailed": "パックをインストールできませんでした：{{reason}}",
+  "settings.packs.changeFailed": "パックの処理中に問題が発生しました。もう一度お試しください。",
+  "basemind.banner.packTitle": "このフォルダは Safe ではありません",
+  "basemind.banner.packMessage": "パック「{{pack}}」は機密文書向けです。Safe 以外では、入力した内容とアシスタントが読むファイルがそのまま AI プロバイダーに送信されます。このフォルダを Safe にして、匿名化されたコピーで作業してください。"
 }

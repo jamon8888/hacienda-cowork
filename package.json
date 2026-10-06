@@ -95,6 +95,7 @@
     "extension:verify": "pnpm run extension:build && pnpm run ensure:browser-extension-relay-assets && pnpm run extension:test:integration",
     "trycua:update": "node scripts/update-trycua-cua.mjs",
     "generate:model-catalog": "bun scripts/generate-model-catalog.ts",
+    "pack:validate": "bun scripts/validate-pack.ts",
     "build:dist": "pnpm run download:oix -- --current-platform && pnpm run download:basemind -- --current-platform && pnpm run download:pdfcpu -- --current-platform && pnpm run download:qwen-asr -- --current-platform && pnpm run build:js-repl-runtime && pnpm run build && electron-builder",
     "package:smoke": "node scripts/package-smoke.mjs",
     "package:smoke:official": "node scripts/with-distribution-config.mjs distribution/product.official.json -- pnpm run package:smoke",

@@ -121,6 +121,10 @@ Intégrer basemind à Workstation de façon simple, transparente et découplée 
   - un objectif de conversation pseudonymisé s'affiche sous forme de jetons ;
   - les miroirs créés avec l'ancien nommage (`safe/rapport.md`) ne sont pas supprimés automatiquement.
 
+## 7 bis. Fiche dossier (`DOSSIER.md`)
+
+Un fichier `DOSSIER.md` à la racine du workspace porte le contexte du dossier (parties, juridiction, dates clés, consignes). Comme tout fichier, `safe-sync` le miroite en `safe/DOSSIER.md.md` ; **seul ce miroir** est injecté dans le prompt, sous `## Dossier`, entre le pack métier et les instructions personnalisées. L'original n'est jamais lu : il est seulement `stat`é pour savoir si son miroir est à jour. Miroir absent ou plus ancien que l'original (la synchro a ~2 s de retard) : la section dit que la fiche n'est pas prête et n'en révèle rien. Plafond 8 000 caractères ; au-delà, le début seul est montré et le prompt indique où lire la suite.
+
 ## 8. Bannière onboarding « Rendre Safe » (#20)
 
 - **Slot** : bannière workspace-open (motif `WorkspaceSwitchBanner` / `TopNoticeStack`), **pas** une étape `onboardingSteps`.

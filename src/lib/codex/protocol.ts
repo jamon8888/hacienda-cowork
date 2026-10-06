@@ -32,6 +32,7 @@ export const CLIENT_METHOD = {
   threadBackgroundTerminalsClean: "thread/backgroundTerminals/clean",
   skillsList: "skills/list",
   skillsConfigWrite: "skills/config/write",
+  skillsExtraRootsSet: "skills/extraRoots/set",
   windowsSandboxSetupStart: "windowsSandbox/setupStart",
   turnStart: "turn/start",
   turnSteer: "turn/steer",
@@ -187,6 +188,10 @@ export type RequestMap = {
   [CLIENT_METHOD.skillsConfigWrite]: {
     params: v2.SkillsConfigWriteParams;
     result: v2.SkillsConfigWriteResponse;
+  };
+  [CLIENT_METHOD.skillsExtraRootsSet]: {
+    params: v2.SkillsExtraRootsSetParams;
+    result: v2.SkillsExtraRootsSetResponse;
   };
   [CLIENT_METHOD.windowsSandboxSetupStart]: {
     params: v2.WindowsSandboxSetupStartParams;

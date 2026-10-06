@@ -128,6 +128,101 @@ internal binary artifacts, organization-specific configuration, credentials,
 and deployment policy, or trigger these public workflows. It must not become a
 second application or the owner of canonical release logic.
 
+## Vertical packs
+
+A vertical pack adapts the assistant to a regulated profession (law, medicine,
+accounting…) without forking application behaviour. It is a folder:
+
+```
+my-pack/
+  pack.json
+  identity.md       # who the assistant is, for whom, in what setting
+  deontology.md     # the profession's rules (secrecy, sources, irreversible acts)
+  skills/<name>/SKILL.md   # optional
+```
+
+```json
+{
+  "id": "droit-des-affaires",
+  "version": "1.0.0",
+  "name": "Droit des affaires",
+  "requiresSafe": true,
+  "identityFile": "identity.md",
+  "deontologyFile": "deontology.md",
+  "suggestionPills": [{ "label": "Relire un contrat", "prompt": "Relis ce contrat." }]
+}
+```
+
+`id` uses lowercase letters, digits and dashes. Files named by the manifest
+must sit inside the pack folder (no `..`, no link leaving it) and stay under
+16 000 characters. A pack that fails validation is listed with its reason and
+never used; it cannot stop the app or a turn from starting.
+
+What a pack does: its identity and rules are added to the prompt as a
+`Practice pack` section, after the core prompt and before the user's own custom
+instructions, and its `skills/` folder is registered with the runtime. The text
+is not run through the Safe redaction (it is written by the firm and holds no
+client data). Its `suggestionPills` appear on the new-tab screen as a first category named after the pack; picking one fills the composer with its prompt. Without pills nothing is added.
+
+What a pack never does: unlock a client feature, change a
+permission, or reach a hosted service. Skills are read-only to the agent in a
+Safe workspace like any other skill.
+
+`requires.app` (optional, `">=MAJOR[.MINOR[.PATCH]]"`) is the oldest app version
+the pack works with. An older app lists the pack with the reason ("needs
+Interpreter 0.2.0 or later") and never uses it; a newer app loads it.
+
+**Working on a pack on its own.** A pack lives in its own repository and does
+not need an app build to change:
+
+- `pnpm run pack:validate <pack folder> [--app-version 1.2.3]` runs the app's
+  loader plus author checks: every `skills/<name>/SKILL.md` has a `name` and a
+  `description`, and in a pack that `requiresSafe`, warns about skills that never
+  mention `safe/`, `_drafts` or `interpreter_safe_export`. It exits 1 on errors,
+  so the pack's CI can run it against the app tag it targets (bun only, no
+  `pnpm install` needed).
+- To try edits live, replace the installed copy with a link to your checkout:
+  `ln -s ~/src/my-pack "<app data>/packs/<id>"`. The pack is read again at every
+  turn, so a new message picks up changed rules and skills without a restart.
+
+**Installing.** Anyone can install a pack from Settings > General > Privacy >
+Professional pack. It is copied to `<app data>/packs/<id>/`; replacing another
+version asks first. The user's pick is stored as `activeVerticalPackId`.
+
+**Shipping one in a distribution.** Package the folder under `resources/` with
+`extraResources` and name it in the overlay:
+
+```json
+{ "distribution": { "verticalPack": { "id": "droit-des-affaires", "resourcePath": "vertical-pack" } } }
+```
+
+`resourcePath` is relative to the packaged `resources/` folder and may not
+leave it. With no pick from the user, the distribution's pack is the active
+one; the user can switch to another or go back to it. The community profile
+ships none.
+
+## Product repositories
+
+A vertical product (for example a build for law firms) is three things with
+their own lifecycles, never a copy of this repository:
+
+| Part | Lives in | Holds |
+|---|---|---|
+| Engine | this repository | the application, generic (Safe, packs, export) |
+| Pack | its own repository | `pack.json`, identity, rules, skills |
+| Product | a thin private repository | product overlay, `electron-builder` profile that `extends` this one, branding, pinned engine and pack versions, signing secrets, release trigger |
+
+The product repository holds no application code. Its CI checks out the
+engine and the pack at their pinned tags, puts the pack under `resources/`,
+and builds with `scripts/with-distribution-config.mjs`. A capability that
+needs application code is generic and belongs here; text, skills and settings
+belong in the pack; name, versions and release belong in the product.
+
+To keep this fork close to Interpreter Workstation, track it as `upstream`
+(`git remote add upstream https://github.com/openinterpreter/interpreter-workstation`)
+and merge it regularly; keep Hacienda changes in their own modules with short
+hooks into upstream files.
+
 ## Privacy contract
 
 The community profile has no vendor telemetry destination. Providing a
