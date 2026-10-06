@@ -252,8 +252,9 @@ function toStringOffsets(text: string, detections: PiiDetectionResult[]): PiiDet
 
 /**
  * Extract + redact one file through the daemon (`redact_text {file_path}` —
- * xberg picks the format, incl. images via OCR). Returns `redacted_text: ''`
- * when the tool answered with an error payload instead of throwing.
+ * xberg picks the format, incl. images via OCR). Throws when the tool answered
+ * with an error payload, or when NER did not run: the caller writes the result
+ * into a copy the agent reads, so a pattern-only result is refused.
  */
 async function redactFile(filePath: string): Promise<RedactTextResult> {
   const customTerms = await listCustomTerms();
@@ -265,6 +266,10 @@ async function redactFile(filePath: string): Promise<RedactTextResult> {
       file_path: filePath,
       custom_terms: toRedactTextCustomTerms(customTerms),
       ner_model_dir: resolveNerModelDir() ?? undefined,
+      // A copy that reaches the agent is only as good as its detection: without
+      // NER, names and companies survive and only patterns (amounts, e-mails,
+      // phone numbers) are replaced. Refuse rather than write that copy.
+      require_ner: true,
     },
     undefined,
     undefined,
@@ -272,7 +277,11 @@ async function redactFile(filePath: string): Promise<RedactTextResult> {
     undefined,
     { appInternal: true },
   );
-  return sweepResidualPii(parseRedactTextResult(raw), customTerms);
+  if (asRecord(raw)?.isError === true) throw new Error(errorPayloadText(raw));
+  const parsed = parseRedactTextResult(raw);
+  // A daemon that omits the field cannot vouch that NER ran either.
+  if (parsed.ner_ran !== true) throw new Error('redact_text: NER did not run (pattern-only redaction)');
+  return sweepResidualPii(parsed, customTerms);
 }
 
 /**
