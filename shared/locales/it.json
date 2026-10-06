@@ -1815,6 +1815,7 @@
   "basemind.cabinet.disableBody": "Quando il rilevamento completo non è disponibile, il testo partirà con il solo mascheramento tramite modelli: nomi, società e indirizzi potrebbero essere inviati in chiaro. Ti assumi la responsabilità di questa scelta. Viene registrata su questo computer.",
   "basemind.cabinet.disableConfirm": "Disattiva — me ne assumo la responsabilità",
   "basemind.cabinet.blockedSend": "Modalità studio legale: il rilevamento completo non è disponibile, non è stato inviato nulla. Riprova tra un momento; se il problema persiste, riavvia Interpreter.",
+  "safe.sandboxUnavailable": "Spazio Safe: Interpreter non ha potuto confermare che l'agente sia confinato alla cartella safe/ su questo computer, quindi non è stato avviato nulla. Riavvia Interpreter e riprova.",
   "basemind.cabinet.changeFailed": "Impossibile leggere o modificare la modalità studio legale. Nulla è stato modificato; riprova.",
   "basemind.cabinet.auditNotRecorded": "La modalità studio legale è di nuovo attiva, ma questa modifica non è stata registrata nel registro di controllo.",
   "basemind.indexing.progress_one": "Indexing {{count}} file…",
