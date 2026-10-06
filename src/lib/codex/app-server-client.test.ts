@@ -955,13 +955,16 @@ describe("CodexAppServerClient", () => {
       const local = { model_providers: { "ollama-1a2b3c4d": { base_url: "http://127.0.0.1:11434/v1", name: "Ollama", requires_openai_auth: false, wire_api: "responses" } } };
       const remote = { model_providers: { custom: { base_url: "https://api.example.com/v1", name: "Remote", requires_openai_auth: false, wire_api: "responses" } } };
       const transport = new FakeTransport();
+      // This path reads the originals rather than the mirror, so it clears the
+      // same sandbox proof as the confined path (#63) before it runs.
+      const probes: boolean[] = [];
       const client = new CodexAppServerClient(transport, null, async () => ({
         sandboxMode: "workspace-write",
         readAccessMode: "workspace-only",
         networkAccess: true,
         macosTempAccess: false,
         macosScreenshotAccess: false,
-      }));
+      }), { verifySafeSandbox: async ({ networkAccess }) => { probes.push(networkAccess); return true; } });
 
       const threadPromise = client.startThreadWithConfig("qwen3", "ollama-1a2b3c4d", null, workspace, local);
       await waitFor(() => transport.sent.length >= 1);
@@ -982,6 +985,7 @@ describe("CodexAppServerClient", () => {
       const threadId = await threadPromise;
       assert.equal(isLocalOnlyThread(threadId), true);
       assert.match(await readFile(path.join(state, "audit.jsonl"), "utf8"), /local_bypass_used/);
+      assert.deepEqual(probes, [false], "local-only runs clear the sandbox proof offline");
 
       const turnPromise = client.startTurn({ threadId, message: "hello", cwd: workspace });
       await waitFor(() => transport.sent.length >= 4);
