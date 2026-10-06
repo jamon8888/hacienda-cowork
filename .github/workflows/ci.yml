@@ -167,6 +167,11 @@ jobs:
       - run: pnpm run download:oix -- --current-platform
       # The Safe-workspace sandbox probe against the real engine: it must see
       # the sandbox hold, and must not be fooled when it is switched off.
+      # Ubuntu 24.04 runners forbid unprivileged user namespaces, which the
+      # engine's Linux sandbox (bubblewrap) needs: without this it cannot start.
+      - name: Allow unprivileged user namespaces
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: pnpm run test:sandbox:probe
       - run: pnpm run download:basemind -- --current-platform
       - run: pnpm run download:pdfcpu -- --current-platform
