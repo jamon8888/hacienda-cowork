@@ -68,6 +68,10 @@ export function probeCommand(platform: NodeJS.Platform, action: 'write' | 'read'
   return ['/bin/sh', '-c', body];
 }
 
+function isSandboxDenial(error: unknown): boolean {
+  return /sandbox denied/i.test(error instanceof Error ? error.message : String(error));
+}
+
 /**
  * True only when the probe command works, a read works under the read-only
  * policy, and a write there is refused with no file landing. Any other outcome,
@@ -108,8 +112,16 @@ export async function probeSandboxEnforced(
     if (wrote.exitCode === 0 && existsSync(control)) {
       const read = await run('read', control, readOnly);
       if (read.exitCode === 0) {
-        const refused = await run('write', target, readOnly);
-        enforced = refused.exitCode !== 0 && !existsSync(target);
+        let refused: boolean;
+        try {
+          refused = (await run('write', target, readOnly)).exitCode !== 0;
+        } catch (error) {
+          // The Windows engine does not return an exit code for a refused
+          // write: it fails the request ("sandbox denied exec error"). That is
+          // a refusal; any other failure is not.
+          refused = isSandboxDenial(error);
+        }
+        enforced = refused && !existsSync(target);
       }
     }
   } catch {

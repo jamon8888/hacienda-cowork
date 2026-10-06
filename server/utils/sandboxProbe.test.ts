@@ -84,6 +84,49 @@ describe('probeSandboxEnforced', () => {
     expect(await probeSandboxEnforced(exec, { dir: root(), platform: 'linux', networkAccess: true })).toBe(false);
   });
 
+  test('a sandbox-denied error on the write counts as the refusal (Windows reports it that way)', async () => {
+    // The Windows engine does not return an exit code for a refused write: it
+    // fails the request with "sandbox denied exec error".
+    const exec: SandboxProbeExec = async (params) => {
+      if (params.sandboxPolicy.type === 'readOnly' && isWriteCommand(params)) {
+        throw new Error('exec failed: sandbox error: sandbox denied exec error, exit code: 1, stderr: Access to the path is denied.');
+      }
+      return engine('enforcing')(params);
+    };
+    expect(await probeSandboxEnforced(exec, { dir: root(), platform: 'win32', networkAccess: true })).toBe(true);
+  });
+
+  test('any other error on the write is not a refusal', async () => {
+    const exec: SandboxProbeExec = async (params) => {
+      if (params.sandboxPolicy.type === 'readOnly' && isWriteCommand(params)) throw new Error('method not found');
+      return engine('enforcing')(params);
+    };
+    expect(await probeSandboxEnforced(exec, { dir: root(), platform: 'linux', networkAccess: true })).toBe(false);
+  });
+
+  test('a sandbox-denied error on the control or the read proves nothing', async () => {
+    const denyAt = (stepPolicy: 'workspaceWrite' | 'readOnly', write: boolean): SandboxProbeExec => async (params) => {
+      if (params.sandboxPolicy.type === stepPolicy && isWriteCommand(params) === write) {
+        throw new Error('sandbox denied exec error');
+      }
+      return engine('enforcing')(params);
+    };
+    expect(await probeSandboxEnforced(denyAt('workspaceWrite', true), { dir: root(), platform: 'linux', networkAccess: true })).toBe(false);
+    resetSandboxProbeCacheForTests();
+    expect(await probeSandboxEnforced(denyAt('readOnly', false), { dir: root(), platform: 'linux', networkAccess: true })).toBe(false);
+  });
+
+  test('a denial error does not count when the file landed anyway', async () => {
+    const exec: SandboxProbeExec = async (params) => {
+      if (params.sandboxPolicy.type === 'readOnly' && isWriteCommand(params)) {
+        writeFileSync(params.env.SBX_PROBE_TARGET, 'x');
+        throw new Error('sandbox denied exec error');
+      }
+      return engine('enforcing')(params);
+    };
+    expect(await probeSandboxEnforced(exec, { dir: root(), platform: 'linux', networkAccess: true })).toBe(false);
+  });
+
   test('false when the engine cannot run the probe at all', async () => {
     const exec: SandboxProbeExec = async () => {
       throw new Error('method not found');
