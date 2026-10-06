@@ -134,6 +134,7 @@
     "test:agent": "playwright test agent.spec.ts",
     "test:tools": "playwright test tools-",
     "test:interpreter:smoke": "node scripts/check-interpreter-cli-smoke.mjs",
+    "test:sandbox:probe": "bun run scripts/check-sandbox-probe.ts",
     "test:pdf:integration": "electron scripts/pdf-integration-smoke.mjs",
     "test:pdf:integration:open": "electron scripts/pdf-integration-smoke.mjs --open",
     "test:unit": "node scripts/run-unit-tests.mjs",
