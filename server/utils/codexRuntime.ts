@@ -886,7 +886,14 @@ export async function buildCodexDeveloperInstructions(options: {
       ? Promise.resolve(options.runtimeSkills)
       : loadRuntimeSkillMetadata(options.workspacePath, 'prompt construction'),
   ]);
-  const bundledSkillNames = listEnabledPromptBundledSkillNames(runtimeSkills);
+  const safeWorkspace = findSafeWorkspaceForCwd(options.workspacePath) !== null;
+  const safeSurfaces = safeWorkspace ? (await import('../services/safeSurfaces')).getSafeSurfacesSync() : null;
+  // Surfaces the user left off for Safe folders are not offered to the model.
+  const surfaceOff = (surface: 'computerUse' | 'browserControl' | 'network') => safeSurfaces?.[surface] === false;
+  const bundledSkillNames = listEnabledPromptBundledSkillNames(runtimeSkills).filter((name) => (
+    !(name === 'computer-use' && surfaceOff('computerUse'))
+    && !(name === 'browser-control' && surfaceOff('browserControl'))
+  ));
   let developerInstructions = getMainAgentDeveloperPrompt(
     options.modelId,
     options.interpreterCliAvailable,
@@ -894,11 +901,13 @@ export async function buildCodexDeveloperInstructions(options: {
     {
       injectAppToolsAsMcp: false,
       bundledSkillNames,
-      networkAccessEnabled,
+      ...(surfaceOff('browserControl') ? { browserControlSkillEnabled: false } : {}),
+      computerUseEnabled: !surfaceOff('computerUse'),
+      networkAccessEnabled: networkAccessEnabled && !surfaceOff('network'),
       sandboxMode,
       readAccessMode,
       visibleSkills: getPromptVisibleSkills(runtimeSkills),
-      safeWorkspace: findSafeWorkspaceForCwd(options.workspacePath) !== null,
+      safeWorkspace,
     },
   );
   if (process.env.DEMO_PROMPT) {

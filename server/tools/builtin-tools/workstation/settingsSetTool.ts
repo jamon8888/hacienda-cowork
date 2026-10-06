@@ -71,6 +71,9 @@ function formatApprovalValue(value: unknown): string {
 const CABINET_READ_ONLY_TEXT =
   'The cabinetModeEnabled setting is read-only for agents. You can read it with interpreter_settings_get, but only the user can change it in Settings > General > Privacy.';
 
+const SAFE_SURFACES_READ_ONLY_TEXT =
+  'The safeSurfaces setting is read-only for agents. You can read it with interpreter_settings_get, but only the user can change it in Settings > General > Privacy.';
+
 function getApprovalRequirement(path: string): ApprovalRequirement | null {
   const normalizedPath = path.trim();
 
@@ -367,6 +370,12 @@ export const settingsSetTool: BuiltinToolDefinition = {
         return { content: [{ type: 'text', text: CABINET_READ_ONLY_TEXT }], isError: true };
       }
 
+      // Safe surfaces are switched through services/safeSurfaces (confirmed and
+      // audited); a raw config write would skip both.
+      if (path === 'safeSurfaces' || path.startsWith('safeSurfaces.')) {
+        return { content: [{ type: 'text', text: SAFE_SURFACES_READ_ONLY_TEXT }], isError: true };
+      }
+
       const approvalRequirement = getApprovalRequirement(path);
       const effect = getSettingEffect(path);
 
@@ -450,6 +459,10 @@ export const settingsSetTool: BuiltinToolDefinition = {
 
       if (!isEqual(get(modifiedConfig, 'cabinetModeEnabled'), get(config, 'cabinetModeEnabled'))) {
         return { content: [{ type: 'text', text: CABINET_READ_ONLY_TEXT }], isError: true };
+      }
+
+      if (!isEqual(get(modifiedConfig, 'safeSurfaces'), get(config, 'safeSurfaces'))) {
+        return { content: [{ type: 'text', text: SAFE_SURFACES_READ_ONLY_TEXT }], isError: true };
       }
 
       // Validate the ENTIRE config against schema

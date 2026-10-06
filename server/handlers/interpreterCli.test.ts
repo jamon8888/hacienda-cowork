@@ -227,6 +227,43 @@ describe('interpreterCli handlers', () => {
       });
     });
 
+    test('hides Computer Use and web search in Safe only while their surface is off', async () => {
+      const connected = (id: string, tool: string) => ({
+        id, name: id, description: id,
+        state: { status: 'connected', tools: [{ name: tool, description: tool, inputSchema: { type: 'object' } }], resources: [], prompts: [] },
+      });
+      setToolManager({
+        async listAllToolServers() {
+          return [
+            connected('builtin-docx', 'read_word'),
+            connected('builtin-cua-driver', 'get_app_state'),
+            connected('builtin-google', 'google_query'),
+          ];
+        },
+      } as any);
+      const allowedAll = ['builtin-docx__read_word', 'builtin-cua-driver__get_app_state', 'builtin-google__google_query'];
+      const idsFor = async (token: string) => (await listInterpreterCliTools(token)).servers.map((server) => server.id).sort();
+
+      await withWorkspace(true, async (workspace) => {
+        agentTabManager.bindThread({
+          agentId: 'agent-surf', threadId: 'thr_surf', callerToken: 'agtok_surf',
+          allowedToolNames: allowedAll, workspacePath: workspace,
+        });
+        // Defaults leave both on.
+        expect(await idsFor('agtok_surf')).toEqual(['builtin-cua-driver', 'builtin-docx', 'builtin-google']);
+        setConfigOverride({ agents: {}, safeSurfaces: { computerUse: false, network: false } } as any);
+        expect(await idsFor('agtok_surf')).toEqual(['builtin-docx']);
+      });
+      // A folder that is not Safe is not affected by the setting.
+      await withWorkspace(false, async (workspace) => {
+        agentTabManager.bindThread({
+          agentId: 'agent-surf2', threadId: 'thr_surf2', callerToken: 'agtok_surf2',
+          allowedToolNames: allowedAll, workspacePath: workspace,
+        });
+        expect(await idsFor('agtok_surf2')).toEqual(['builtin-cua-driver', 'builtin-docx', 'builtin-google']);
+      });
+    });
+
     test.each(['builtin-nylas', 'builtin-whatsapp', 'builtin-telegram'])(
       'refuses to list, describe or call %s in a Safe workspace',
       async (serverId) => {

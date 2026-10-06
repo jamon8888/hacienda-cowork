@@ -2517,5 +2517,20 @@
   "settings.packs.installFailed": "Il pacchetto non è stato installato: {{reason}}",
   "settings.packs.changeFailed": "Qualcosa è andato storto con i pacchetti. Riprovi.",
   "basemind.banner.packTitle": "Questa cartella non è Safe",
-  "basemind.banner.packMessage": "Il pacchetto «{{pack}}» è pensato per documenti riservati. Fuori da Safe, ciò che chiede e i file letti dall'assistente vengono inviati così come sono al fornitore di IA. Renda Safe questa cartella per lavorare su copie pseudonimizzate."
+  "basemind.banner.packMessage": "Il pacchetto «{{pack}}» è pensato per documenti riservati. Fuori da Safe, ciò che chiede e i file letti dall'assistente vengono inviati così come sono al fornitore di IA. Renda Safe questa cartella per lavorare su copie pseudonimizzate.",
+  "safe.surface.voiceBlocked": "La voce è disattivata nelle cartelle Safe: ciò che dice arriverebbe al fornitore di IA così com'è, senza pseudonimizzazione. Può attivarla in Impostazioni > Generali > Privacy.",
+  "settings.safeSurfaces.title": "Cosa resta attivo nelle cartelle Safe",
+  "settings.safeSurfaces.description": "Safe pseudonimizza il testo, ma alcuni canali trasportano contenuti che non può trattare. Scelga quali restano attivi nelle cartelle Safe. Ogni modifica viene registrata nel registro di audit.",
+  "settings.safeSurfaces.voice": "Voce",
+  "settings.safeSurfaces.voiceDescription": "L'audio arriva al fornitore di IA così come lo dice, senza pseudonimizzazione. Disattivata per impostazione predefinita.",
+  "settings.safeSurfaces.computerUse": "Controllo del computer",
+  "settings.safeSurfaces.computerUseDescription": "L'assistente vede e controlla lo schermo e le app. Gli screenshot non vengono pseudonimizzati.",
+  "settings.safeSurfaces.browserControl": "Controllo del browser",
+  "settings.safeSurfaces.browserControlDescription": "L'assistente legge e agisce sulle pagine aperte del browser. Il contenuto delle pagine non viene pseudonimizzato.",
+  "settings.safeSurfaces.network": "Rete e ricerca web",
+  "settings.safeSurfaces.networkDescription": "I comandi dell'assistente possono raggiungere internet ed esso può cercare sul web. Ciò che vi invia non viene pseudonimizzato.",
+  "settings.safeSurfaces.enableTitle": "Attivare questo nelle cartelle Safe?",
+  "settings.safeSurfaces.enableBody": "Il contenuto che passa da questo canale non viene pseudonimizzato e arriva così com'è al fornitore di IA o ad altri servizi. L'attivazione viene registrata nel registro di audit, a suo nome.",
+  "settings.safeSurfaces.enableConfirm": "Attiva — me ne assumo la responsabilità",
+  "settings.safeSurfaces.changeFailed": "L'impostazione non è stata modificata. Riprovi."
 }

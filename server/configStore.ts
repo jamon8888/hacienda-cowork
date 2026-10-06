@@ -216,6 +216,11 @@ export interface AppConfig {
   cabinetModeEnabled?: boolean;
   /** Vertical pack the user picked; absent = the distribution's pack, if it ships one. */
   activeVerticalPackId?: string | null;
+  /**
+   * Surfaces that stay on in a Safe workspace. A missing key takes the default
+   * in services/safeSurfaces. Written only by that service, which audits first.
+   */
+  safeSurfaces?: Partial<Record<'voice' | 'computerUse' | 'browserControl' | 'network', boolean>>;
 
   // Onboarding: user email (from Stay Connected screen)
   userEmail?: string;
@@ -2585,6 +2590,31 @@ export async function getCabinetModeEnabled(): Promise<boolean> {
 export async function setCabinetModeEnabledInConfig(value: boolean): Promise<void> {
   const config = await loadConfig();
   config.cabinetModeEnabled = value;
+  await saveConfig(config);
+}
+
+// =============================================================================
+// Safe surfaces
+// =============================================================================
+
+export async function getSafeSurfacesConfig(): Promise<AppConfig['safeSurfaces']> {
+  const config = await loadConfig();
+  return config.safeSurfaces;
+}
+
+/** Synchronous read for hot paths (browser relay, sandbox policy). */
+export function getSafeSurfacesConfigSync(): AppConfig['safeSurfaces'] {
+  if (overrideConfig) return overrideConfig.safeSurfaces;
+  return readStoreValue('safeSurfaces');
+}
+
+/** Raw write. Callers go through services/safeSurfaces, which audits first. */
+export async function setSafeSurfaceInConfig(
+  surface: 'voice' | 'computerUse' | 'browserControl' | 'network',
+  enabled: boolean,
+): Promise<void> {
+  const config = await loadConfig();
+  config.safeSurfaces = { ...(config.safeSurfaces ?? {}), [surface]: enabled };
   await saveConfig(config);
 }
 

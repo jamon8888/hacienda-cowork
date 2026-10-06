@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { getCabinetModeEnabled, setConfigOverride } from '../../../configStore';
 import { settingsSetTool } from './settingsSetTool';
 
+const SAFE_SURFACES_READ_ONLY_TEXT =
+  'The safeSurfaces setting is read-only for agents. You can read it with interpreter_settings_get, but only the user can change it in Settings > General > Privacy.';
 const CABINET_READ_ONLY_TEXT =
   'The cabinetModeEnabled setting is read-only for agents. You can read it with interpreter_settings_get, but only the user can change it in Settings > General > Privacy.';
 
@@ -45,4 +47,13 @@ describe('settingsSetTool', () => {
     expect(result.content).toEqual([{ type: 'text', text: CABINET_READ_ONLY_TEXT }]);
     expect(await getCabinetModeEnabled()).toBe(true);
   });
+
+  test('does not let agents switch a Safe surface on, however the path is spelled', async () => {
+    for (const path of ['safeSurfaces.voice', 'safeSurfaces', "['safeSurfaces'].voice"]) {
+      const result = await settingsSetTool.handler({ path, value: path === 'safeSurfaces' ? { voice: true } : true });
+      expect(result.isError).toBe(true);
+      expect(result.content).toEqual([{ type: 'text', text: SAFE_SURFACES_READ_ONLY_TEXT }]);
+    }
+  });
 });
+

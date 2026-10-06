@@ -2517,5 +2517,20 @@
   "settings.packs.installFailed": "专业包未能安装：{{reason}}",
   "settings.packs.changeFailed": "处理专业包时出错。请重试。",
   "basemind.banner.packTitle": "此文件夹不是 Safe",
-  "basemind.banner.packMessage": "专业包“{{pack}}”适用于机密文档。在 Safe 之外，您的提问和助手读取的文件会原样发送给 AI 提供方。请将此文件夹设为 Safe，以便在已脱敏的副本上工作。"
+  "basemind.banner.packMessage": "专业包“{{pack}}”适用于机密文档。在 Safe 之外，您的提问和助手读取的文件会原样发送给 AI 提供方。请将此文件夹设为 Safe，以便在已脱敏的副本上工作。",
+  "safe.surface.voiceBlocked": "Safe 文件夹中语音已关闭：您说的话会未经脱敏地发送给 AI 提供方。可在 设置 > 通用 > 隐私 中开启。",
+  "settings.safeSurfaces.title": "Safe 文件夹中保持开启的功能",
+  "settings.safeSurfaces.description": "Safe 会对文本脱敏，但有些通道传输的内容它无法处理。请选择在 Safe 文件夹中保持开启的通道。每次更改都会记录在审计日志中。",
+  "settings.safeSurfaces.voice": "语音",
+  "settings.safeSurfaces.voiceDescription": "语音会未经脱敏地原样发送给 AI 提供方。默认关闭。",
+  "settings.safeSurfaces.computerUse": "电脑操作",
+  "settings.safeSurfaces.computerUseDescription": "助手可以查看并控制您的屏幕和应用。截图不会脱敏。",
+  "settings.safeSurfaces.browserControl": "浏览器控制",
+  "settings.safeSurfaces.browserControlDescription": "助手可以读取并操作您打开的浏览器页面。页面内容不会脱敏。",
+  "settings.safeSurfaces.network": "网络和网页搜索",
+  "settings.safeSurfaces.networkDescription": "助手运行的命令可以访问互联网，并可搜索网页。发送到那里的内容不会脱敏。",
+  "settings.safeSurfaces.enableTitle": "在 Safe 文件夹中开启此项？",
+  "settings.safeSurfaces.enableBody": "经此通道的内容不会脱敏，会原样到达 AI 提供方或其他服务。开启操作将以您的名义记录在审计日志中。",
+  "settings.safeSurfaces.enableConfirm": "开启 — 我承担责任",
+  "settings.safeSurfaces.changeFailed": "设置未更改。请重试。"
 }
