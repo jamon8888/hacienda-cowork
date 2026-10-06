@@ -189,7 +189,7 @@ Pour chaque question : regarder la réponse en mode normal **et** en « Masquer 
 
 ## 7. Grille de notation
 
-**Version de basemind testée : ______** (cible de ce test : **v0.32.3**). Depuis la fusion de la PR #52, `main` épingle `v0.32.3` (`scripts/download-basemind.mjs` et sous-module `873a357`) : un build de cette branche télécharge donc la 0.32.3. Noter malgré tout la version réellement embarquée dans l'app, et non la version visée : les résultats attendus ne valent que pour elle.
+**Version de basemind testée : v0.32.3 (pin du dépôt) — à corriger si le build embarque autre chose.** Depuis la fusion de la PR #52, `main` épingle `v0.32.3` (`scripts/download-basemind.mjs` et sous-module `873a357`) : un build de cette branche télécharge donc la 0.32.3. Noter malgré tout la version réellement embarquée dans l'app, et non la version visée : les résultats attendus ne valent que pour elle.
 
 Remplir une ligne par label (copier le tableau §2 ou utiliser les numéros). Pour chaque valeur : **masquée entièrement / masquée en partie / non masquée**, **jeton obtenu**, **ré-hydratation fidèle (oui/non)**.
 
