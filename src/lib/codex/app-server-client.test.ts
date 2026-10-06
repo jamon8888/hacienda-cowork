@@ -825,6 +825,40 @@ describe("CodexAppServerClient", () => {
     }
   });
 
+  test("probes the sandbox with the network setting the Safe thread will run with", async () => {
+    setConfigOverride({
+      agents: {},
+      globalDisabledTools: [],
+      codexApprovalPolicy: "on-request",
+      codexSandboxMode: "workspace-write",
+      codexReadAccessMode: "workspace-only",
+      codexNetworkAccess: true,
+      safeSurfaces: { network: false },
+    });
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "client-safe-net-"));
+    try {
+      await mkdir(path.join(workspace, "safe"));
+      const probes: boolean[] = [];
+      const transport = new FakeTransport();
+      const client = new CodexAppServerClient(transport, null, async () => ({
+        sandboxMode: "workspace-write",
+        readAccessMode: "workspace-only",
+        networkAccess: true,
+        macosTempAccess: false,
+        macosScreenshotAccess: false,
+      }), { verifySafeSandbox: async ({ networkAccess }) => { probes.push(networkAccess); return true; } });
+      const threadPromise = client.startThread("gpt-5.4-mini", null, null, workspace);
+      await waitFor(() => transport.sent.length >= 1);
+      completeInitHandshake(transport);
+      await waitFor(() => transport.sent.length >= 3);
+      transport.respond(assertSentRequest(transport, 2, CLIENT_METHOD.threadStart), makeThreadStartResponse("thr_probe_net"));
+      await threadPromise;
+      assert.deepEqual(probes, [false]);
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
+  });
+
   test("does not probe the sandbox outside a Safe workspace", async () => {
     setConfigOverride({
       agents: {},
@@ -880,7 +914,7 @@ describe("CodexAppServerClient", () => {
           networkAccess: true,
           macosTempAccess: false,
           macosScreenshotAccess: false,
-        }));
+        }), { verifySafeSandbox: async () => true });
         const threadPromise = client.startThread("gpt-5.4-mini", null, null, workspace);
         await waitFor(() => transport.sent.length >= 1);
         completeInitHandshake(transport);
