@@ -161,6 +161,38 @@ describe('detectPii require_ner', () => {
   });
 });
 
+describe('redactFile require_ner', () => {
+  test('asks basemind to fail rather than write a pattern-only copy', async () => {
+    nextDetections = [];
+    nextNerRan = true;
+    try {
+      const { piiDetectionService } = await import('./piiDetection');
+      await piiDetectionService.redactFile('/tmp/some-file.txt');
+      expect(callToolCalls.at(-1)?.args.require_ner).toBe(true);
+    } finally {
+      nextNerRan = undefined;
+    }
+  });
+
+  test('refuses a result that did not run NER, so no mirror is written from it', async () => {
+    nextDetections = [];
+    nextNerRan = false;
+    try {
+      const { piiDetectionService } = await import('./piiDetection');
+      await expect(piiDetectionService.redactFile('/tmp/some-file.txt')).rejects.toThrow('NER did not run');
+    } finally {
+      nextNerRan = undefined;
+    }
+  });
+
+  test('a daemon that omits ner_ran cannot vouch for NER, so the file is refused', async () => {
+    nextDetections = [];
+    nextNerRan = undefined;
+    const { piiDetectionService } = await import('./piiDetection');
+    await expect(piiDetectionService.redactFile('/tmp/some-file.txt')).rejects.toThrow('NER did not run');
+  });
+});
+
 describe('ner_model_dir wiring (GLiNER2 spec #37)', () => {
   test('detectPii and redactFile pass the candle-ready snapshot dir', async () => {
     const { mkdtempSync, mkdirSync, rmSync, writeFileSync } = await import('node:fs');
@@ -180,6 +212,7 @@ describe('ner_model_dir wiring (GLiNER2 spec #37)', () => {
     writeFileSync(path.join(snapshot, 'encoder_config', 'config.json'), '{}');
     const previous = process.env.HF_HUB_CACHE;
     process.env.HF_HUB_CACHE = base;
+    nextNerRan = true;
     try {
       const { piiDetectionService } = await import('./piiDetection');
       await piiDetectionService.detectPii('text');
@@ -187,6 +220,7 @@ describe('ner_model_dir wiring (GLiNER2 spec #37)', () => {
       await piiDetectionService.redactFile('/tmp/some-file.txt');
       expect(callToolCalls.at(-1)?.args.ner_model_dir).toBe(snapshot);
     } finally {
+      nextNerRan = undefined;
       if (previous === undefined) delete process.env.HF_HUB_CACHE;
       else process.env.HF_HUB_CACHE = previous;
       rmSync(base, { recursive: true, force: true });
