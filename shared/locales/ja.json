@@ -1815,6 +1815,7 @@
   "basemind.cabinet.disableBody": "完全な検出が利用できない場合、テキストはパターンによるマスキングのみで送信されます。氏名、会社名、住所が伏せられずに送信される可能性があります。この選択の責任はあなたにあります。この操作はこのコンピューターに記録されます。",
   "basemind.cabinet.disableConfirm": "オフにする — 責任を負います",
   "basemind.cabinet.blockedSend": "事務所モード：完全な検出が利用できないため、何も送信されませんでした。しばらくしてからもう一度お試しください。解決しない場合は Interpreter を再起動してください。",
+  "safe.sandboxUnavailable": "Safe ワークスペース: このコンピューターでエージェントが safe/ フォルダーに制限されていることを確認できなかったため、何も開始されませんでした。Interpreter を再起動してもう一度お試しください。",
   "basemind.cabinet.changeFailed": "事務所モードを読み取れないか、変更できませんでした。何も変更されていません。もう一度お試しください。",
   "basemind.cabinet.auditNotRecorded": "事務所モードは再び有効になりましたが、この変更を監査ログに記録できませんでした。",
   "basemind.indexing.progress_one": "Indexing {{count}} file…",

@@ -1815,6 +1815,7 @@
   "basemind.cabinet.disableBody": "When full detection is unavailable, text will leave with pattern-only redaction: names, companies and addresses may be sent in clear. You take responsibility for this choice. It is recorded on this computer.",
   "basemind.cabinet.disableConfirm": "Turn off — I take responsibility",
   "basemind.cabinet.blockedSend": "Cabinet mode: full detection is unavailable, so nothing was sent. Try again in a moment; if it keeps happening, restart Interpreter.",
+  "safe.sandboxUnavailable": "Safe workspace: Interpreter could not confirm that the agent is confined to the safe/ folder on this computer, so nothing was started. Restart Interpreter and try again.",
   "basemind.cabinet.changeFailed": "Cabinet mode could not be read or changed. Nothing was modified; try again.",
   "basemind.cabinet.auditNotRecorded": "Cabinet mode is back on, but this change could not be recorded in the audit log.",
   "basemind.indexing.progress_one": "Indexing {{count}} file…",

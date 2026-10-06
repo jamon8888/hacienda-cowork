@@ -1815,6 +1815,7 @@
   "basemind.cabinet.disableBody": "当完整检测不可用时，文本将仅经过基于模式的遮蔽后发送：姓名、公司名称和地址可能以明文发送。您将对此选择承担责任。此操作会记录在这台电脑上。",
   "basemind.cabinet.disableConfirm": "关闭 — 我承担责任",
   "basemind.cabinet.blockedSend": "律所模式：完整检测不可用，未发送任何内容。请稍后重试；如果问题仍然存在，请重新启动 Interpreter。",
+  "safe.sandboxUnavailable": "Safe 工作区：Interpreter 无法确认此电脑上的智能体已被限制在 safe/ 文件夹内，因此未启动任何操作。请重启 Interpreter 后重试。",
   "basemind.cabinet.changeFailed": "无法读取或更改律所模式。未做任何修改，请重试。",
   "basemind.cabinet.auditNotRecorded": "律所模式已重新开启，但此更改未能记录到审计日志中。",
   "basemind.indexing.progress_one": "Indexing {{count}} file…",

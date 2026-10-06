@@ -51,7 +51,8 @@ import {
 } from "./sandbox-policy";
 import { getInterpreterCliShellRuntimeDir } from "../../../server/utils/interpreterCliRuntime";
 import { findSafeWorkspaceForCwd, resolveSafeRuntimeConfinement } from "../../../server/utils/safeWorkspace";
-import { getGlobalSkillsRoot } from "../../../server/utils/skillsPaths";
+import { getGlobalSkillsRoot, getInterpreterUserDataDir } from "../../../server/utils/skillsPaths";
+import { probeSandboxEnforced } from "../../../server/utils/sandboxProbe";
 import {
   getStrippedSystemSkillPathsInCurrentApp,
   isBundledSkillEnabledInCurrentApp,
@@ -660,7 +661,32 @@ export interface CodexCliRunner {
 
 type CodexAppServerClientOptions = {
   syncMcpServersFromConfigStore?: boolean;
+  /** Replaces the live sandbox check before a Safe workspace thread starts. */
+  verifySafeSandbox?: (options: { networkAccess: boolean }) => Promise<boolean>;
 };
+
+/**
+ * A Safe workspace relies on the engine's sandbox to keep the agent inside
+ * `safe/`. When the engine cannot show that it refuses a write, nothing starts.
+ */
+async function safeSandboxUnavailableMessage(): Promise<string> {
+  // The chat surfaces the raw err.message, so the sentence is localized here
+  // (same rule as the cabinet "blockedSend" message).
+  const { getLanguage } = await import("../../../server/configStore");
+  const { resources, supportedLanguages } = await import("../../../shared/locales");
+  const language = await getLanguage();
+  const locale = language && (supportedLanguages as readonly string[]).includes(language)
+    ? (language as keyof typeof resources)
+    : "en";
+  return resources[locale].translation["safe.sandboxUnavailable"];
+}
+
+export class SafeSandboxUnavailableError extends Error {
+  constructor(message = "Safe workspace: the agent's confinement could not be confirmed.") {
+    super(message);
+    this.name = "SafeSandboxUnavailableError";
+  }
+}
 
 function isCodexCliRunner(value: JsonRpcTransport): value is JsonRpcTransport & CodexCliRunner {
   return typeof (value as Partial<CodexCliRunner>).runCodexCli === "function";
@@ -2118,9 +2144,13 @@ export class CodexAppServerClient {
           ...(await this.getRuntimeInstallRoots()),
         ])
       : null;
-    const effectiveCwd = safe ? safe.safeRoot : cwd;
     // The user can leave the network off in Safe folders; the sandbox then has none.
     const networkAccess = safe && await isSafeNetworkSurfaceOff() ? false : runtimeAccess.networkAccess;
+    // Probe the configuration this thread will run in, network setting included.
+    if (safe && !(await this.verifySafeSandbox({ networkAccess }))) {
+      throw new SafeSandboxUnavailableError(await safeSandboxUnavailableMessage());
+    }
+    const effectiveCwd = safe ? safe.safeRoot : cwd;
     return {
       cwd: effectiveCwd,
       workspacePermission: buildCodexWorkspacePermissionSelection({
@@ -2134,6 +2164,18 @@ export class CodexAppServerClient {
         safe,
       }),
     };
+  }
+
+  /**
+   * Ask the engine to run a write under a read-only policy and check it was
+   * refused. The result is cached after a success (see `probeSandboxEnforced`).
+   */
+  private async verifySafeSandbox(options: { networkAccess: boolean }): Promise<boolean> {
+    if (this.options.verifySafeSandbox) return this.options.verifySafeSandbox(options);
+    return probeSandboxEnforced(
+      (params) => this.rpcRequest(CLIENT_METHOD.commandExec, params),
+      { dir: path.join(getInterpreterUserDataDir(), "sandbox-probe"), networkAccess: options.networkAccess },
+    );
   }
 
   private async getRuntimeInstallRoots(): Promise<string[]> {

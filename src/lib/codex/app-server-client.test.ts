@@ -753,7 +753,7 @@ describe("CodexAppServerClient", () => {
         networkAccess: true,
         macosTempAccess: true,
         macosScreenshotAccess: true,
-      }));
+      }), { verifySafeSandbox: async () => true });
 
       const threadPromise = client.startThread("gpt-5.4-mini", null, null, workspace);
       await waitFor(() => transport.sent.length >= 1);
@@ -793,6 +793,106 @@ describe("CodexAppServerClient", () => {
     }
   });
 
+  test("refuses to start a thread in a Safe workspace when the sandbox is not enforced", async () => {
+    setConfigOverride({
+      agents: {},
+      globalDisabledTools: [],
+      codexApprovalPolicy: "on-request",
+      codexSandboxMode: "danger-full-access",
+      codexReadAccessMode: "full-system",
+      codexNetworkAccess: true,
+    });
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "client-safe-"));
+    try {
+      await mkdir(path.join(workspace, "safe"));
+      const transport = new FakeTransport();
+      const client = new CodexAppServerClient(transport, null, async () => ({
+        sandboxMode: "danger-full-access",
+        readAccessMode: "full-system",
+        networkAccess: true,
+        macosTempAccess: true,
+        macosScreenshotAccess: true,
+      }), { verifySafeSandbox: async () => false });
+
+      await assert.rejects(
+        () => client.startThread("gpt-5.4-mini", null, null, workspace),
+        (error: Error) => error.name === "SafeSandboxUnavailableError",
+      );
+      // Nothing reached the engine: no thread was created for the agent.
+      assert.equal(transport.sent.some((message) => (message as { method?: string }).method === CLIENT_METHOD.threadStart), false);
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  test("probes the sandbox with the network setting the Safe thread will run with", async () => {
+    setConfigOverride({
+      agents: {},
+      globalDisabledTools: [],
+      codexApprovalPolicy: "on-request",
+      codexSandboxMode: "workspace-write",
+      codexReadAccessMode: "workspace-only",
+      codexNetworkAccess: true,
+      safeSurfaces: { network: false },
+    });
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "client-safe-net-"));
+    try {
+      await mkdir(path.join(workspace, "safe"));
+      const probes: boolean[] = [];
+      const transport = new FakeTransport();
+      const client = new CodexAppServerClient(transport, null, async () => ({
+        sandboxMode: "workspace-write",
+        readAccessMode: "workspace-only",
+        networkAccess: true,
+        macosTempAccess: false,
+        macosScreenshotAccess: false,
+      }), { verifySafeSandbox: async ({ networkAccess }) => { probes.push(networkAccess); return true; } });
+      const threadPromise = client.startThread("gpt-5.4-mini", null, null, workspace);
+      await waitFor(() => transport.sent.length >= 1);
+      completeInitHandshake(transport);
+      await waitFor(() => transport.sent.length >= 3);
+      transport.respond(assertSentRequest(transport, 2, CLIENT_METHOD.threadStart), makeThreadStartResponse("thr_probe_net"));
+      await threadPromise;
+      assert.deepEqual(probes, [false]);
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  test("does not probe the sandbox outside a Safe workspace", async () => {
+    setConfigOverride({
+      agents: {},
+      globalDisabledTools: [],
+      codexApprovalPolicy: "on-request",
+      codexSandboxMode: "workspace-write",
+      codexReadAccessMode: "workspace-only",
+      codexNetworkAccess: true,
+    });
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "client-plain-"));
+    try {
+      let probed = 0;
+      const transport = new FakeTransport();
+      const client = new CodexAppServerClient(transport, null, async () => ({
+        sandboxMode: "workspace-write",
+        readAccessMode: "workspace-only",
+        networkAccess: true,
+        macosTempAccess: true,
+        macosScreenshotAccess: true,
+      }), { verifySafeSandbox: async () => { probed += 1; return false; } });
+
+      const threadPromise = client.startThread("gpt-5.4-mini", null, null, workspace);
+      await waitFor(() => transport.sent.length >= 1);
+      completeInitHandshake(transport);
+      await waitFor(() => transport.sent.length >= 3);
+      const threadReq = assertSentRequest(transport, 2, CLIENT_METHOD.threadStart);
+      transport.respond(threadReq, makeThreadStartResponse("thr_plain"));
+      await threadPromise;
+      assert.equal(probed, 0);
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
+  });
+
   test("a Safe workspace has no network when the user left that surface off", async () => {
     setConfigOverride({
       agents: {},
@@ -814,7 +914,7 @@ describe("CodexAppServerClient", () => {
           networkAccess: true,
           macosTempAccess: false,
           macosScreenshotAccess: false,
-        }));
+        }), { verifySafeSandbox: async () => true });
         const threadPromise = client.startThread("gpt-5.4-mini", null, null, workspace);
         await waitFor(() => transport.sent.length >= 1);
         completeInitHandshake(transport);

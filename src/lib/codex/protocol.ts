@@ -34,6 +34,7 @@ export const CLIENT_METHOD = {
   skillsConfigWrite: "skills/config/write",
   skillsExtraRootsSet: "skills/extraRoots/set",
   windowsSandboxSetupStart: "windowsSandbox/setupStart",
+  commandExec: "command/exec",
   turnStart: "turn/start",
   turnSteer: "turn/steer",
   turnInterrupt: "turn/interrupt",
@@ -138,6 +139,10 @@ export type RequestMap = {
   [CLIENT_METHOD.threadStart]: {
     params: v2.ThreadStartParams;
     result: v2.ThreadStartResponse;
+  };
+  [CLIENT_METHOD.commandExec]: {
+    params: v2.CommandExecParams;
+    result: v2.CommandExecResponse;
   };
   [CLIENT_METHOD.accountLoginStart]: {
     params: v2.LoginAccountParams;
