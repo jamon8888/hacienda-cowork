@@ -2079,6 +2079,14 @@ export class CodexAppServerClient {
   private readonly workspaceScopedThreads = new Set<string>();
   /** Threads whose current route (last start/resume/fork) is local-only. */
   private readonly localOnlyRouteThreads = new Set<string>();
+  /**
+   * For local-only threads, store the model provider and the model_providers
+   * config so we can validate model overrides in startTurn.
+   */
+  private readonly localOnlyThreadConfigs = new Map<
+    string,
+    { modelProvider: string | null; modelProvidersConfig: Record<string, unknown> | null }
+  >();
   private listenersAttached = false;
   private unsubscribeMcpServerNotifications: (() => void) | null = null;
   // NOTE(victor): `json-rpc-2.0` turns `rejectAllPendingRequests(message)` into
@@ -2227,12 +2235,22 @@ export class CodexAppServerClient {
   }
 
   /** Record the thread's route; a local-only one is marked (and audited) for good. */
-  private async trackLocalOnlyRoute(threadId: string, localOnly: boolean): Promise<void> {
+  private async trackLocalOnlyRoute(
+    threadId: string,
+    localOnly: boolean,
+    modelProvider?: string | null,
+    modelProvidersConfig?: Record<string, unknown> | null,
+  ): Promise<void> {
     if (localOnly) {
       await recordLocalOnlyThread(threadId);
       this.localOnlyRouteThreads.add(threadId);
+      this.localOnlyThreadConfigs.set(threadId, {
+        modelProvider: modelProvider ?? null,
+        modelProvidersConfig: modelProvidersConfig ?? null,
+      });
     } else {
       this.localOnlyRouteThreads.delete(threadId);
+      this.localOnlyThreadConfigs.delete(threadId);
     }
   }
 
@@ -2364,7 +2382,8 @@ export class CodexAppServerClient {
       this.workspaceScopedThreads.delete(result.thread.id);
     }
 
-    await this.trackLocalOnlyRoute(result.thread.id, localOnly);
+    const modelProvidersConfig = (config?.model_providers as Record<string, unknown> | null) ?? null;
+    await this.trackLocalOnlyRoute(result.thread.id, localOnly, modelProvider, modelProvidersConfig);
 
     return result.thread.id;
   }
@@ -2458,7 +2477,8 @@ export class CodexAppServerClient {
       this.workspaceScopedThreads.delete(result.thread.id);
     }
 
-    await this.trackLocalOnlyRoute(result.thread.id, localOnly);
+    const modelProvidersConfig = (config?.model_providers as Record<string, unknown> | null) ?? null;
+    await this.trackLocalOnlyRoute(result.thread.id, localOnly, modelProvider, modelProvidersConfig);
 
     return result.thread.id;
   }
@@ -2506,7 +2526,8 @@ export class CodexAppServerClient {
     // A fork carries the source's history: a local-only source makes a
     // local-only fork, whatever route the fork runs on.
     if (isLocalOnlyThread(threadId)) await recordLocalOnlyThread(result.thread.id);
-    await this.trackLocalOnlyRoute(result.thread.id, localOnly);
+    const modelProvidersConfig = (config?.model_providers as Record<string, unknown> | null) ?? null;
+    await this.trackLocalOnlyRoute(result.thread.id, localOnly, modelProvider, modelProvidersConfig);
 
     return result.thread.id;
   }
@@ -2646,6 +2667,26 @@ export class CodexAppServerClient {
     if (!localOnly && isLocalOnlyThread(params.threadId)) {
       await refuseLocalOnlyThread(params.threadId);
     }
+
+    // If the thread is local-only and a model override is provided, verify
+    // the override keeps the route local. A cloud model override would send
+    // real-valued history to a remote provider.
+    if (localOnly && params.model) {
+      const stored = this.localOnlyThreadConfigs.get(params.threadId);
+      if (stored) {
+        const route = routeFromThreadConfig(
+          stored.modelProvider,
+          stored.modelProvidersConfig as Record<string, unknown> | null,
+          params.model,
+        );
+        const cwd = params.cwd ?? null;
+        const stillLocalOnly = await isLocalOnlyRoute(cwd, route);
+        if (!stillLocalOnly) {
+          await refuseLocalOnlyThread(params.threadId);
+        }
+      }
+    }
+
     const turnApprovalPolicy = await getConfigApprovalPolicy();
     const runtimeAccess = await this.getRuntimeAccessSnapshot();
     const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, params.cwd, localOnly);
