@@ -44,6 +44,8 @@ const OWNER_COLOR_PALETTE = [
   '#0f766e',
 ];
 
+const ALWAYS_ASK_APPROVAL_TOOLS = new Set(['test_approval', 'fs_guard:delete', 'interpreter_safe_export']);
+
 class ApprovalManager {
   private requests: Map<string, QuestionRequestInternal> = new Map();
   /** id → timestamp for idempotency (prevents double-submit) */
@@ -539,8 +541,9 @@ class ApprovalManager {
   ): Promise<boolean> {
     // In auto-approve mode, immediately approve without creating an approval request
     // Excludes test_approval which is specifically for testing the approval UI flow.
-    // fs_guard:delete always requires explicit user confirmation.
-    if (this.autoApproveMode && toolName !== 'test_approval' && toolName !== 'fs_guard:delete') {
+    // fs_guard:delete always requires explicit user confirmation, and so does a
+    // Safe export: it writes real names and values the lawyer must sign off on.
+    if (this.autoApproveMode && !ALWAYS_ASK_APPROVAL_TOOLS.has(toolName)) {
       console.log('[ApprovalManager] Auto-approving:', toolName, 'from', serverId);
       return true;
     }

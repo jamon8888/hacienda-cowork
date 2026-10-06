@@ -12,12 +12,24 @@ import {
   setSafeSyncArmedForTests,
   setSafeSyncDebounceMsForTests,
   setSafeSyncRedactForTests,
+  setSafeSyncRegistryForTests,
   setSafeSyncRescanForTests,
+  syncSafeMirrorFile,
   setSafeSyncVaultPersistForTests,
   setSafeSyncVaultRemoveForTests,
   shouldSafeSyncForWorkspaceEvent,
   toSafeMirrorPath,
 } from './safeSync';
+import { WorkspaceTokenRegistry } from '../services/workspaceTokenRegistry';
+
+function memoryRegistry(workspacePath: string): WorkspaceTokenRegistry {
+  return new WorkspaceTokenRegistry(workspacePath, {}, {
+    exists: () => false,
+    decrypt: async () => ({}),
+    encrypt: async (map) => JSON.stringify(map),
+    write: () => {},
+  });
+}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -201,9 +213,11 @@ describe('syncSafeMirrorFile (cycle middle: extract → redact → write → vau
     setSafeSyncRedactForTests(redactMock);
     setSafeSyncVaultPersistForTests(vaultPersistMock);
     setSafeSyncVaultRemoveForTests(vaultRemoveMock);
+    setSafeSyncRegistryForTests(async (path) => memoryRegistry(path));
   });
 
   afterEach(() => {
+    setSafeSyncRegistryForTests(null);
     clearAllSafeSync();
     setSafeSyncRescanForTests(null);
     setSafeSyncArmedForTests(null);
@@ -289,3 +303,66 @@ describe('syncSafeMirrorFile (cycle middle: extract → redact → write → vau
     expect(rescanMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('syncSafeMirrorFile numbers every mirror on the workspace registry', () => {
+  let workspace = '';
+  let registry: WorkspaceTokenRegistry;
+  const persisted = new Map<string, Record<string, string>>();
+
+  beforeEach(() => {
+    workspace = mkdtempSync(join(tmpdir(), 'safe-sync-registry-'));
+    registry = memoryRegistry(workspace);
+    persisted.clear();
+    setSafeSyncRegistryForTests(async () => registry);
+    setSafeSyncVaultPersistForTests(async (docId, map) => {
+      persisted.set(docId, map);
+    });
+    // basemind numbers each file from scratch: both files say [PERSON_1].
+    setSafeSyncRedactForTests(async (absPath: string) => absPath.endsWith('a.txt')
+      ? { redacted_text: 'Seller [PERSON_1], buyer [PERSON_2].', rehydration_map: { '[PERSON_1]': 'Jean Dupont', '[PERSON_2]': 'Marie Curie' } }
+      : { redacted_text: 'Witness [PERSON_1] and [PERSON_2].', rehydration_map: { '[PERSON_1]': 'Paul Martin', '[PERSON_2]': 'Jean Dupont' } });
+  });
+
+  afterEach(() => {
+    setSafeSyncRegistryForTests(null);
+    setSafeSyncRedactForTests(null);
+    setSafeSyncVaultPersistForTests(null);
+    rmSync(workspace, { recursive: true, force: true });
+  });
+
+  test('a value keeps one token across files and different values never share one', async () => {
+    writeFileSync(join(workspace, 'a.txt'), 'original a');
+    writeFileSync(join(workspace, 'b.txt'), 'original b');
+    await syncSafeMirrorFile(workspace, 'a.txt');
+    await syncSafeMirrorFile(workspace, 'b.txt');
+
+    const mirrorA = readFileSync(join(workspace, 'safe', 'a.txt.md'), 'utf8');
+    const mirrorB = readFileSync(join(workspace, 'safe', 'b.txt.md'), 'utf8');
+    const jean = Object.entries(registry.tokens()).find(([, value]) => value === 'Jean Dupont')?.[0];
+    const paul = Object.entries(registry.tokens()).find(([, value]) => value === 'Paul Martin')?.[0];
+    expect(jean).toBeDefined();
+    expect(paul).toBeDefined();
+    expect(jean).not.toBe(paul);
+    expect(mirrorA).toContain(`Seller ${jean}`);
+    expect(mirrorB).toContain(`Witness ${paul} and ${jean}.`);
+    expect(Object.keys(registry.tokens())).toHaveLength(3);
+    // The per-document maps (Show Originals) carry the workspace tokens too.
+    for (const map of persisted.values()) {
+      for (const [token, value] of Object.entries(map)) expect(registry.valueOf(token)).toBe(value);
+    }
+  });
+
+  test('a registry that cannot be written leaves the mirror unwritten', async () => {
+    registry = new WorkspaceTokenRegistry(workspace, {}, {
+      exists: () => false,
+      decrypt: async () => ({}),
+      encrypt: async () => { throw new Error('vault down'); },
+      write: () => {},
+    });
+    writeFileSync(join(workspace, 'a.txt'), 'original a');
+    const { written } = await syncSafeMirrorFile(workspace, 'a.txt');
+    expect(written).toBe(false);
+    expect(existsSync(join(workspace, 'safe', 'a.txt.md'))).toBe(false);
+  });
+});
+

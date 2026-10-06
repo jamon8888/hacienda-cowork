@@ -31,6 +31,7 @@ import { browserPageSelectTool } from './browserPageSelectTool';
 import { browserPageScrollTool } from './browserPageScrollTool';
 import { readImageTool } from './readImageTool';
 import { workspaceSearchTool } from './workspaceSearchTool';
+import { safeExportTool } from './safeExportTool';
 
 export const interpreterServerDefinition: BuiltinServerDefinition = {
   id: 'builtin-interpreter',
@@ -61,6 +62,7 @@ export const interpreterServerDefinition: BuiltinServerDefinition = {
     browserPageScrollTool,
     usageGetTool,
     workspaceSearchTool,
+    safeExportTool,
   ],
   resources: [],
   prompts: [],

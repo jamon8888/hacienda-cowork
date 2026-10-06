@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  CABINET_WITHHELD_MARKER,
+  RUNTIME_REDACTION_DEFERRED_MARKER,
+} from '../services/runtimeRedaction';
+import {
   getMainAgentBaseInstructions,
   getMainAgentDeveloperPrompt,
 } from './mainAgentPrompt';
@@ -310,4 +314,52 @@ describe('mainAgentPrompt', () => {
     expect(developerPrompt).toContain('read that skill\'s `SKILL.md` from the path above');
     expect(developerPrompt).toContain('If a skill points to a native runtime capability such as `apply_patch` or shell execution, use that native capability directly');
   });
+
+  describe('Safe workspace', () => {
+    const developer = (safeWorkspace?: boolean) => getMainAgentDeveloperPrompt(
+      'gpt-5.4-mini',
+      true,
+      '/usr/local/bin/interpreter-app',
+      { safeWorkspace, platform: 'linux' },
+    );
+
+    test('a workspace without safe/ gets neither the section nor the Safe documents rules', () => {
+      expect(developer()).not.toContain('## Safe workspace');
+      expect(developer(false)).not.toContain('## Safe workspace');
+      const base = getMainAgentBaseInstructions();
+      expect(base).toContain('use OIX code execution and permissively licensed libraries');
+      expect(base).not.toContain('This is a Safe workspace');
+      expect(getMainAgentBaseInstructions({ safeWorkspace: false })).toBe(base);
+    });
+
+    test('the Safe section explains tokens, the mirror, drafts and the export tool', () => {
+      const prompt = developer(true);
+      expect(prompt).toContain('## Safe workspace');
+      expect(prompt).toContain('[PERSON_1]');
+      expect(prompt).toContain('Never guess, reconstruct, or invent the real value behind a token');
+      expect(prompt).toContain('`report.pdf.md`');
+      expect(prompt).toContain('interpreter_workspace_search');
+      expect(prompt).toContain('safe/_drafts/');
+      expect(prompt).toContain('interpreter_safe_export');
+      expect(prompt).toContain('the Basemind vault');
+    });
+
+    test('the markers the section names are the ones the redaction gate emits', () => {
+      const prompt = developer(true);
+      const openingOf = (marker: string) => marker.slice(0, marker.indexOf(':') + 1);
+      expect(prompt).toContain(openingOf(CABINET_WITHHELD_MARKER));
+      expect(prompt).toContain(openingOf(RUNTIME_REDACTION_DEFERRED_MARKER));
+    });
+
+    test('the Safe documents rules replace the ones that open originals', () => {
+      const base = getMainAgentBaseInstructions({ safeWorkspace: true });
+      expect(base).toContain('This is a Safe workspace: you work on a redacted copy');
+      expect(base).toContain('interpreter_safe_export');
+      expect(base).not.toContain('inspect or edit that file directly');
+      expect(base).not.toContain('use `python-docx` first');
+      expect(base).toContain('## Document linking');
+      expect(base.length).toBeLessThan(18000);
+    });
+  });
 });
+
