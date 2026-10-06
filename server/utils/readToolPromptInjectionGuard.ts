@@ -150,15 +150,20 @@ export function setReadToolPromptInjectionGuardRunnerForTests(
  */
 export async function resolveReadToolGuardRoute(): Promise<{
   modelProvider: string | null;
+  model: string | null;
   providerConfig: CodexProfile['providerConfig'] | null;
 } | null> {
   const settings = await getInterpreterOverlaySettings();
   if (!settings.readToolPromptInjectionGuard.enabled) return null;
   const profileId = resolveOverlayModelTaskProfileIds(settings).readToolGuardProfileId;
   const profile = profileId ? await getProfile(profileId) : null;
-  if (!profile) return { modelProvider: null, providerConfig: null };
+  if (!profile) return { modelProvider: null, model: null, providerConfig: null };
   const codexProfile = resolveGuardProfile(resolveCodexProfileFromModelConfig(profileToModelConfig(profile)));
-  return { modelProvider: codexProfile.modelProvider, providerConfig: codexProfile.providerConfig ?? null };
+  return {
+    modelProvider: codexProfile.modelProvider,
+    model: codexProfile.model ?? null,
+    providerConfig: codexProfile.providerConfig ?? null,
+  };
 }
 
 export async function classifyReadToolPromptInjection(

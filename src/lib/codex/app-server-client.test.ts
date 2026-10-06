@@ -1016,6 +1016,69 @@ describe("CodexAppServerClient", () => {
     }
   });
 
+  test("an Ollama cloud model on localhost stays on the redacted mirror, and cannot continue a local-only conversation", async () => {
+    setConfigOverride({
+      agents: {},
+      globalDisabledTools: [],
+      codexApprovalPolicy: "on-request",
+      codexSandboxMode: "workspace-write",
+      codexReadAccessMode: "workspace-only",
+      codexNetworkAccess: true,
+      safeLocalBypass: true,
+      safeSurfaces: { network: false, browserControl: false, computerUse: false },
+    });
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "client-cloud-"));
+    const state = await mkdtemp(path.join(os.tmpdir(), "client-cloud-state-"));
+    setLocalOnlyThreadsFileForTests(path.join(state, "threads.json"));
+    setCabinetAuditFileForTests(path.join(state, "audit.jsonl"));
+    try {
+      await mkdir(path.join(workspace, "safe"));
+      const safeRoot = path.join(workspace, "safe");
+      const local = { model_providers: { "ollama-1a2b3c4d": { base_url: "http://127.0.0.1:11434/v1", name: "Ollama", requires_openai_auth: false, wire_api: "responses" } } };
+      const transport = new FakeTransport();
+      const client = new CodexAppServerClient(transport, null, async () => ({
+        sandboxMode: "workspace-write",
+        readAccessMode: "workspace-only",
+        networkAccess: true,
+        macosTempAccess: false,
+        macosScreenshotAccess: false,
+      }));
+
+      const cloudPromise = client.startThreadWithConfig("gpt-oss:120b-cloud", "ollama-1a2b3c4d", null, workspace, local);
+      await waitFor(() => transport.sent.length >= 1);
+      completeInitHandshake(transport);
+      await waitFor(() => transport.sent.length >= 3);
+      const cloudReq = assertSentRequest(transport, 2, CLIENT_METHOD.threadStart);
+      assert.equal(cloudReq.params.cwd, safeRoot);
+      transport.respond(cloudReq, makeThreadStartResponse("thr_cloud"));
+      assert.equal(isLocalOnlyThread(await cloudPromise), false);
+
+      const localPromise = client.startThreadWithConfig("qwen3", "ollama-1a2b3c4d", null, workspace, local);
+      await waitFor(() => transport.sent.length >= 4);
+      const localReq = assertSentRequest(transport, 3, CLIENT_METHOD.threadStart);
+      transport.respond(localReq, makeThreadStartResponse("thr_local"));
+      const threadId = await localPromise;
+      assert.equal(isLocalOnlyThread(threadId), true);
+
+      // Same endpoint, cloud model: the conversation holds real values, so it is refused.
+      const resumePromise = client.resumeThread(threadId, "ollama-1a2b3c4d", "gpt-oss:120b-cloud", workspace, local);
+      await waitFor(() => transport.sent.length >= 5);
+      const resumeReq = assertSentRequest(transport, 4, CLIENT_METHOD.threadResume);
+      assert.equal(resumeReq.params.cwd, safeRoot);
+      transport.respond(resumeReq, makeThreadResumeResponse(threadId));
+      await resumePromise;
+      await assert.rejects(
+        client.startTurn({ threadId, message: "continue", cwd: workspace }),
+        { name: "LocalOnlyThreadError" },
+      );
+    } finally {
+      setLocalOnlyThreadsFileForTests(null);
+      setCabinetAuditFileForTests(null);
+      await rm(workspace, { recursive: true, force: true });
+      await rm(state, { recursive: true, force: true });
+    }
+  });
+
   test("reloads runtime access snapshot for later turns", async () => {
     setConfigOverride({
       agents: {},

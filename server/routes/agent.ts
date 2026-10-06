@@ -1043,6 +1043,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
     // thread's confinement and refuses a remote model on such a thread.
     const localOnlyTurn = safeFolder && await isLocalOnlyRoute(workspacePath, {
       modelProvider: resolvedRequest.profile.modelProvider,
+      model: resolvedRequest.requestedModel ?? resolvedRequest.profile.model ?? null,
       providerConfig: resolvedRequest.profile.providerConfig ?? null,
     });
     const outboundArmed = safeFolder && !localOnlyTurn;

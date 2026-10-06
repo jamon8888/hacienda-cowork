@@ -2195,6 +2195,7 @@ export async function runCodexAgentTurn(
   // the same resolved route (services/localModelBypass).
   const localOnly = await isLocalOnlyRoute(options.workspacePath, {
     modelProvider: profile.modelProvider,
+    model: resolvedModel,
     providerConfig: profile.providerConfig ?? null,
   });
   const developerInstructions = await buildCodexDeveloperInstructions({

@@ -73,6 +73,27 @@ describe('verifyLocalRoute', () => {
     expect(verifyLocalRoute({ modelProvider: 'ollama' })).toEqual({ local: false, reason: 'no-endpoint' });
     expect(verifyLocalRoute(null)).toEqual({ local: false, reason: 'hosted' });
   });
+
+  test.each([
+    'gpt-oss:120b-cloud',
+    'qwen3-coder:480b-cloud',
+    'deepseek-v3.1:671b-cloud',
+    'kimi-k2:1t-cloud',
+    'gpt-oss:cloud',
+    'GPT-OSS:120B-CLOUD',
+  ])('refuses Ollama cloud model %s: localhost forwards it to ollama.com', (model) => {
+    expect(verifyLocalRoute({ ...route('http://localhost:11434/v1'), model }))
+      .toEqual({ local: false, reason: 'cloud-model' });
+  });
+
+  test.each([
+    'gpt-oss:120b',
+    'llama3.2:3b',
+    'cloudy-llama:7b',
+    'mistral-cloudnative:latest',
+  ])('keeps local model %s', (model) => {
+    expect(verifyLocalRoute({ ...route('http://localhost:11434/v1'), model })).toEqual({ local: true });
+  });
 });
 
 describe('routeFromThreadConfig', () => {
@@ -125,6 +146,15 @@ describe('isLocalOnlyRoute', () => {
 
   test('false for a remote model', async () => {
     expect(await isLocalOnlyRoute(workspace(true), route('https://api.example.com/v1'), base)).toBe(false);
+  });
+
+  test('false for an Ollama cloud model on localhost', async () => {
+    expect(await isLocalOnlyRoute(workspace(true), { ...local, model: 'gpt-oss:120b-cloud' }, base)).toBe(false);
+  });
+
+  test('false when the read-tool guard runs an Ollama cloud model', async () => {
+    const guardRoute = async () => ({ ...local, model: 'gpt-oss:20b-cloud' });
+    expect(await isLocalOnlyRoute(workspace(true), local, { ...base, guardRoute })).toBe(false);
   });
 
   test('false when the read-tool guard model is remote', async () => {

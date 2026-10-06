@@ -24,9 +24,11 @@ import { appendCabinetAudit, type CabinetAuditEntry } from './cabinetAudit';
 import { getSafeSurfaces, setSafeSurface, type SafeSurface, type SafeSurfaces } from './safeSurfaces';
 import { findSafeWorkspaceForCwd } from '../utils/safeWorkspace';
 
-/** Model route as the runtime receives it: provider id plus its endpoint config. */
+/** Model route as the runtime receives it: provider id, model, and its endpoint config. */
 export interface ModelRoute {
   modelProvider?: string | null;
+  /** Model id. Some names run remotely behind a loopback endpoint (Ollama cloud). */
+  model?: string | null;
   providerConfig?: {
     base_url?: unknown;
     requires_openai_auth?: unknown;
@@ -35,10 +37,19 @@ export interface ModelRoute {
 
 export type LocalRouteVerdict =
   | { local: true }
-  | { local: false; reason: 'hosted' | 'account' | 'no-endpoint' | 'not-loopback' | 'app-proxy' };
+  | { local: false; reason: 'hosted' | 'account' | 'no-endpoint' | 'not-loopback' | 'app-proxy' | 'cloud-model' };
 
 /** Providers that always reach a remote service, whatever their config says. */
 const HOSTED_PROVIDERS = new Set(['interpreter', 'openai']);
+
+/**
+ * Ollama cloud models (`gpt-oss:120b-cloud`, `gpt-oss:cloud`) answer on
+ * localhost:11434 but run on ollama.com once the user has signed in. The name
+ * is the only sign, so any name whose last segment is `cloud` is refused.
+ */
+function isOllamaCloudModel(model: string | null | undefined): boolean {
+  return typeof model === 'string' && /(?:^|[:-])cloud$/i.test(model.trim());
+}
 
 /**
  * Whether a route's endpoint is on this machine. The app's own server port is
@@ -67,6 +78,7 @@ export function verifyLocalRoute(
   if (!isStrictLoopbackHost(hostname)) return { local: false, reason: 'not-loopback' };
   const port = url.port ? Number(url.port) : url.protocol === 'https:' ? 443 : 80;
   if (options.appServerPort != null && port === options.appServerPort) return { local: false, reason: 'app-proxy' };
+  if (isOllamaCloudModel(route?.model)) return { local: false, reason: 'cloud-model' };
   return { local: true };
 }
 
@@ -74,6 +86,7 @@ export function verifyLocalRoute(
 export function routeFromThreadConfig(
   modelProvider: string | null | undefined,
   config: Record<string, unknown> | null | undefined,
+  model?: string | null,
 ): ModelRoute {
   const providers = config?.model_providers;
   const entry = modelProvider && providers && typeof providers === 'object' && !Array.isArray(providers)
@@ -81,6 +94,7 @@ export function routeFromThreadConfig(
     : undefined;
   return {
     modelProvider: modelProvider ?? null,
+    ...(model != null ? { model } : {}),
     providerConfig: entry && typeof entry === 'object' && !Array.isArray(entry)
       ? entry as ModelRoute['providerConfig']
       : null,

@@ -2219,10 +2219,11 @@ export class CodexAppServerClient {
   private async resolveLocalOnlyRoute(
     cwd: string | null | undefined,
     modelProvider: string | null | undefined,
+    model: string | null | undefined,
     config: Record<string, JsonValue> | null | undefined,
   ): Promise<boolean> {
     if (!findSafeWorkspaceForCwd(cwd)) return false;
-    return isLocalOnlyRoute(cwd, routeFromThreadConfig(modelProvider, config as Record<string, unknown> | null));
+    return isLocalOnlyRoute(cwd, routeFromThreadConfig(modelProvider, config as Record<string, unknown> | null, model));
   }
 
   /** Record the thread's route; a local-only one is marked (and audited) for good. */
@@ -2331,7 +2332,7 @@ export class CodexAppServerClient {
   ) {
     const threadApprovalPolicy = await getConfigApprovalPolicy();
     const runtimeAccess = await this.getRuntimeAccessSnapshot();
-    const localOnly = await this.resolveLocalOnlyRoute(cwd, modelProvider, config);
+    const localOnly = await this.resolveLocalOnlyRoute(cwd, modelProvider, model, config);
     const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, cwd, localOnly);
     const workspacePermission = workspaceAccess.workspacePermission;
     cwd = workspaceAccess.cwd;
@@ -2423,7 +2424,7 @@ export class CodexAppServerClient {
     developerInstructions?: string | null,
   ) {
     const runtimeAccess = await this.getRuntimeAccessSnapshot();
-    const localOnly = await this.resolveLocalOnlyRoute(cwd, modelProvider, config);
+    const localOnly = await this.resolveLocalOnlyRoute(cwd, modelProvider, model, config);
     // Marked before the runtime reopens it unconfined: no mark, no resume.
     if (localOnly) await recordLocalOnlyThread(threadId);
     const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, cwd, localOnly);
@@ -2471,7 +2472,7 @@ export class CodexAppServerClient {
     config?: Record<string, JsonValue> | null,
   ) {
     const runtimeAccess = await this.getRuntimeAccessSnapshot();
-    const localOnly = await this.resolveLocalOnlyRoute(cwd, modelProvider, config);
+    const localOnly = await this.resolveLocalOnlyRoute(cwd, modelProvider, model, config);
     const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, cwd, localOnly);
     const workspacePermission = workspaceAccess.workspacePermission;
     cwd = workspaceAccess.cwd;
