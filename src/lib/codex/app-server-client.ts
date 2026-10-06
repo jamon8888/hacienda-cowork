@@ -130,6 +130,16 @@ async function getConfigVerticalPackSkillRoots(): Promise<string[]> {
   }
 }
 
+/** Lazy, like the other config reads here. Unreadable settings keep the network as configured. */
+async function isSafeNetworkSurfaceOff(): Promise<boolean> {
+  try {
+    const { getSafeSurfacesSync } = await import("../../../server/services/safeSurfaces");
+    return getSafeSurfacesSync().network === false;
+  } catch {
+    return false;
+  }
+}
+
 async function getConfigMacosScreenshotAccess(): Promise<boolean> {
   if (process.platform !== "darwin") {
     return true;
@@ -652,7 +662,7 @@ export interface CodexCliRunner {
 type CodexAppServerClientOptions = {
   syncMcpServersFromConfigStore?: boolean;
   /** Replaces the live sandbox check before a Safe workspace thread starts. */
-  verifySafeSandbox?: () => Promise<boolean>;
+  verifySafeSandbox?: (options: { networkAccess: boolean }) => Promise<boolean>;
 };
 
 /**
@@ -2134,7 +2144,10 @@ export class CodexAppServerClient {
           ...(await this.getRuntimeInstallRoots()),
         ])
       : null;
-    if (safe && !(await this.verifySafeSandbox())) {
+    // The user can leave the network off in Safe folders; the sandbox then has none.
+    const networkAccess = safe && await isSafeNetworkSurfaceOff() ? false : runtimeAccess.networkAccess;
+    // Probe the configuration this thread will run in, network setting included.
+    if (safe && !(await this.verifySafeSandbox({ networkAccess }))) {
       throw new SafeSandboxUnavailableError(await safeSandboxUnavailableMessage());
     }
     const effectiveCwd = safe ? safe.safeRoot : cwd;
@@ -2143,7 +2156,7 @@ export class CodexAppServerClient {
       workspacePermission: buildCodexWorkspacePermissionSelection({
         sandboxMode: runtimeAccess.sandboxMode,
         readAccessMode: runtimeAccess.readAccessMode,
-        networkAccess: runtimeAccess.networkAccess,
+        networkAccess,
         allowTempAccess: process.platform === "darwin" ? runtimeAccess.macosTempAccess : true,
         cwd: effectiveCwd,
         additionalReadableRoots: getInterpreterCliSandboxReadableRoots(),
@@ -2157,11 +2170,11 @@ export class CodexAppServerClient {
    * Ask the engine to run a write under a read-only policy and check it was
    * refused. The result is cached after a success (see `probeSandboxEnforced`).
    */
-  private async verifySafeSandbox(): Promise<boolean> {
-    if (this.options.verifySafeSandbox) return this.options.verifySafeSandbox();
+  private async verifySafeSandbox(options: { networkAccess: boolean }): Promise<boolean> {
+    if (this.options.verifySafeSandbox) return this.options.verifySafeSandbox(options);
     return probeSandboxEnforced(
       (params) => this.rpcRequest(CLIENT_METHOD.commandExec, params),
-      { dir: path.join(getInterpreterUserDataDir(), "sandbox-probe") },
+      { dir: path.join(getInterpreterUserDataDir(), "sandbox-probe"), networkAccess: options.networkAccess },
     );
   }
 

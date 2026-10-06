@@ -2518,5 +2518,20 @@
   "settings.packs.installFailed": "Le pack n'a pas été installé : {{reason}}",
   "settings.packs.changeFailed": "Un problème est survenu avec les packs. Réessayez.",
   "basemind.banner.packTitle": "Ce dossier n'est pas Safe",
-  "basemind.banner.packMessage": "Le pack « {{pack}} » est prévu pour des documents confidentiels. Hors Safe, ce que vous demandez et les fichiers que l'assistant lit sont envoyés tels quels au fournisseur d'IA. Rendez ce dossier Safe pour travailler sur des copies pseudonymisées."
+  "basemind.banner.packMessage": "Le pack « {{pack}} » est prévu pour des documents confidentiels. Hors Safe, ce que vous demandez et les fichiers que l'assistant lit sont envoyés tels quels au fournisseur d'IA. Rendez ce dossier Safe pour travailler sur des copies pseudonymisées.",
+  "safe.surface.voiceBlocked": "La voix est désactivée dans les dossiers Safe : ce que vous dites parviendrait au fournisseur d'IA tel quel, sans pseudonymisation. Vous pouvez l'activer dans Réglages > Général > Confidentialité.",
+  "settings.safeSurfaces.title": "Ce qui reste actif dans les dossiers Safe",
+  "settings.safeSurfaces.description": "Safe pseudonymise le texte, mais certains canaux transportent du contenu qu'il ne peut pas traiter. Choisissez ceux qui restent actifs dans les dossiers Safe. Chaque changement est consigné dans le journal d'audit.",
+  "settings.safeSurfaces.voice": "Voix",
+  "settings.safeSurfaces.voiceDescription": "L'audio parvient au fournisseur d'IA tel que vous le dites, sans pseudonymisation. Désactivé par défaut.",
+  "settings.safeSurfaces.computerUse": "Contrôle de l'ordinateur",
+  "settings.safeSurfaces.computerUseDescription": "L'assistant voit et pilote votre écran et vos applications. Les captures d'écran ne sont pas pseudonymisées.",
+  "settings.safeSurfaces.browserControl": "Contrôle du navigateur",
+  "settings.safeSurfaces.browserControlDescription": "L'assistant lit et agit sur vos pages de navigateur ouvertes. Le contenu des pages n'est pas pseudonymisé.",
+  "settings.safeSurfaces.network": "Réseau et recherche web",
+  "settings.safeSurfaces.networkDescription": "Les commandes de l'assistant peuvent accéder à internet et il peut chercher sur le web. Ce qu'il y envoie n'est pas pseudonymisé.",
+  "settings.safeSurfaces.enableTitle": "Activer ceci dans les dossiers Safe ?",
+  "settings.safeSurfaces.enableBody": "Le contenu qui passe par ce canal n'est pas pseudonymisé et parvient tel quel au fournisseur d'IA ou à d'autres services. L'activation est consignée dans le journal d'audit, à votre nom.",
+  "settings.safeSurfaces.enableConfirm": "Activer — j'en assume la responsabilité",
+  "settings.safeSurfaces.changeFailed": "Le réglage n'a pas été modifié. Réessayez."
 }

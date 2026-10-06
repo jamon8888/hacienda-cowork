@@ -17,6 +17,7 @@ import { useSpatialNavigation } from '../hooks/useSpatialNavigation';
 import { AccountSectionContent } from "./settings/AccountSection";
 import { CabinetModeSectionContent } from "./settings/CabinetModeSection";
 import { PackSectionContent } from "./settings/PackSection";
+import { SafeSurfacesSectionContent } from "./settings/SafeSurfacesSection";
 import { PlanSectionContent } from "./settings/PlanSection";
 import { ProfilesSectionContent } from "./settings/ProfilesSection";
 import { ToolsSectionContent } from "./settings/ToolsSection";
@@ -433,6 +434,9 @@ export function GlobalSettings({
                       </div>
                       <div data-settings-section="cabinet-mode">
                         <CabinetModeSectionContent />
+                      </div>
+                      <div data-settings-section="safe-surfaces">
+                        <SafeSurfacesSectionContent />
                       </div>
                       <div data-settings-section="vertical-pack">
                         <PackSectionContent />

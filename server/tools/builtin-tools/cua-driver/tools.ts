@@ -7,6 +7,8 @@ import { approvalManager } from '../../../approvalManager';
 import { waitForComputerUseSetupReady } from '../../../computerUseSetupGate';
 import { thumbnailService } from '../../../thumbnailService';
 import { getBrowserAccessPolicy, getCuaAccessPolicy } from '../../../configStore';
+import { applySafeBrowserSurface, applySafeCuaSurface } from '../../../services/safeSurfaces';
+import { getCurrentWorkspace } from '../../../utils/workspace';
 import { getBrowserControlStatus } from '../../../utils/browserExtensionRelay';
 import {
   checkFileAccessPermission,
@@ -591,7 +593,7 @@ async function assertNativeBrowserReadAllowed(appLabel: string): Promise<void> {
   if (browserWindows.length === 0) {
     return;
   }
-  const policy = await browserAccessPolicyProvider();
+  const policy = applySafeBrowserSurface(await browserAccessPolicyProvider(), getCurrentWorkspace());
   for (const browserWindow of browserWindows) {
     const activeTab = browserWindow.tabs.find((tab) => tab.active);
     if (!activeTab?.url) {
@@ -682,7 +684,7 @@ async function enrichListWindowsResponseWithTargetIdentity(
       withTargetIdentity,
       browserWindows.length === 0
         ? []
-        : maskDeniedBrowserControlWindows(browserWindows, await browserAccessPolicyProvider()),
+        : maskDeniedBrowserControlWindows(browserWindows, applySafeBrowserSurface(await browserAccessPolicyProvider(), getCurrentWorkspace())),
     );
   } catch (error) {
     console.warn('[CuaDriver] Browser-control context unavailable for list_windows', {
@@ -3297,7 +3299,7 @@ async function requestApproval(
     ? 'inspect'
     : 'control';
   const policyMode = resolveCuaAccessPolicyMode(
-    await cuaAccessPolicyProvider(),
+    applySafeCuaSurface(await cuaAccessPolicyProvider(), getCurrentWorkspace()),
     displayTarget,
     kind as CuaAccessPermissionKind,
   );

@@ -29,6 +29,8 @@ import type { BrowserAccessPolicy } from '../../shared/browserAccessPolicy';
 import { broadcastEvent } from '../handlers/broadcast';
 import { getBrowserAccessPolicySync } from '../configStore';
 import { getBrowserAccessPolicyWithGrants } from './browserAccessGrants';
+import { applySafeBrowserSurface } from '../services/safeSurfaces';
+import { getCurrentWorkspace } from './workspace';
 import {
   buildBrowserControlProfiles,
   buildBrowserControlProfilesWithLocalMatches,
@@ -1700,7 +1702,11 @@ async function startOwnedRelay(): Promise<void> {
         cdpLogger,
         enableCliRoutes: false,
         sanitizeBufferInspect: false,
-        getAccessPolicy: () => getBrowserAccessPolicyWithGrants(getBrowserAccessPolicySync()),
+        // Grants cannot reopen a browser the user switched off for Safe folders.
+        getAccessPolicy: () => applySafeBrowserSurface(
+          getBrowserAccessPolicyWithGrants(getBrowserAccessPolicySync()),
+          getCurrentWorkspace(),
+        ),
       });
       try {
         await waitForRelayReady(relayVersion, relayLogPath);

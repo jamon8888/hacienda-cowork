@@ -5,6 +5,8 @@ import {
 } from '../../../utils/browserExtensionRelay';
 import { getBrowserAccessPolicy } from '../../../configStore';
 import { getBrowserAccessPolicyWithGrants } from '../../../utils/browserAccessGrants';
+import { applySafeBrowserSurface } from '../../../services/safeSurfaces';
+import { getCurrentWorkspace } from '../../../utils/workspace';
 import { getWindowSessionByKey, listWindowSessions } from '../../../utils/windowSessions';
 import type { BuiltinToolDefinition } from '../../builtinTools';
 import type { BrowserControlPageElementInventory, BrowserControlStatus } from '../../../../shared/types/browserControl';
@@ -97,7 +99,10 @@ async function getBoundedBrowserControlState(input: {
   maxBrowserElements: number;
 }) {
   const status = await browserStatusProvider();
-  const browserAccessPolicy = getBrowserAccessPolicyWithGrants(await browserAccessPolicyProvider());
+  const browserAccessPolicy = applySafeBrowserSurface(
+    getBrowserAccessPolicyWithGrants(await browserAccessPolicyProvider()),
+    getCurrentWorkspace(),
+  );
   const pageElements = input.browserTabRefForElements
     ? await browserPageElementProvider({
         tabRef: input.browserTabRefForElements,

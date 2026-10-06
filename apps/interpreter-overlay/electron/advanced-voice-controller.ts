@@ -13,6 +13,7 @@ import {
   type OverlaySessionRecord,
 } from '../../../server/overlaySessionManager';
 import { getCurrentWorkspace } from '../../../server/utils/workspace';
+import { getSafeSurfaceBlockedMessage, isSurfaceBlockedInSafe } from '../../../server/services/safeSurfaces';
 import { profileToModelConfig, type Profile } from '../../../shared/types/profile';
 import type { RunEngine } from '../runtime/core/run-engine.js';
 import { IPC_CHANNELS } from '../../../electron/ipc/registry';
@@ -518,6 +519,13 @@ export class AdvancedVoiceController {
     this.advancedVoiceDebug.createCallError = null;
     if (process.env.INTERPRETER_OVERLAY_DISABLE_ADVANCED_VOICE_CREATE_CALL === 'true') {
       const message = 'Advanced voice create-call is disabled by the test environment.';
+      this.advancedVoiceDebug.createCallError = message;
+      throw new Error(message);
+    }
+    // Audio goes to the provider as spoken: the app cannot pseudonymize it.
+    // The user may leave voice on or off for Safe folders (off by default).
+    if (isSurfaceBlockedInSafe('voice', [getCurrentWorkspace(), this.getAdvancedVoiceWorkspacePath()])) {
+      const message = await getSafeSurfaceBlockedMessage('voice');
       this.advancedVoiceDebug.createCallError = message;
       throw new Error(message);
     }

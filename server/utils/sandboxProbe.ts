@@ -39,12 +39,17 @@ export type SandboxProbeExec = (
 /** After a failed probe, wait this long before trying again. */
 const RETRY_AFTER_FAILURE_MS = 60_000;
 
-let verified = false;
-let failedAt: number | null = null;
+/**
+ * Results are kept per network setting: with no network the Linux sandbox needs
+ * a network namespace that some hosts refuse, so one setting working says
+ * nothing about the other.
+ */
+const verified = new Set<boolean>();
+const failedAt = new Map<boolean, number>();
 
 export function resetSandboxProbeCacheForTests(): void {
-  verified = false;
-  failedAt = null;
+  verified.clear();
+  failedAt.clear();
 }
 
 /**
@@ -71,24 +76,22 @@ export function probeCommand(platform: NodeJS.Platform, action: 'write' | 'read'
  */
 export async function probeSandboxEnforced(
   exec: SandboxProbeExec,
-  options: { dir: string; platform?: NodeJS.Platform; now?: () => number },
+  options: { dir: string; networkAccess: boolean; platform?: NodeJS.Platform; now?: () => number },
 ): Promise<boolean> {
   const now = options.now ?? Date.now;
-  if (verified) return true;
-  if (failedAt !== null && now() - failedAt < RETRY_AFTER_FAILURE_MS) return false;
+  const { networkAccess } = options;
+  if (verified.has(networkAccess)) return true;
+  const lastFailure = failedAt.get(networkAccess);
+  if (lastFailure !== undefined && now() - lastFailure < RETRY_AFTER_FAILURE_MS) return false;
 
   const platform = options.platform ?? process.platform;
   const control = join(options.dir, 'probe-control');
   const target = join(options.dir, 'probe-target');
-  // networkAccess matches the app's default. Asking for no network makes the
-  // Linux sandbox (bubblewrap) create a network namespace, which hardened hosts
-  // and CI runners refuse ("loopback: Failed RTM_NEWADDR"), and that is a
-  // different configuration from the one a Safe thread runs in.
-  const readOnly: SandboxProbePolicy = { type: 'readOnly', networkAccess: true };
+  const readOnly: SandboxProbePolicy = { type: 'readOnly', networkAccess };
   const writeable: SandboxProbePolicy = {
     type: 'workspaceWrite',
     writableRoots: [options.dir],
-    networkAccess: true,
+    networkAccess,
     excludeTmpdirEnvVar: true,
     excludeSlashTmp: true,
   };
@@ -122,10 +125,10 @@ export async function probeSandboxEnforced(
   }
 
   if (enforced) {
-    verified = true;
-    failedAt = null;
+    verified.add(networkAccess);
+    failedAt.delete(networkAccess);
   } else {
-    failedAt = now();
+    failedAt.set(networkAccess, now());
   }
   return enforced;
 }

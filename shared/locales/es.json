@@ -2518,5 +2518,20 @@
   "settings.packs.installFailed": "No se instaló el paquete: {{reason}}",
   "settings.packs.changeFailed": "Algo salió mal con los paquetes. Inténtelo de nuevo.",
   "basemind.banner.packTitle": "Esta carpeta no es Safe",
-  "basemind.banner.packMessage": "El paquete «{{pack}}» está pensado para documentos confidenciales. Fuera de Safe, lo que usted pide y los archivos que el asistente lee se envían tal cual al proveedor de IA. Convierta esta carpeta en Safe para trabajar con copias seudonimizadas."
+  "basemind.banner.packMessage": "El paquete «{{pack}}» está pensado para documentos confidenciales. Fuera de Safe, lo que usted pide y los archivos que el asistente lee se envían tal cual al proveedor de IA. Convierta esta carpeta en Safe para trabajar con copias seudonimizadas.",
+  "safe.surface.voiceBlocked": "La voz está desactivada en las carpetas Safe: lo que diga llegaría al proveedor de IA tal cual, sin seudonimizar. Puede activarla en Ajustes > General > Privacidad.",
+  "settings.safeSurfaces.title": "Qué sigue activo en las carpetas Safe",
+  "settings.safeSurfaces.description": "Safe seudonimiza el texto, pero algunos canales llevan contenido que no puede tratar. Elija cuáles siguen activos en las carpetas Safe. Cada cambio queda registrado en el registro de auditoría.",
+  "settings.safeSurfaces.voice": "Voz",
+  "settings.safeSurfaces.voiceDescription": "El audio llega al proveedor de IA tal como lo dice, sin seudonimizar. Desactivada por defecto.",
+  "settings.safeSurfaces.computerUse": "Control del ordenador",
+  "settings.safeSurfaces.computerUseDescription": "El asistente ve y controla su pantalla y sus aplicaciones. Las capturas de pantalla no se seudonimizan.",
+  "settings.safeSurfaces.browserControl": "Control del navegador",
+  "settings.safeSurfaces.browserControlDescription": "El asistente lee y actúa en las páginas abiertas de su navegador. El contenido de las páginas no se seudonimiza.",
+  "settings.safeSurfaces.network": "Red y búsqueda web",
+  "settings.safeSurfaces.networkDescription": "Los comandos del asistente pueden acceder a internet y puede buscar en la web. Lo que envía allí no se seudonimiza.",
+  "settings.safeSurfaces.enableTitle": "¿Activar esto en las carpetas Safe?",
+  "settings.safeSurfaces.enableBody": "El contenido que pasa por este canal no se seudonimiza y llega tal cual al proveedor de IA u otros servicios. La activación queda registrada en el registro de auditoría, a su nombre.",
+  "settings.safeSurfaces.enableConfirm": "Activar — asumo la responsabilidad",
+  "settings.safeSurfaces.changeFailed": "No se cambió el ajuste. Inténtelo de nuevo."
 }

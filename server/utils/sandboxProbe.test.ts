@@ -51,12 +51,12 @@ function engine(mode: 'enforcing' | 'unenforced' | 'broken', seen: SandboxProbeP
 
 describe('probeSandboxEnforced', () => {
   test('true when the command works, the sandbox lets it read, and refuses the write', async () => {
-    expect(await probeSandboxEnforced(engine('enforcing'), { dir: root(), platform: 'linux' })).toBe(true);
+    expect(await probeSandboxEnforced(engine('enforcing'), { dir: root(), platform: 'linux', networkAccess: true })).toBe(true);
   });
 
   test('false when nothing is refused, and no file is left behind', async () => {
     const dir = root();
-    expect(await probeSandboxEnforced(engine('unenforced'), { dir, platform: 'linux' })).toBe(false);
+    expect(await probeSandboxEnforced(engine('unenforced'), { dir, platform: 'linux', networkAccess: true })).toBe(false);
     expect(existsSync(join(dir, 'probe-control'))).toBe(false);
     expect(existsSync(join(dir, 'probe-target'))).toBe(false);
   });
@@ -64,7 +64,7 @@ describe('probeSandboxEnforced', () => {
   test('false when the probe command cannot run here: a refusal is not told apart from a bad command', async () => {
     // This is the Windows failure that motivated the control step: the write
     // "failed" because the command was wrong, not because a sandbox refused it.
-    expect(await probeSandboxEnforced(engine('broken'), { dir: root(), platform: 'linux' })).toBe(false);
+    expect(await probeSandboxEnforced(engine('broken'), { dir: root(), platform: 'linux', networkAccess: true })).toBe(false);
   });
 
   test('false when the sandbox cannot even run a read, so the refusal proves nothing', async () => {
@@ -73,7 +73,7 @@ describe('probeSandboxEnforced', () => {
       writeFileSync(params.env.SBX_PROBE_TARGET, 'x');
       return { exitCode: 0, stdout: '', stderr: '' };
     };
-    expect(await probeSandboxEnforced(exec, { dir: root(), platform: 'linux' })).toBe(false);
+    expect(await probeSandboxEnforced(exec, { dir: root(), platform: 'linux', networkAccess: true })).toBe(false);
   });
 
   test('false when the file landed even though the command reported failure', async () => {
@@ -81,32 +81,50 @@ describe('probeSandboxEnforced', () => {
       writeFileSync(params.env.SBX_PROBE_TARGET, 'x');
       return { exitCode: params.sandboxPolicy.type === 'readOnly' && isWriteCommand(params) ? 1 : 0, stdout: '', stderr: '' };
     };
-    expect(await probeSandboxEnforced(exec, { dir: root(), platform: 'linux' })).toBe(false);
+    expect(await probeSandboxEnforced(exec, { dir: root(), platform: 'linux', networkAccess: true })).toBe(false);
   });
 
   test('false when the engine cannot run the probe at all', async () => {
     const exec: SandboxProbeExec = async () => {
       throw new Error('method not found');
     };
-    expect(await probeSandboxEnforced(exec, { dir: root(), platform: 'linux' })).toBe(false);
+    expect(await probeSandboxEnforced(exec, { dir: root(), platform: 'linux', networkAccess: true })).toBe(false);
   });
 
-  test('runs a writeable control, then a read and a write under a read-only policy, with the network setting the app uses', async () => {
+  test('runs a writeable control, then a read and a write under a read-only policy', async () => {
     const seen: SandboxProbeParams[] = [];
     const dir = root();
-    await probeSandboxEnforced(engine('enforcing', seen), { dir, platform: 'linux' });
+    await probeSandboxEnforced(engine('enforcing', seen), { dir, platform: 'linux', networkAccess: true });
     expect(seen.map((params) => params.sandboxPolicy.type)).toEqual(['workspaceWrite', 'readOnly', 'readOnly']);
     expect(seen[0].sandboxPolicy).toMatchObject({ type: 'workspaceWrite', writableRoots: [dir], networkAccess: true });
     expect(seen[1].sandboxPolicy).toEqual(READ_ONLY);
     expect(seen[2].sandboxPolicy).toEqual(READ_ONLY);
   });
 
+  test('probes the network setting the thread will run with', async () => {
+    const seen: SandboxProbeParams[] = [];
+    await probeSandboxEnforced(engine('enforcing', seen), { dir: root(), platform: 'linux', networkAccess: false });
+    expect(seen.length).toBe(3);
+    expect(seen.every((params) => params.sandboxPolicy.networkAccess === false)).toBe(true);
+  });
+
+  test('a positive result for one network setting does not vouch for the other', async () => {
+    // With no network the Linux sandbox needs a network namespace, which some
+    // hosts refuse: it can fail where the networked configuration works.
+    const dir = root();
+    const seen: SandboxProbeParams[] = [];
+    expect(await probeSandboxEnforced(engine('enforcing', seen), { dir, platform: 'linux', networkAccess: true })).toBe(true);
+    const refusingNoNetwork: SandboxProbeExec = async (params) =>
+      params.sandboxPolicy.networkAccess ? engine('enforcing')(params) : { exitCode: 1, stdout: '', stderr: 'loopback: Failed RTM_NEWADDR' };
+    expect(await probeSandboxEnforced(refusingNoNetwork, { dir, platform: 'linux', networkAccess: false })).toBe(false);
+  });
+
   test('a positive result is cached, so the probe runs once', async () => {
     const seen: SandboxProbeParams[] = [];
     const dir = root();
-    await probeSandboxEnforced(engine('enforcing', seen), { dir, platform: 'linux' });
+    await probeSandboxEnforced(engine('enforcing', seen), { dir, platform: 'linux', networkAccess: true });
     const first = seen.length;
-    await probeSandboxEnforced(engine('enforcing', seen), { dir, platform: 'linux' });
+    await probeSandboxEnforced(engine('enforcing', seen), { dir, platform: 'linux', networkAccess: true });
     expect(seen.length).toBe(first);
   });
 
@@ -116,11 +134,11 @@ describe('probeSandboxEnforced', () => {
     const failing: SandboxProbeExec = async () => {
       throw new Error('engine restarting');
     };
-    expect(await probeSandboxEnforced(failing, { dir, platform: 'linux', now: () => now })).toBe(false);
+    expect(await probeSandboxEnforced(failing, { dir, platform: 'linux', networkAccess: true, now: () => now })).toBe(false);
     const seen: SandboxProbeParams[] = [];
-    expect(await probeSandboxEnforced(engine('enforcing', seen), { dir, platform: 'linux', now: () => now + 1_000 })).toBe(false);
+    expect(await probeSandboxEnforced(engine('enforcing', seen), { dir, platform: 'linux', networkAccess: true, now: () => now + 1_000 })).toBe(false);
     expect(seen.length).toBe(0);
-    expect(await probeSandboxEnforced(engine('enforcing', seen), { dir, platform: 'linux', now: () => now + 61_000 })).toBe(true);
+    expect(await probeSandboxEnforced(engine('enforcing', seen), { dir, platform: 'linux', networkAccess: true, now: () => now + 61_000 })).toBe(true);
   });
 });
 

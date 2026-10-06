@@ -2518,5 +2518,20 @@
   "settings.packs.installFailed": "The pack was not installed: {{reason}}",
   "settings.packs.changeFailed": "Something went wrong with the packs. Try again.",
   "basemind.banner.packTitle": "This folder is not Safe",
-  "basemind.banner.packMessage": "The pack “{{pack}}” is meant for confidential documents. Outside Safe, what you ask and the files the assistant reads are sent to the AI provider as written. Make this folder Safe to work on redacted copies."
+  "basemind.banner.packMessage": "The pack “{{pack}}” is meant for confidential documents. Outside Safe, what you ask and the files the assistant reads are sent to the AI provider as written. Make this folder Safe to work on redacted copies.",
+  "safe.surface.voiceBlocked": "Voice is off in Safe folders: what you say would reach the AI provider as spoken, unredacted. You can turn it on in Settings > General > Privacy.",
+  "settings.safeSurfaces.title": "What stays on in Safe folders",
+  "settings.safeSurfaces.description": "Safe redacts text, but some channels carry content it cannot redact. Choose which ones stay on in Safe folders. Every change is recorded in the audit log.",
+  "settings.safeSurfaces.voice": "Voice",
+  "settings.safeSurfaces.voiceDescription": "Spoken audio goes to the AI provider as you say it, unredacted. Off by default.",
+  "settings.safeSurfaces.computerUse": "Computer use",
+  "settings.safeSurfaces.computerUseDescription": "The assistant sees and controls your screen and apps. Screenshots are not redacted.",
+  "settings.safeSurfaces.browserControl": "Browser control",
+  "settings.safeSurfaces.browserControlDescription": "The assistant reads and acts on your open browser pages. Page content is not redacted.",
+  "settings.safeSurfaces.network": "Network and web search",
+  "settings.safeSurfaces.networkDescription": "Commands the assistant runs can reach the internet, and it can search the web. What it sends there is not redacted.",
+  "settings.safeSurfaces.enableTitle": "Turn this on in Safe folders?",
+  "settings.safeSurfaces.enableBody": "Content that goes through this channel is not redacted and reaches the AI provider or other services as is. Turning it on is recorded in the audit log, under your name.",
+  "settings.safeSurfaces.enableConfirm": "Turn on — I take responsibility",
+  "settings.safeSurfaces.changeFailed": "The setting was not changed. Try again."
 }

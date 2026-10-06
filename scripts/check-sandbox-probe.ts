@@ -108,15 +108,23 @@ try {
   }
 
   resetSandboxProbeCacheForTests();
-  const control = await probeSandboxEnforced(unenforcedExec('control'), { dir: join(probeRoot, 'control') });
+  const control = await probeSandboxEnforced(unenforcedExec('control'), { dir: join(probeRoot, 'control'), networkAccess: true });
   resetSandboxProbeCacheForTests();
-  const enforced = await probeSandboxEnforced(exec('real'), { dir: join(probeRoot, 'real') });
+  const enforced = await probeSandboxEnforced(exec('real'), { dir: join(probeRoot, 'real'), networkAccess: true });
   console.log(`[sandbox-probe] platform=${process.platform}-${process.arch} enforced=${enforced} control(unenforced)=${control}`);
+
+  // A Safe thread runs with no network unless the user turned it on. Report that
+  // configuration too, without failing on it: some hosts (hardened Linux, CI
+  // runners) cannot create the network namespace it needs, which only means
+  // Safe turns are refused there.
+  resetSandboxProbeCacheForTests();
+  const noNetwork = await probeSandboxEnforced(exec('no-network'), { dir: join(probeRoot, 'no-network'), networkAccess: false });
+  console.log(`[sandbox-probe] info: with no network (the Safe default) enforced=${noNetwork}`);
 
   const problems: string[] = [];
   if (control) problems.push('the probe reported "enforced" with the sandbox switched off: it cannot be trusted');
   if (!enforced) problems.push('the probe reported "not enforced" under the engine read-only policy: Safe turns would be refused on this system');
-  if (['real', 'control'].some((d) => ['probe-target', 'probe-control'].some((f) => existsSync(join(probeRoot, d, f))))) {
+  if (['real', 'control', 'no-network'].some((d) => ['probe-target', 'probe-control'].some((f) => existsSync(join(probeRoot, d, f))))) {
     problems.push('the probe left its target file behind');
   }
   if (problems.length > 0) {
