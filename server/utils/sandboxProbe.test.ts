@@ -22,7 +22,7 @@ afterEach(() => {
   for (const dir of roots.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-const READ_ONLY = { type: 'readOnly', networkAccess: false };
+const READ_ONLY = { type: 'readOnly', networkAccess: true };
 const isWriteCommand = (params: SandboxProbeParams) => /echo x|Set-Content/.test(params.command.join(' '));
 
 /**
@@ -91,12 +91,12 @@ describe('probeSandboxEnforced', () => {
     expect(await probeSandboxEnforced(exec, { dir: root(), platform: 'linux' })).toBe(false);
   });
 
-  test('runs a writeable control, then a read and a write under a read-only policy without network', async () => {
+  test('runs a writeable control, then a read and a write under a read-only policy, with the network setting the app uses', async () => {
     const seen: SandboxProbeParams[] = [];
     const dir = root();
     await probeSandboxEnforced(engine('enforcing', seen), { dir, platform: 'linux' });
     expect(seen.map((params) => params.sandboxPolicy.type)).toEqual(['workspaceWrite', 'readOnly', 'readOnly']);
-    expect(seen[0].sandboxPolicy).toMatchObject({ type: 'workspaceWrite', writableRoots: [dir], networkAccess: false });
+    expect(seen[0].sandboxPolicy).toMatchObject({ type: 'workspaceWrite', writableRoots: [dir], networkAccess: true });
     expect(seen[1].sandboxPolicy).toEqual(READ_ONLY);
     expect(seen[2].sandboxPolicy).toEqual(READ_ONLY);
   });

@@ -16,11 +16,11 @@ import { join } from 'node:path';
  */
 
 export type SandboxProbePolicy =
-  | { type: 'readOnly'; networkAccess: false }
+  | { type: 'readOnly'; networkAccess: boolean }
   | {
       type: 'workspaceWrite';
       writableRoots: string[];
-      networkAccess: false;
+      networkAccess: boolean;
       excludeTmpdirEnvVar: true;
       excludeSlashTmp: true;
     };
@@ -80,11 +80,15 @@ export async function probeSandboxEnforced(
   const platform = options.platform ?? process.platform;
   const control = join(options.dir, 'probe-control');
   const target = join(options.dir, 'probe-target');
-  const readOnly: SandboxProbePolicy = { type: 'readOnly', networkAccess: false };
+  // networkAccess matches the app's default. Asking for no network makes the
+  // Linux sandbox (bubblewrap) create a network namespace, which hardened hosts
+  // and CI runners refuse ("loopback: Failed RTM_NEWADDR"), and that is a
+  // different configuration from the one a Safe thread runs in.
+  const readOnly: SandboxProbePolicy = { type: 'readOnly', networkAccess: true };
   const writeable: SandboxProbePolicy = {
     type: 'workspaceWrite',
     writableRoots: [options.dir],
-    networkAccess: false,
+    networkAccess: true,
     excludeTmpdirEnvVar: true,
     excludeSlashTmp: true,
   };

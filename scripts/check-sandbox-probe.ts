@@ -40,6 +40,7 @@ child.stderr.on('data', (chunk) => {
 let buffer = '';
 let nextId = 0;
 const pending = new Map<number, (message: any) => void>();
+const notifications: Array<{ method: string; params?: any }> = [];
 child.stdout.on('data', (chunk) => {
   buffer += String(chunk);
   let newline: number;
@@ -49,6 +50,7 @@ child.stdout.on('data', (chunk) => {
     try {
       const message = JSON.parse(line);
       if (message.id !== undefined) pending.get(message.id)?.(message);
+      else if (message.method) notifications.push(message);
     } catch {
       // not a JSON-RPC line
     }
@@ -90,6 +92,20 @@ const unenforcedExec = (label: string): SandboxProbeExec => (params) =>
 try {
   await call('initialize', { clientInfo: { name: 'sandbox-probe-check', title: null, version: '0' }, capabilities: null });
   child.stdin.write(`${JSON.stringify({ method: 'initialized' })}\n`);
+
+  if (process.platform === 'win32') {
+    // On Windows the engine confines nothing until its sandbox is set up once
+    // (the app offers this in a banner). Do what the app does, then probe.
+    const started = await call('windowsSandbox/setupStart', { mode: 'elevated', cwd: probeRoot });
+    console.log(`[sandbox-probe] windows setupStart: ${JSON.stringify(started.error ?? started.result).slice(0, 300)}`);
+    const deadline = Date.now() + 180_000;
+    let completed: any;
+    while (!completed && Date.now() < deadline) {
+      completed = notifications.find((n) => n.method === 'windowsSandbox/setupCompleted');
+      if (!completed) await new Promise((r) => setTimeout(r, 1_000));
+    }
+    console.log(`[sandbox-probe] windows setupCompleted: ${JSON.stringify(completed?.params ?? 'no notification within 180s').slice(0, 300)}`);
+  }
 
   resetSandboxProbeCacheForTests();
   const control = await probeSandboxEnforced(unenforcedExec('control'), { dir: join(probeRoot, 'control') });
