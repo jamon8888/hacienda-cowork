@@ -1036,13 +1036,16 @@ describe("CodexAppServerClient", () => {
       const safeRoot = path.join(workspace, "safe");
       const local = { model_providers: { "ollama-1a2b3c4d": { base_url: "http://127.0.0.1:11434/v1", name: "Ollama", requires_openai_auth: false, wire_api: "responses" } } };
       const transport = new FakeTransport();
+      // Both routes below stay confined, so each proves the sandbox first
+      // (#63). Proving it here would send a commandExec and shift the request
+      // indices this test reads by position.
       const client = new CodexAppServerClient(transport, null, async () => ({
         sandboxMode: "workspace-write",
         readAccessMode: "workspace-only",
         networkAccess: true,
         macosTempAccess: false,
         macosScreenshotAccess: false,
-      }));
+      }), { verifySafeSandbox: async () => true });
 
       const cloudPromise = client.startThreadWithConfig("gpt-oss:120b-cloud", "ollama-1a2b3c4d", null, workspace, local);
       await waitFor(() => transport.sent.length >= 1);
