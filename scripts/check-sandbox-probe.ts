@@ -74,28 +74,33 @@ function finish(code: number): never {
   process.exit(code);
 }
 
-const exec: SandboxProbeExec = async (params) => {
+const exec = (label: string): SandboxProbeExec => async (params) => {
   const response = await call('command/exec', params);
-  if (response.error) throw new Error(JSON.stringify(response.error));
+  if (response.error) {
+    console.log(`[sandbox-probe]   ${label} ${params.sandboxPolicy.type}: RPC error ${JSON.stringify(response.error).slice(0, 300)}`);
+    throw new Error(JSON.stringify(response.error));
+  }
+  const { exitCode, stderr } = response.result;
+  console.log(`[sandbox-probe]   ${label} ${params.sandboxPolicy.type}: exit=${exitCode} stderr=${JSON.stringify(String(stderr).slice(0, 200))}`);
   return response.result;
 };
-const unenforcedExec: SandboxProbeExec = (params) =>
-  exec({ ...params, sandboxPolicy: { type: 'dangerFullAccess' } } as unknown as Parameters<SandboxProbeExec>[0]);
+const unenforcedExec = (label: string): SandboxProbeExec => (params) =>
+  exec(label)({ ...params, sandboxPolicy: { type: 'dangerFullAccess' } } as unknown as Parameters<SandboxProbeExec>[0]);
 
 try {
   await call('initialize', { clientInfo: { name: 'sandbox-probe-check', title: null, version: '0' }, capabilities: null });
   child.stdin.write(`${JSON.stringify({ method: 'initialized' })}\n`);
 
   resetSandboxProbeCacheForTests();
-  const control = await probeSandboxEnforced(unenforcedExec, { dir: join(probeRoot, 'control') });
+  const control = await probeSandboxEnforced(unenforcedExec('control'), { dir: join(probeRoot, 'control') });
   resetSandboxProbeCacheForTests();
-  const enforced = await probeSandboxEnforced(exec, { dir: join(probeRoot, 'real') });
+  const enforced = await probeSandboxEnforced(exec('real'), { dir: join(probeRoot, 'real') });
   console.log(`[sandbox-probe] platform=${process.platform}-${process.arch} enforced=${enforced} control(unenforced)=${control}`);
 
   const problems: string[] = [];
   if (control) problems.push('the probe reported "enforced" with the sandbox switched off: it cannot be trusted');
   if (!enforced) problems.push('the probe reported "not enforced" under the engine read-only policy: Safe turns would be refused on this system');
-  if (existsSync(join(probeRoot, 'real', 'probe-target')) || existsSync(join(probeRoot, 'control', 'probe-target'))) {
+  if (['real', 'control'].some((d) => ['probe-target', 'probe-control'].some((f) => existsSync(join(probeRoot, d, f))))) {
     problems.push('the probe left its target file behind');
   }
   if (problems.length > 0) {

@@ -6,14 +6,35 @@ import { join } from 'node:path';
  * file reads inside `safe/`. A configuration that looks enforced but is not
  * (an engine or OS where the sandbox cannot start, a profile that silently
  * degrades) would send originals to the provider. So before a confined thread
- * starts, run one command the sandbox must refuse and check that it did.
+ * starts, check that the sandbox refuses a write.
+ *
+ * A refused write alone proves nothing: the command may simply be wrong on
+ * this system (shell, quoting) or the sandbox may be unable to start any
+ * process. Two controls rule that out before the refusal is believed:
+ *   1. the same write succeeds where it is allowed (the command works here);
+ *   2. a read succeeds under the read-only policy (processes run in it).
  */
 
-export type SandboxProbeExec = (params: {
+export type SandboxProbePolicy =
+  | { type: 'readOnly'; networkAccess: false }
+  | {
+      type: 'workspaceWrite';
+      writableRoots: string[];
+      networkAccess: false;
+      excludeTmpdirEnvVar: true;
+      excludeSlashTmp: true;
+    };
+
+export type SandboxProbeParams = {
   command: string[];
   cwd: string;
-  sandboxPolicy: { type: 'readOnly'; networkAccess: false };
-}) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
+  env: Record<string, string>;
+  sandboxPolicy: SandboxProbePolicy;
+};
+
+export type SandboxProbeExec = (
+  params: SandboxProbeParams,
+) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
 
 /** After a failed probe, wait this long before trying again. */
 const RETRY_AFTER_FAILURE_MS = 60_000;
@@ -26,18 +47,27 @@ export function resetSandboxProbeCacheForTests(): void {
   failedAt = null;
 }
 
-/** A write to `target`; the target is the last argument on unix. */
-export function probeCommand(platform: NodeJS.Platform, target: string): string[] {
+/**
+ * The write or read of the file named by `SBX_PROBE_TARGET`. The path travels in
+ * the environment, not in the command line, so quoting cannot change it.
+ */
+export function probeCommand(platform: NodeJS.Platform, action: 'write' | 'read'): string[] {
   if (platform === 'win32') {
-    return ['cmd.exe', '/d', '/c', `echo x> "${target}"`];
+    const body =
+      action === 'write'
+        ? 'Set-Content -LiteralPath $env:SBX_PROBE_TARGET -Value x'
+        : 'Get-Content -LiteralPath $env:SBX_PROBE_TARGET | Out-Null';
+    return ['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', `$ErrorActionPreference='Stop'; ${body}`];
   }
-  return ['/bin/sh', '-c', 'echo x > "$1"', 'sh', target];
+  const body = action === 'write' ? 'echo x > "$SBX_PROBE_TARGET"' : 'cat "$SBX_PROBE_TARGET" > /dev/null';
+  return ['/bin/sh', '-c', body];
 }
 
 /**
- * True only when the engine refused a write under a read-only policy and no
- * file landed. Any other outcome, including an engine that cannot run the
- * probe, is "not enforced": the caller fails closed.
+ * True only when the probe command works, a read works under the read-only
+ * policy, and a write there is refused with no file landing. Any other outcome,
+ * including an engine that cannot run the probe, is "not enforced": the caller
+ * fails closed.
  */
 export async function probeSandboxEnforced(
   exec: SandboxProbeExec,
@@ -47,24 +77,43 @@ export async function probeSandboxEnforced(
   if (verified) return true;
   if (failedAt !== null && now() - failedAt < RETRY_AFTER_FAILURE_MS) return false;
 
+  const platform = options.platform ?? process.platform;
+  const control = join(options.dir, 'probe-control');
   const target = join(options.dir, 'probe-target');
+  const readOnly: SandboxProbePolicy = { type: 'readOnly', networkAccess: false };
+  const writeable: SandboxProbePolicy = {
+    type: 'workspaceWrite',
+    writableRoots: [options.dir],
+    networkAccess: false,
+    excludeTmpdirEnvVar: true,
+    excludeSlashTmp: true,
+  };
+
   let enforced = false;
   try {
     mkdirSync(options.dir, { recursive: true });
+    rmSync(control, { force: true });
     rmSync(target, { force: true });
-    const result = await exec({
-      command: probeCommand(options.platform ?? process.platform, target),
-      cwd: options.dir,
-      sandboxPolicy: { type: 'readOnly', networkAccess: false },
-    });
-    enforced = result.exitCode !== 0 && !existsSync(target);
+    const run = (action: 'write' | 'read', file: string, sandboxPolicy: SandboxProbePolicy) =>
+      exec({ command: probeCommand(platform, action), cwd: options.dir, env: { SBX_PROBE_TARGET: file }, sandboxPolicy });
+
+    const wrote = await run('write', control, writeable);
+    if (wrote.exitCode === 0 && existsSync(control)) {
+      const read = await run('read', control, readOnly);
+      if (read.exitCode === 0) {
+        const refused = await run('write', target, readOnly);
+        enforced = refused.exitCode !== 0 && !existsSync(target);
+      }
+    }
   } catch {
     enforced = false;
   } finally {
-    try {
-      rmSync(target, { force: true });
-    } catch {
-      // nothing to clean, or not removable: the verdict stands either way
+    for (const file of [control, target]) {
+      try {
+        rmSync(file, { force: true });
+      } catch {
+        // not removable: the verdict stands either way
+      }
     }
   }
 
