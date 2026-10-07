@@ -235,6 +235,19 @@ export async function syncSafeMirrorFile(
     console.warn(
       `[safe-sync] mirror write failed for ${relativePath}: ${err instanceof Error ? err.message : String(err)}`,
     );
+    // A file refused because NER could not read all of it must not keep an
+    // older mirror written before the check existed: that copy may carry its
+    // later pages in clear. Other failures keep the last good mirror.
+    if (err instanceof Error && err.name === 'NerCoverageError') {
+      try {
+        await rm(mirrorAbs, { force: true });
+        await vaultRemoveFn(docId);
+      } catch (cleanupErr) {
+        console.warn(
+          `[safe-sync] stale mirror cleanup failed for ${relativePath}: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}`,
+        );
+      }
+    }
   }
   return { mirrorRel, written: false };
 }

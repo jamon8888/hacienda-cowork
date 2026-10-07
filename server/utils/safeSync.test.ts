@@ -302,6 +302,33 @@ describe('syncSafeMirrorFile (cycle middle: extract → redact → write → vau
     expect(readFileSync(join(workspace, 'safe/a.txt.md'), 'utf8')).toBe('REDACTED BODY');
     expect(rescanMock).toHaveBeenCalledTimes(1);
   });
+
+  test('a file refused for NER coverage loses its old mirror and vault blob', async () => {
+    writeFileSync(join(workspace, 'long.txt'), 'body');
+    mkdirSync(join(workspace, 'safe'), { recursive: true });
+    writeFileSync(join(workspace, 'safe/long.txt.md'), 'OLD MIRROR WITH PAGE TWO IN CLEAR');
+    redactMock.mockImplementationOnce(async () => {
+      throw Object.assign(new Error('redact_text: NER coverage not proven'), { name: 'NerCoverageError' });
+    });
+    scheduleSafeSync('ws', 'long.txt', workspace);
+    await sleep(50);
+
+    expect(existsSync(join(workspace, 'safe/long.txt.md'))).toBe(false);
+    expect(vaultRemoveMock).toHaveBeenCalledTimes(1);
+    expect(rescanMock.mock.calls[0][0].paths).toEqual(['safe/long.txt.md']);
+  });
+
+  test('any other redact failure keeps the previous mirror', async () => {
+    writeFileSync(join(workspace, 'doc.txt'), 'body');
+    mkdirSync(join(workspace, 'safe'), { recursive: true });
+    writeFileSync(join(workspace, 'safe/doc.txt.md'), 'PREVIOUS GOOD MIRROR');
+    redactMock.mockImplementationOnce(async () => { throw new Error('daemon restarting'); });
+    scheduleSafeSync('ws', 'doc.txt', workspace);
+    await sleep(50);
+
+    expect(readFileSync(join(workspace, 'safe/doc.txt.md'), 'utf8')).toBe('PREVIOUS GOOD MIRROR');
+    expect(vaultRemoveMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('syncSafeMirrorFile numbers every mirror on the workspace registry', () => {
