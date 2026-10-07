@@ -10,6 +10,29 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-07-ner-chunking-spec.md`
 
+## Context: basemind #55 (read before Task 4)
+
+[jamon8888/basemind#55](https://github.com/jamon8888/basemind/pull/55) serves the
+`safe/` mirror to the agent through MCP `resources/list` and `resources/read`
+(`basemind://safe/<path>`). Its own notes say the app's result filter does
+**not** see `resources/read` results: once it is released and pinned, mirror
+content reaches the model with no second redaction pass by the app. So:
+
+- A mirror must be complete on its own — Task 3's coverage gate is what makes
+  it so for long files.
+- A stale mirror of a long file (written before this plan, page two in clear)
+  would be served as is — Task 4 deletes it on the next sync.
+- A refused file is absent from `safe/`, hence from `resources/list`; the
+  agent's shell is confined to `safe/`, so it cannot fall back to the original.
+- The release with #55 does not return `ner_windows` / `ner_window_chars`, so
+  long files stay refused until Layer 2 ships in a later release.
+
+No file overlap: #55 changes basemind (`src/mcp/**`); this plan changes no
+file under `submodules/basemind` and not `scripts/download-basemind.mjs`. The
+pin bump to the new release is a separate PR. For Task 5, fix the binary
+measured with `BASEMIND_BIN` (do not switch builds mid-run) and record its
+version in the spec.
+
 ## Global Constraints
 
 - **Do not touch** `src/lib/pii/**` or `tests/fixtures/pii-42/**` (owned by #46). Importing from `src/lib/pii/` is fine.
