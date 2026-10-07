@@ -176,6 +176,8 @@ So a call costs about 2.3 s fixed plus about 3 ms per character. Consequences:
   one call and pays the 2.3 s once, 200 KB drops from ~46 min to about 10 min
   (3 ms x 200 000 chars) on this machine. That is still long. The earlier claim
   that Layer 2 makes the cost acceptable is not established by this measurement.
+- **Sending windows in parallel does not help.** 12 windows took 48.8 s one at a time and 47.9 s two at a time; with four at once the daemon answered `server_busy` (`retryable`, 500 ms). NER inference is serialized in the daemon, so the app cannot recover the time by concurrency.
+- The machine is an Intel i5-7360U (2 cores, 4 threads, 2017) with NER on CPU only, which is near the slow end of what a user may have. A newer CPU, or a GPU or CoreML on Apple Silicon, should be faster; no such machine was measured.
 - Numbers are for this machine only. Apple Silicon with CoreML, or a GPU, would
   differ; no such machine was measured.
 
