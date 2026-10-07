@@ -60,9 +60,8 @@ Two layers, because the mirror cannot be fixed from the app alone.
 - Window size is a named constant, not a guess: Task 0 of the plan measures the
   cutoff on French legal text (accents, long words) with the #66 method, and
   the default must be **≤ 70 % of the lowest measured cutoff**.
-- Cost: a 200 KB text becomes ~670 sequential calls. The plan records measured
-  latency on the #46 dossier and on a 200 KB document; if it is unacceptable,
-  Layer 2 removes it.
+- Cost: a 200 KB text becomes ~675 sequential calls. See "Measured cost": it
+  is large, and Layer 2 removes only the per-call overhead, not the compute.
 
 ### Layer 2 — basemind (`jamon8888/basemind`): window inside `redact_text`
 
@@ -144,3 +143,42 @@ measured 558 on a similar dense body; this run gives 585 on a different one.
 One probe (a two-word person name) was used; an NER-only class with longer
 spans (an address) was not measured. Re-run the script, adding a denser body,
 before trusting the window on such text.
+
+## Measured cost (2026-10-07, basemind 0.32.3, same model)
+
+Measured with `scripts/measure-ner-latency.mts`: one `redact_text` call per
+window, straight to the daemon over MCP stdio, using the app's own
+`planNerWindows`. Machine: Intel Mac, NER on CPU only (`XBERG_ORT_EP=cpu`, CoreML
+fails on Intel), load average 4 to 9 during the run. App overhead is not
+included. Totals are extrapolated from the first 20 windows of each text; the
+full 200 KB run was started and stopped after 33 minutes, not completed.
+
+| Text | Chars | Windows | Median per window | Estimated total |
+|---|---|---|---|---|
+| synthetic (FR, dense and neutral mixed) | 200 000 | 675 | 4.0 s (p95 5.4 s) | ~46 min |
+| #46 dossier | 8 827 | 30 | 4.9 s (p95 6.9 s) | ~2.5 min |
+
+First call after start (model load): 10 to 12 s.
+
+Cost by window size (4 calls each, warm daemon):
+
+| Window chars | 30 | 100 | 200 | 400 |
+|---|---|---|---|---|
+| Time per call | 2.3-2.9 s | 2.4 s | 2.7-3.0 s | 3.4-3.6 s |
+
+So a call costs about 2.3 s fixed plus about 3 ms per character. Consequences:
+
+- A 9 KB paste (the dossier) holds the send for roughly 2.5 minutes on this
+  machine. A 200 KB tool result holds it for roughly 45 minutes. In cabinet
+  mode nothing is sent meanwhile; otherwise the user waits or hits a timeout.
+  This is the price of reading every character instead of the first ~560.
+- **Layer 2 removes the fixed part, not the compute.** If basemind windows inside
+  one call and pays the 2.3 s once, 200 KB drops from ~46 min to about 10 min
+  (3 ms x 200 000 chars) on this machine. That is still long. The earlier claim
+  that Layer 2 makes the cost acceptable is not established by this measurement.
+- Numbers are for this machine only. Apple Silicon with CoreML, or a GPU, would
+  differ; no such machine was measured.
+
+Open question for the owner: whether to cap what is scanned per send (and
+refuse past the cap), batch windows, or accept the wait, before this reaches
+users. Not decided here.
