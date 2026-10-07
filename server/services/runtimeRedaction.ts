@@ -23,6 +23,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { buildRedactedText, mergeDetections } from '../../src/lib/pii/labels';
+import { mapWindowDetections, mergeWindowDetections, planNerWindows } from './nerWindows';
 import type { WorkspaceTokenRegistry } from './workspaceTokenRegistry';
 import { detectCustomTerms, type CustomTerm } from '../../src/lib/pii/custom-terms';
 import { detectRegex } from '../../src/lib/pii/regex-detector';
@@ -236,35 +237,8 @@ interface BatchEntry {
   text: string;
 }
 
-/** A paragraph break keeps NER from reading two texts as one sentence; a span
- * that still crosses it is split, so each side stays redacted. */
-const BATCH_SEPARATOR = '\n\n';
-
-/** redact_text refuses inputs over 1 MiB (UTF-8); leave room for separators. */
-const DETECTOR_MAX_BYTES = (1 << 20) - 1024;
-
-/** Group text positions into runs whose joined UTF-8 size fits one call. A
- * text too large on its own gets a run of its own and fails as it did before. */
-function chunkForDetector(texts: string[]): number[][] {
-  const chunks: number[][] = [];
-  let current: number[] = [];
-  let bytes = 0;
-  texts.forEach((text, position) => {
-    const size = Buffer.byteLength(text, 'utf8') + (current.length > 0 ? BATCH_SEPARATOR.length : 0);
-    if (current.length > 0 && bytes + size > DETECTOR_MAX_BYTES) {
-      chunks.push(current);
-      current = [];
-      bytes = 0;
-    }
-    bytes += current.length > 0 ? size : Buffer.byteLength(text, 'utf8');
-    current.push(position);
-  });
-  if (current.length > 0) chunks.push(current);
-  return chunks;
-}
-
 /**
- * Redact several texts with as few full-detection calls as the input cap allows. A tool result can carry
+ * Redact several texts with as few full-detection calls as whole-read windows allow. A tool result can carry
  * hundreds of strings; one call per string made a search result cost hundreds
  * of sequential detector round trips, and in cabinet mode kept knocking on a
  * dead daemon. Tokens accumulate across the batch (and the thread's live map)
@@ -297,33 +271,18 @@ async function redactTextBatch(
       // for the stricter criterion before trusting an empty NER result.
       const canRunFullDetection = !options.requireFullDetection || await resolved.isFullDetectionReady();
       if (canRunFullDetection && await resolved.isNerReady()) {
-        // Sequential chunks under redact_text's input cap; the first refusal
-        // throws and stops the rest.
-        for (const chunk of chunkForDetector(toScan.map((index) => entries[index].text))) {
-          const starts: number[] = [];
-          let joined = '';
-          for (const position of chunk) {
-            if (joined) joined += BATCH_SEPARATOR;
-            starts.push(joined.length);
-            joined += entries[toScan[position]].text;
+        // One call per window the encoder reads whole (#66 P0: GLiNER2 stops
+        // a few hundred characters into its input and still reports ner_ran).
+        // Sequential; the first refusal throws and stops the rest.
+        const texts = toScan.map((index) => entries[index].text);
+        for (const window of planNerWindows(texts)) {
+          const found = await resolved.detectNer(window.text, options.requireFullDetection ? { requireNer: true } : undefined);
+          for (const { entry, detection } of mapWindowDetections(window, found, texts)) {
+            nerByEntry[toScan[entry]].push(detection);
           }
-          const found = await resolved.detectNer(joined, options.requireFullDetection ? { requireNer: true } : undefined);
-          chunk.forEach((position, slot) => {
-            const index = toScan[position];
-            const from = starts[slot];
-            const to = from + entries[index].text.length;
-            for (const detection of found) {
-              const start = Math.max(detection.start, from);
-              const end = Math.min(detection.end, to);
-              if (start >= end) continue;
-              nerByEntry[index].push({
-                ...detection,
-                start: start - from,
-                end: end - from,
-                text: entries[index].text.slice(start - from, end - from),
-              });
-            }
-          });
+        }
+        for (const index of toScan) {
+          nerByEntry[index] = mergeWindowDetections(nerByEntry[index], entries[index].text);
         }
         nerRan = true;
       }

@@ -22,6 +22,7 @@ import {
   RUNTIME_REDACTION_DEFERRED_MARKER,
   setActiveTurnWorkspace,
 } from './runtimeRedaction';
+import { NER_WINDOW_CHARS } from './nerWindows';
 import { WorkspaceTokenRegistry } from './workspaceTokenRegistry';
 import type { PiiDetection } from '../../src/lib/pii/regex-detector';
 
@@ -639,23 +640,54 @@ describe('one detector call per tool result', () => {
     expect(r.structuredContent.hits.map((h) => h.snippet)).toEqual(['[NAME_0] owes', 'nothing here']);
   });
 
-  test('splits a batch that would exceed the detector input limit', async () => {
-    // redact_text refuses more than 1 MiB per call; each text alone fits.
-    const sizes: number[] = [];
-    const big = 'é'.repeat(300_000); // 600 000 UTF-8 bytes
+  test('never sends the detector more than one window', async () => {
+    const lengths: number[] = [];
+    const long = Array.from({ length: 600 }, (_, i) => `mot${i}`).join(' ');
     await maybeRedactToolResult({
       serverId: 'builtin-filesystem',
       toolName: 'read_file',
-      result: { content: [{ type: 'text', text: big }, { type: 'text', text: big }], isError: false },
+      result: { content: [{ type: 'text', text: long }, { type: 'text', text: long }], isError: false },
       workspacePath: workspace(true),
       threadKey: 't-batch-4',
     }, {
       ...stubDeps,
       isNerReady: () => true,
-      detectNer: async (text: string) => { sizes.push(Buffer.byteLength(text, 'utf8')); return []; },
+      detectNer: async (text: string) => { lengths.push(text.length); return []; },
     });
-    expect(sizes).toHaveLength(2);
-    expect(Math.max(...sizes)).toBeLessThanOrEqual(1 << 20);
+    expect(lengths.length).toBeGreaterThan(2);
+    expect(Math.max(...lengths)).toBeLessThanOrEqual(NER_WINDOW_CHARS);
+  });
+
+  // Stand-in for GLiNER2's truncation (#66 P0): it only reads the first 558
+  // characters it is given, the lowest cutoff #66 measured.
+  function truncatingNamesDetector() {
+    const read = namesDetector([]);
+    return async (text: string) => (await read(text.slice(0, 558)));
+  }
+
+  for (const offset of [0, 500, 700, 5_000, 19_000]) {
+    test(`catches a name at offset ${offset} of a 20 000-char text`, async () => {
+      const filler = 'clause sans donnée personnelle ';
+      const body = filler.repeat(Math.ceil(20_000 / filler.length)).slice(0, 20_000);
+      const text = `${body.slice(0, offset)} Jane Doe ${body.slice(offset)}`;
+      const { text: out } = await maybeRedactOutboundText(text, {
+        workspacePath: workspace(true),
+        threadKey: `t-sweep-${offset}`,
+      }, { ...stubDeps, isNerReady: () => true, detectNer: truncatingNamesDetector() });
+      expect(out).not.toContain('Jane Doe');
+      expect(out).toContain('[NAME_0]');
+    });
+  }
+
+  test('masks a name cut by a window boundary', async () => {
+    const pad = 'x'.repeat(NER_WINDOW_CHARS - 4); // no whitespace: the cut lands inside the name
+    const text = `${pad}Jane Doe and more text after it`;
+    const { text: out } = await maybeRedactOutboundText(text, {
+      workspacePath: workspace(true),
+      threadKey: 't-boundary',
+    }, { ...stubDeps, isNerReady: () => true, detectNer: namesDetector([]) });
+    expect(out).not.toContain('Jane');
+    expect(out).not.toContain('Doe');
   });
 
   test('stops at the first refusal and records one block per result', async () => {
