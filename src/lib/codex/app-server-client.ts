@@ -2080,12 +2080,18 @@ export class CodexAppServerClient {
   /** Threads whose current route (last start/resume/fork) is local-only. */
   private readonly localOnlyRouteThreads = new Set<string>();
   /**
-   * For local-only threads, store the model provider and the model_providers
-   * config so we can validate model overrides in startTurn.
+   * For local-only threads, store the model provider, the model_providers
+   * config, the model, and the cwd so we can validate model overrides and
+   * re-check local-only eligibility on every turn (settings can change).
    */
   private readonly localOnlyThreadConfigs = new Map<
     string,
-    { modelProvider: string | null; modelProvidersConfig: Record<string, unknown> | null }
+    {
+      modelProvider: string | null;
+      modelProvidersConfig: Record<string, unknown> | null;
+      model: string | null;
+      cwd: string | null;
+    }
   >();
   private listenersAttached = false;
   private unsubscribeMcpServerNotifications: (() => void) | null = null;
@@ -2240,6 +2246,8 @@ export class CodexAppServerClient {
     localOnly: boolean,
     modelProvider?: string | null,
     modelProvidersConfig?: Record<string, unknown> | null,
+    model?: string | null,
+    cwd?: string | null,
   ): Promise<void> {
     if (localOnly) {
       await recordLocalOnlyThread(threadId);
@@ -2247,6 +2255,8 @@ export class CodexAppServerClient {
       this.localOnlyThreadConfigs.set(threadId, {
         modelProvider: modelProvider ?? null,
         modelProvidersConfig: modelProvidersConfig ?? null,
+        model: model ?? null,
+        cwd: cwd ?? null,
       });
     } else {
       this.localOnlyRouteThreads.delete(threadId);
@@ -2383,7 +2393,7 @@ export class CodexAppServerClient {
     }
 
     const modelProvidersConfig = (config?.model_providers as Record<string, unknown> | null) ?? null;
-    await this.trackLocalOnlyRoute(result.thread.id, localOnly, modelProvider, modelProvidersConfig);
+    await this.trackLocalOnlyRoute(result.thread.id, localOnly, modelProvider, modelProvidersConfig, model, cwd);
 
     return result.thread.id;
   }
@@ -2478,7 +2488,7 @@ export class CodexAppServerClient {
     }
 
     const modelProvidersConfig = (config?.model_providers as Record<string, unknown> | null) ?? null;
-    await this.trackLocalOnlyRoute(result.thread.id, localOnly, modelProvider, modelProvidersConfig);
+    await this.trackLocalOnlyRoute(result.thread.id, localOnly, modelProvider, modelProvidersConfig, model, cwd);
 
     return result.thread.id;
   }
@@ -2527,7 +2537,7 @@ export class CodexAppServerClient {
     // local-only fork, whatever route the fork runs on.
     if (isLocalOnlyThread(threadId)) await recordLocalOnlyThread(result.thread.id);
     const modelProvidersConfig = (config?.model_providers as Record<string, unknown> | null) ?? null;
-    await this.trackLocalOnlyRoute(result.thread.id, localOnly, modelProvider, modelProvidersConfig);
+    await this.trackLocalOnlyRoute(result.thread.id, localOnly, modelProvider, modelProvidersConfig, model, cwd);
 
     return result.thread.id;
   }
@@ -2668,28 +2678,27 @@ export class CodexAppServerClient {
       await refuseLocalOnlyThread(params.threadId);
     }
 
-    // If the thread is local-only and a model override is provided, verify
-    // the override keeps the route local. A cloud model override would send
-    // real-valued history to a remote provider.
-    if (localOnly && params.model) {
-      const stored = this.localOnlyThreadConfigs.get(params.threadId);
-      if (stored) {
-        const route = routeFromThreadConfig(
-          stored.modelProvider,
-          stored.modelProvidersConfig as Record<string, unknown> | null,
-          params.model,
-        );
-        const cwd = params.cwd ?? null;
-        const stillLocalOnly = await isLocalOnlyRoute(cwd, route);
-        if (!stillLocalOnly) {
-          await refuseLocalOnlyThread(params.threadId);
-        }
+    // Settings can change while a local-only thread is open.
+    // Re-validate on every turn using the stored route (or override model)
+    // and the effective workspace path. Refuse when no longer eligible.
+    const stored = localOnly ? this.localOnlyThreadConfigs.get(params.threadId) : undefined;
+    const cwd = params.cwd ?? stored?.cwd ?? undefined;
+    if (localOnly) {
+      const route = stored
+        ? routeFromThreadConfig(
+            stored.modelProvider,
+            { model_providers: stored.modelProvidersConfig },
+            params.model ? params.model : stored.model,
+          )
+        : null;
+      if (!(await isLocalOnlyRoute(cwd, route))) {
+        await refuseLocalOnlyThread(params.threadId);
       }
     }
 
     const turnApprovalPolicy = await getConfigApprovalPolicy();
     const runtimeAccess = await this.getRuntimeAccessSnapshot();
-    const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, params.cwd, localOnly);
+    const workspaceAccess = await this.resolveThreadWorkspaceAccess(runtimeAccess, cwd, localOnly);
     const workspacePermission = workspaceAccess.workspacePermission;
     const effectiveCwd = workspaceAccess.cwd;
     const sandboxPolicy = workspacePermission
