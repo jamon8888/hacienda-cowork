@@ -190,6 +190,7 @@ async function decrypt(
   docId: string,
   explicitPassphrase?: string,
   toolManager?: VaultToolCaller,
+  options: { allowEmpty?: boolean } = {},
 ): Promise<Record<string, string>> {
   // Fire-and-forget, as in persistEncryptedBlob: a reveal must not wait on a
   // full thread listing (which may have to start the app-server runtime).
@@ -209,7 +210,10 @@ async function decrypt(
     toolManager,
   );
   const map = extractRehydrationMap(raw);
-  if (Object.keys(map).length === 0) {
+  // allowEmpty is for maps that may legitimately hold nothing (the workspace
+  // token registry): basemind answers a wrong passphrase with an error of its
+  // own, so an empty map from it is an empty map, not a failed decryption.
+  if (!options.allowEmpty && Object.keys(map).length === 0) {
     throw new Error('[vault] Decryption returned no entries; check the passphrase');
   }
   return map;
