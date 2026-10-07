@@ -169,6 +169,11 @@ Limites connues :
 - les outils fichiers de Workstation (recherche du workspace comprise) restent sur les copies, faute de savoir de quelle conversation ils viennent ; l'agent lit les originaux en shell ou en Python ;
 - les sous-agents et tâches de fond pseudonymisent toujours ce qu'on leur envoie ;
 - un serveur local qui relaie vers un service en ligne passe la vérification : c'est la responsabilité de l'utilisateur, et l'écran le dit.
+- les modèles « cloud » d'Ollama (`gpt-oss:120b-cloud`, `gpt-oss:cloud`) répondent sur `localhost:11434` mais tournent chez ollama.com : le contrôle lit l'identifiant du modèle et refuse tout nom dont le dernier segment est `cloud`, pour le modèle de la conversation comme pour le modèle de garde (`isOllamaCloudModel`, `server/services/localModelBypass.ts`). Seul l'identifiant compte : le nom affiché d'un profil n'y change rien.
+
+Phrase pour la documentation utilisateur (le site est un dépôt séparé, à y reporter) : **« N'utilisez ce mode qu'avec un modèle téléchargé sur votre ordinateur. »**
+
+Essai du 2026-10-06, avec un faux serveur local et des données isolées : valeurs réelles reçues en clair, trois surfaces coupées et journalisées, pseudonymisation avec un modèle `-cloud`, refus (sans aucune requête envoyée) d'une conversation lue sur les originaux reprise avec un modèle `-cloud`, chaîne d'audit intacte. Non vérifié : réglage désactivé puis message, vrai modèle, vrai serveur Ollama.
 
 ## 8. Bannière onboarding « Rendre Safe » (#20)
 
