@@ -714,6 +714,52 @@ describe('one detector call per tool result', () => {
     }
   });
 
+  test('says why cabinet mode refused when the workspace registry cannot load', async () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await maybeRedactToolResult({
+        serverId: 'basemind',
+        toolName: 'search',
+        result: { content: [{ type: 'text', text: 'a' }], isError: false },
+        workspacePath: workspace(true),
+        threadKey: 't-batch-registry',
+      }, {
+        ...stubDeps,
+        isCabinetMode: () => true,
+        isFullDetectionReady: () => true,
+        isNerReady: () => true,
+        workspaceRegistry: async () => { throw new Error('vault key unreadable'); },
+      });
+      const logged = warn.mock.calls.map((call) => call.join(' ')).join('\n');
+      expect(logged).toContain('workspace token registry unavailable');
+      expect(logged).toContain('vault key unreadable');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('says why cabinet mode refused when the NER model is not ready for full detection', async () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await maybeRedactToolResult({
+        serverId: 'basemind',
+        toolName: 'search',
+        result: { content: [{ type: 'text', text: 'a' }], isError: false },
+        workspacePath: workspace(true),
+        threadKey: 't-batch-notready',
+      }, {
+        ...stubDeps,
+        isCabinetMode: () => true,
+        isFullDetectionReady: () => false,
+        isNerReady: () => true,
+      });
+      const logged = warn.mock.calls.map((call) => call.join(' ')).join('\n');
+      expect(logged).toContain('NER not ready');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   test('stops at the first refusal and records one block per result', async () => {
     const calls: string[] = [];
     const blocks: string[] = [];

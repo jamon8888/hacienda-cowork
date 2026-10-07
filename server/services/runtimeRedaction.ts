@@ -285,6 +285,8 @@ async function redactTextBatch(
           nerByEntry[index] = mergeWindowDetections(nerByEntry[index], entries[index].text);
         }
         nerRan = true;
+      } else if (options.requireFullDetection) {
+        console.warn('[runtime-redaction] NER not ready for full detection; cabinet mode refuses the send');
       }
     } catch (error) {
       // Cabinet mode reports only "unavailable"; this line is the one trace of why.
@@ -302,8 +304,11 @@ async function redactTextBatch(
     } catch (error) {
       // Cabinet mode refuses what it cannot vouch for: thread-only tokens
       // could reuse a number a mirror already gives another value.
+      console.warn(
+        '[runtime-redaction] workspace token registry unavailable:',
+        (error instanceof Error ? error.message : String(error)).slice(0, 300),
+      );
       if (options.requireFullDetection) throw new DetectionUnavailableError();
-      console.warn('[runtime-redaction] workspace token registry unavailable; tokens stay thread-scoped', error);
     }
   }
   const threadMap = options.threadKey ? runtimeRehydrationMaps.get(options.threadKey) : undefined;
