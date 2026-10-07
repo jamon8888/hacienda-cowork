@@ -97,6 +97,30 @@ describe('detectPii thread context', () => {
   });
 });
 
+describe('detectPii leading whitespace', () => {
+  // Observed on basemind 0.32.3: redact_text strips leading whitespace before
+  // detecting and reports offsets on the stripped text. A NER window cut at a
+  // space starts with one, so its detections used to land one character off and
+  // fail the offset check (cabinet mode then refused the whole send).
+  test('sends the text without its leading whitespace and shifts the offsets back', async () => {
+    nextDetections = [{ category: 'email', start: 5, end: 21, text: 'john@example.com', confidence: 0.9 }];
+    const { piiDetectionService } = await import('./piiDetection');
+    const text = ' \n  Call john@example.com';
+    const detections = await piiDetectionService.detectPii(text);
+
+    expect(callToolCalls.at(-1)?.args.text).toBe('Call john@example.com');
+    expect(detections).toHaveLength(1);
+    expect(text.slice(detections[0].start, detections[0].end)).toBe('john@example.com');
+  });
+
+  test('a whitespace-only text has nothing to detect and costs no call', async () => {
+    const before = callToolCalls.length;
+    const { piiDetectionService } = await import('./piiDetection');
+    await expect(piiDetectionService.detectPii(' \n\t ', { requireNer: true })).resolves.toEqual([]);
+    expect(callToolCalls).toHaveLength(before);
+  });
+});
+
 describe('detectPii error payloads', () => {
   test('throws on an isError result instead of reporting no detections', async () => {
     nextIsError = true;

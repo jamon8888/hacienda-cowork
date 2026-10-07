@@ -234,12 +234,18 @@ async function detectPii(
   text: string,
   options?: { categories?: string[]; requireNer?: boolean },
 ): Promise<PiiDetectionResult[]> {
+  // redact_text strips leading whitespace before detecting and reports offsets
+  // on the stripped text (basemind 0.32.3). A NER window cut at a space starts
+  // with one, so send the stripped text and shift the offsets back.
+  const body = text.trimStart();
+  const lead = text.length - body.length;
+  if (body === '') return [];
   const manager = new ToolManager();
   const raw = await manager.callTool(
     'basemind',
     'redact_text',
     {
-      text,
+      text: body,
       categories: options?.categories ?? [],
       // Text detection degrades rather than blocking chat (same policy as the
       // regex fallback); file redaction below fails closed instead.
@@ -271,7 +277,11 @@ async function detectPii(
   if (options?.requireNer && parsed.ner_truncated === true) {
     throw new Error('redact_text: NER input was truncated');
   }
-  return toStringOffsets(text, parsed.detections);
+  return toStringOffsets(body, parsed.detections).map((detection) => ({
+    ...detection,
+    start: detection.start + lead,
+    end: detection.end + lead,
+  }));
 }
 
 /**
