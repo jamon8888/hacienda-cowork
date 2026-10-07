@@ -3,7 +3,7 @@
 Fixes the P0 recorded in #66 (`docs/ner-pii-session-findings.md` §2): GLiNER2
 stops detecting past a few hundred characters inside one `redact_text` call and
 still answers `ner_ran: true`. This document is the design contract; a plan
-follows once the decisions below are confirmed.
+is `docs/superpowers/plans/2026-10-07-ner-chunking.md`.
 
 Related: cabinet mode (`2026-09-29-cabinet-mode-spec.md`), whose guarantee this
 P0 breaks on long inputs; #46, whose `tests/fixtures/pii-42/` dossier is the
@@ -55,9 +55,8 @@ Two layers, because the mirror cannot be fixed from the app alone.
     chars so an entity cut at a boundary is whole in one of them. Prefer to cut
     at the last whitespace before the limit.
   - Detections are mapped back to text offsets, then merged: identical spans
-    dedupe; overlapping spans of the same category merge to their union;
-    overlapping spans of different categories both stand (over-masking, never
-    a leak).
+    dedupe; overlapping spans merge to their union, labelled by the more
+    confident detection (over-masking, never a leak).
 - Window size is a named constant, not a guess: Task 0 of the plan measures the
   cutoff on French legal text (accents, long words) with the #66 method, and
   the default must be **≤ 70 % of the lowest measured cutoff**.
@@ -90,11 +89,11 @@ Two layers, because the mirror cannot be fixed from the app alone.
   mirror gate already keep it honest. `ner_truncated`, if basemind ever
   returns it, is treated as `ner_ran: false`.
 
-## Decisions to confirm (Candy, owner of the privacy scope)
+## Decisions (Candy, owner of the privacy scope)
 
 | # | Question | Recommendation |
 |---|---|---|
-| 1 | Mirror files longer than one window, before Layer 2 ships | **Skip them** (not mirrored, counted as failed in the banner). Writing a copy whose second page was never read contradicts `redactFile`'s own rule ("a copy that reaches the agent is only as good as its detection"). Consequence: long documents are not searchable in Safe until basemind is released. |
+| 1 | Mirror files longer than one window, before Layer 2 ships | **Confirmed 2026-10-07: skip them**, and delete any older mirror of them with its vault blob (not mirrored, counted as failed in the banner). Writing a copy whose second page was never read contradicts `redactFile`'s own rule ("a copy that reaches the agent is only as good as its detection"). Consequence: long documents are not searchable in Safe until basemind is released. |
 | 2 | Order | Layer 1 + mirror gate first (closes the runtime leak now, stops the mirror leak now), Layer 2 next. |
 | 3 | Window defaults | 400 / 100 until Task 0 measures; then ≤ 70 % of the lowest cutoff. |
 | 4 | Who does Layer 2 | Open: basemind is Candy's fork; the truncation itself may also deserve an upstream issue in xberg (#66 §10 Q1). |
