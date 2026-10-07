@@ -221,6 +221,12 @@ export interface AppConfig {
    * in services/safeSurfaces. Written only by that service, which audits first.
    */
   safeSurfaces?: Partial<Record<'voice' | 'computerUse' | 'browserControl' | 'network', boolean>>;
+  /**
+   * Safe folders run on the originals, without pseudonymization, when the
+   * model is verified local (services/localModelBypass). Absent = off.
+   * Written only by that service, which audits first.
+   */
+  safeLocalBypass?: boolean;
 
   // Onboarding: user email (from Stay Connected screen)
   userEmail?: string;
@@ -2615,6 +2621,18 @@ export async function setSafeSurfaceInConfig(
 ): Promise<void> {
   const config = await loadConfig();
   config.safeSurfaces = { ...(config.safeSurfaces ?? {}), [surface]: enabled };
+  await saveConfig(config);
+}
+
+export async function getSafeLocalBypassConfig(): Promise<boolean> {
+  const config = await loadConfig();
+  return config.safeLocalBypass === true;
+}
+
+/** Raw write. Callers go through services/localModelBypass, which audits first. */
+export async function setSafeLocalBypassInConfig(enabled: boolean): Promise<void> {
+  const config = await loadConfig();
+  config.safeLocalBypass = enabled;
   await saveConfig(config);
 }
 

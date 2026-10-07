@@ -381,8 +381,18 @@ export function detectLocalModelServerUrl(input: string | undefined): LocalModel
   return 'unknown';
 }
 
-function isLoopbackHost(hostname: string): boolean {
-  if (hostname === 'localhost' || hostname === '0.0.0.0' || hostname === '::1' || hostname === '[::1]') {
+export function isLoopbackHost(hostname: string): boolean {
+  if (hostname === '0.0.0.0') return true;
+  return isStrictLoopbackHost(hostname);
+}
+
+/**
+ * Loopback only: `localhost`, 127.0.0.0/8 and ::1. Unlike isLoopbackHost it
+ * refuses `0.0.0.0`, which names every interface when a server binds it and
+ * so says nothing about where a request goes.
+ */
+export function isStrictLoopbackHost(hostname: string): boolean {
+  if (hostname === 'localhost' || hostname === '::1' || hostname === '[::1]') {
     return true;
   }
   const parts = hostname.split('.');

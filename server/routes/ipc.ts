@@ -223,6 +223,13 @@ const handlers: Record<string, Record<string, HandlerFn>> = {
       (await import('../services/safeSurfaces')).setSafeSurface(surface, enabled, { confirmed }),
   },
 
+  // ========== Local-only Safe work (settings) ==========
+  safeLocalBypass: {
+    get: async () => (await import('../services/localModelBypass')).getSafeLocalBypassState(),
+    set: async ([enabled, confirmed]: [boolean, boolean]) =>
+      (await import('../services/localModelBypass')).setSafeLocalBypass(enabled, { confirmed }),
+  },
+
   // ========== Vertical packs (settings) ==========
   packs: {
     list: async () => (await import('../services/verticalPackAdmin')).getPackListView(),

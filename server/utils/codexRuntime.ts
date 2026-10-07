@@ -18,6 +18,7 @@ import { validateRuntimeModelId } from './runtimeModelValidation';
 import { formatLocalModelToolUseError, resolveLocalModelToolUseSupport, getOllamaVersion } from '../handlers/providers';
 import { requiresFreshThread } from './codexThreadRecovery';
 import { appendDossierToPrompt, findSafeWorkspaceForCwd, loadDossierContext } from './safeWorkspace';
+import { isLocalOnlyRoute } from '../services/localModelBypass';
 import { appendCustomInstructionsToPrompt } from './customInstructions';
 import { getCodexService } from './codexSkillsBridge';
 import {
@@ -834,10 +835,14 @@ async function appendPracticePack(developerInstructions: string): Promise<string
  * original is never opened), after the pack and before the user's custom
  * instructions. Already redacted, so it does not go through the outbound gate.
  */
-function appendDossier(developerInstructions: string, workspacePath: string | undefined): string {
+function appendDossier(
+  developerInstructions: string,
+  workspacePath: string | undefined,
+  localOnly: boolean,
+): string {
   const workspace = findSafeWorkspaceForCwd(workspacePath);
   return workspace
-    ? appendDossierToPrompt(developerInstructions, loadDossierContext(workspace))
+    ? appendDossierToPrompt(developerInstructions, loadDossierContext(workspace, { localOnly }))
     : developerInstructions;
 }
 
@@ -860,8 +865,11 @@ function appendTaskSpecificInstructions(
 async function resolveCustomInstructionsForTurn(
   gated: string | null | undefined,
   workspacePath: string | undefined,
+  localOnly = false,
 ): Promise<string | null> {
   if (gated !== undefined) return gated;
+  // Local-only: nothing is pseudonymized, the setting goes as written.
+  if (localOnly) return getCustomInstructions();
   if (!workspacePath || existsSync(join(workspacePath, 'safe'))) {
     console.warn('[Agent Runtime] Safe workspace turn without gated custom instructions; leaving them out.');
     return null;
@@ -877,6 +885,8 @@ export async function buildCodexDeveloperInstructions(options: {
   system?: string;
   customInstructions?: string | null;
   runtimeSkills?: RuntimeSkillMetadata[];
+  /** Safe folder run on its originals with a local model (services/localModelBypass). */
+  localOnly?: boolean;
 }): Promise<string> {
   const [networkAccessEnabled, sandboxMode, readAccessMode, runtimeSkills] = await Promise.all([
     getCodexNetworkAccess(),
@@ -886,8 +896,10 @@ export async function buildCodexDeveloperInstructions(options: {
       ? Promise.resolve(options.runtimeSkills)
       : loadRuntimeSkillMetadata(options.workspacePath, 'prompt construction'),
   ]);
-  const safeWorkspace = findSafeWorkspaceForCwd(options.workspacePath) !== null;
-  const safeSurfaces = safeWorkspace ? (await import('../services/safeSurfaces')).getSafeSurfacesSync() : null;
+  const inSafeFolder = findSafeWorkspaceForCwd(options.workspacePath) !== null;
+  const localOnly = inSafeFolder && options.localOnly === true;
+  const safeWorkspace = inSafeFolder && !localOnly;
+  const safeSurfaces = inSafeFolder ? (await import('../services/safeSurfaces')).getSafeSurfacesSync() : null;
   // Surfaces the user left off for Safe folders are not offered to the model.
   const surfaceOff = (surface: 'computerUse' | 'browserControl' | 'network') => safeSurfaces?.[surface] === false;
   const bundledSkillNames = listEnabledPromptBundledSkillNames(runtimeSkills).filter((name) => (
@@ -908,16 +920,18 @@ export async function buildCodexDeveloperInstructions(options: {
       readAccessMode,
       visibleSkills: getPromptVisibleSkills(runtimeSkills),
       safeWorkspace,
+      localOnlyWorkspace: localOnly,
     },
   );
   if (process.env.DEMO_PROMPT) {
     developerInstructions += `\n\n${process.env.DEMO_PROMPT}`;
   }
   developerInstructions = await appendPracticePack(developerInstructions);
-  developerInstructions = appendDossier(developerInstructions, options.workspacePath);
+  developerInstructions = appendDossier(developerInstructions, options.workspacePath, localOnly);
   const customInstructions = await resolveCustomInstructionsForTurn(
     options.customInstructions,
     options.workspacePath,
+    localOnly,
   );
   developerInstructions = appendCustomInstructionsToPrompt(
     developerInstructions,
@@ -2177,6 +2191,13 @@ export async function runCodexAgentTurn(
     'turn context',
     options.service,
   );
+  // Same decision the runtime client takes for the thread's confinement, on
+  // the same resolved route (services/localModelBypass).
+  const localOnly = await isLocalOnlyRoute(options.workspacePath, {
+    modelProvider: profile.modelProvider,
+    model: resolvedModel,
+    providerConfig: profile.providerConfig ?? null,
+  });
   const developerInstructions = await buildCodexDeveloperInstructions({
     modelId: resolvedModel,
     interpreterCliAvailable: true,
@@ -2185,9 +2206,10 @@ export async function runCodexAgentTurn(
     system: options.system,
     customInstructions: options.customInstructions,
     runtimeSkills,
+    localOnly,
   });
   const baseInstructions = getMainAgentBaseInstructions({
-    safeWorkspace: findSafeWorkspaceForCwd(options.workspacePath) !== null,
+    safeWorkspace: findSafeWorkspaceForCwd(options.workspacePath) !== null && !localOnly,
   });
   const systemMessage = [
     baseInstructions,

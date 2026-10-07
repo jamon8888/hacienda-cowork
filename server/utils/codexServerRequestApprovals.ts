@@ -20,6 +20,7 @@ import { isPathInCodexMacosTrustedReadZone } from './codexTrustedPaths';
 import { shouldPromptForWorkspaceWriteSync } from './agentFilePermissions';
 import { getGlobalSkillsRoot } from './skillsPaths';
 import { findSafeWorkspaceForCwd, getSafeRoots } from './safeWorkspace';
+import { isLocalOnlyThread } from '../services/localOnlyThreads';
 import type { CommandExecutionApprovalDecision } from '../handlers/codex-generated-types/v2/CommandExecutionApprovalDecision';
 import type { CommandExecutionRequestApprovalParams } from '../handlers/codex-generated-types/v2/CommandExecutionRequestApprovalParams';
 import type { FileChangeApprovalDecision } from '../handlers/codex-generated-types/v2/FileChangeApprovalDecision';
@@ -1660,9 +1661,15 @@ async function resolveSafeWorkspaceDecision(
   const workspace = findSafeWorkspaceForCwd(getBoundWorkspacePath(threadId))
     ?? findSafeWorkspaceForCwd(cwd);
   if (!workspace) return null;
+  // Local-only conversations (services/localOnlyThreads) work on the
+  // originals with a local model: images and file changes take the normal
+  // path. Commands still never escalate: they would run outside the sandbox,
+  // network included.
+  const localOnly = isLocalOnlyThread(threadId);
 
   if (isCommandExecutionApproval(request)) {
     if (isViewImageCommandApproval(request)) {
+      if (localOnly) return null;
       const reason = request.params.reason ?? '';
       const imagePath = reason.slice('view_image: '.length);
       const { safeRoot } = getSafeRoots(workspace);
@@ -1676,7 +1683,7 @@ async function resolveSafeWorkspaceDecision(
       ? null
       : 'decline';
   }
-  return 'decline';
+  return localOnly ? null : 'decline';
 }
 
 export async function handleCodexServerRequest(

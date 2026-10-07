@@ -23,7 +23,14 @@ export type CabinetAuditEntry =
   | { event: 'cabinet_mode_enabled' }
   | { event: 'send_blocked'; surface: 'outbound' | 'tool' }
   /** A surface was switched on or off in Safe workspaces (never what it was used for). */
-  | { event: 'safe_surface_changed'; surface: 'voice' | 'computerUse' | 'browserControl' | 'network'; enabled: boolean };
+  | { event: 'safe_surface_changed'; surface: 'voice' | 'computerUse' | 'browserControl' | 'network'; enabled: boolean }
+  /** Safe folders may run without pseudonymization on a verified local model. */
+  | { event: 'local_bypass_enabled' }
+  | { event: 'local_bypass_disabled' }
+  /** A conversation ran its first turn without pseudonymization (hashed id, never content). */
+  | { event: 'local_bypass_used'; thread: string }
+  /** A turn on such a conversation was refused because its model is not local. */
+  | { event: 'local_bypass_refused'; thread: string };
 
 let auditFileOverride: string | null = null;
 

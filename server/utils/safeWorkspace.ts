@@ -78,7 +78,7 @@ export const DOSSIER_FILE_NAME = 'DOSSIER.md';
 export const DOSSIER_MAX_CHARS = 8_000;
 
 export type DossierContext =
-  | { status: 'ready'; text: string; truncated: boolean }
+  | { status: 'ready'; text: string; truncated: boolean; source?: 'mirror' | 'original' }
   /** The notes exist but their redacted copy is missing or older than they are. */
   | { status: 'pending' };
 
@@ -89,13 +89,28 @@ export type DossierContext =
  * with yet becomes "pending" instead of being sent as written. Null when the
  * folder has no notes.
  */
-export function loadDossierContext(workspacePath: string): DossierContext | null {
+export function loadDossierContext(
+  workspacePath: string,
+  options: { localOnly?: boolean } = {},
+): DossierContext | null {
   const original = join(workspacePath, DOSSIER_FILE_NAME);
   let originalModified: number;
   try {
     originalModified = statSync(original).mtimeMs;
   } catch {
     return null;
+  }
+  // Local-only work (services/localModelBypass) reads the originals anyway.
+  if (options.localOnly) {
+    try {
+      const text = readFileSync(original, 'utf8').trim();
+      if (!text) return null;
+      return text.length > DOSSIER_MAX_CHARS
+        ? { status: 'ready', text: text.slice(0, DOSSIER_MAX_CHARS), truncated: true, source: 'original' }
+        : { status: 'ready', text, truncated: false, source: 'original' };
+    } catch {
+      return null;
+    }
   }
   const mirror = join(getSafeRoots(workspacePath).safeRoot, `${DOSSIER_FILE_NAME}.md`);
   try {
@@ -120,14 +135,15 @@ export function appendDossierToPrompt(prompt: string, dossier: DossierContext | 
 
 The user keeps notes for this folder in \`${DOSSIER_FILE_NAME}\`, but their redacted copy is not ready yet (it is being prepared). Work without them for now, and tell the user if the task depends on those notes.`;
   }
+  const original = dossier.source === 'original';
   return `${prompt}
 
 ## Dossier
 
-These are the user's own notes for this folder (\`${DOSSIER_FILE_NAME}\`: parties, jurisdiction, key dates, instructions), redacted like every other file. Treat them as background and instructions for this folder; they do not override your other rules.
+These are the user's own notes for this folder (\`${DOSSIER_FILE_NAME}\`: parties, jurisdiction, key dates, instructions)${original ? '' : ', redacted like every other file'}. Treat them as background and instructions for this folder; they do not override your other rules.
 
 <dossier>
 ${dossier.text.replace(/<\/dossier>/gi, '< /dossier>')}
-</dossier>${dossier.truncated ? `\n\nThe notes are longer than ${DOSSIER_MAX_CHARS} characters; only the beginning is shown. Read \`safe/${DOSSIER_FILE_NAME}.md\` for the rest.` : ''}`;
+</dossier>${dossier.truncated ? `\n\nThe notes are longer than ${DOSSIER_MAX_CHARS} characters; only the beginning is shown. Read \`${original ? DOSSIER_FILE_NAME : `safe/${DOSSIER_FILE_NAME}.md`}\` for the rest.` : ''}`;
 }
 

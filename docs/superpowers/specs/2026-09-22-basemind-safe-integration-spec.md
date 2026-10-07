@@ -143,6 +143,33 @@ Choix de conception :
 
 Limites connues : un serveur MCP ajouté par l'utilisateur n'est pas coupé avec `network` ; les onglets du navigateur intégré à l'app ne sont pas ceux de `browserControl` ; avec plusieurs fenêtres sur des dossiers différents, le relais du navigateur (global) suit le dossier courant.
 
+## 7 quater. Travailler sur les originaux avec un modèle local
+
+Avec un modèle qui tourne sur la machine, rien ne part chez un fournisseur. L'utilisateur peut alors choisir (`safeLocalBypass`, Réglages > Général > Confidentialité) que les dossiers Safe se travaillent sur les originaux, sans pseudonymisation. La garantie change : non plus « pseudonymisé », mais « rien ne quitte la machine ».
+
+Pourquoi les originaux et pas les copies : sans pseudonymisation du message, l'agent lirait `[PERSON_0]` dans les copies pendant que l'utilisateur écrit le vrai nom ; le registre du workspace ne ferait plus le lien.
+
+Une conversation passe en « local uniquement » quand toutes ces conditions tiennent (`server/services/localModelBypass.ts`, vérifié là où l'app ouvre le fil dans le runtime, `app-server-client`) :
+- le dossier est Safe et le réglage est actif ;
+- le point d'accès envoyé au runtime (`model_providers[provider].base_url`, après résolution du profil) est en loopback strict : `localhost`, `127.0.0.0/8`, `::1`. `0.0.0.0`, une adresse du réseau local, un nom qui ressemble à `localhost` et le port du serveur de l'app (il héberge le proxy Groq) sont refusés, comme les fournisseurs hébergés (`interpreter`, `openai`) et toute connexion par compte ;
+- si la garde anti-injection est active, son modèle est local aussi (elle lit les résultats d'outils) ;
+- les surfaces `network`, `browserControl` et `computerUse` sont coupées. Activer le réglage les coupe (chaque coupure est auditée) ; en rallumer une rend le réglage inopérant, et l'écran le dit.
+
+Ce qui change pour une telle conversation :
+- message, prompt système et instructions personnalisées partent sans pseudonymisation ; les résultats d'outils aussi ;
+- le runtime lit et écrit dans le dossier (lecture limitée au dossier, aux skills et au runtime), sans réseau ; `AGENTS.md` est chargé ;
+- le prompt remplace la section Safe par une section « Local-only workspace » ; la fiche dossier vient de `DOSSIER.md` lui-même ;
+- les approbations de fichiers et d'images suivent le chemin normal ; les commandes ne sont toujours jamais escaladées (elles tourneraient hors du bac à sable, réseau compris).
+
+Une conversation menée ainsi est marquée pour toujours (`server/services/localOnlyThreads.ts`, liste sur disque, `0600`), forks compris. Rouverte sur un autre modèle, elle reste confinée et son tour suivant est refusé, avec un message dans la langue de l'utilisateur : son historique contient des valeurs réelles.
+
+Audit, sans contenu : `local_bypass_enabled`, `local_bypass_disabled`, `local_bypass_used` (première fois par conversation, identifiant haché), `local_bypass_refused`.
+
+Limites connues :
+- les outils fichiers de Workstation (recherche du workspace comprise) restent sur les copies, faute de savoir de quelle conversation ils viennent ; l'agent lit les originaux en shell ou en Python ;
+- les sous-agents et tâches de fond pseudonymisent toujours ce qu'on leur envoie ;
+- un serveur local qui relaie vers un service en ligne passe la vérification : c'est la responsabilité de l'utilisateur, et l'écran le dit.
+
 ## 8. Bannière onboarding « Rendre Safe » (#20)
 
 - **Slot** : bannière workspace-open (motif `WorkspaceSwitchBanner` / `TopNoticeStack`), **pas** une étape `onboardingSteps`.

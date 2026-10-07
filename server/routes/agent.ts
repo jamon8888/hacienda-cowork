@@ -10,6 +10,8 @@ import {
   getActiveTurnWorkspace,
   clearActiveTurnWorkspace,
 } from '../services/runtimeRedaction';
+import { isLocalOnlyRoute } from '../services/localModelBypass';
+import { isLocalOnlyThread } from '../services/localOnlyThreads';
 import { persistThreadRehydrationMap } from '../services/rehydrationPersistence';
 import { shouldBlockAttachmentSend } from '../../src/lib/pii/redaction';
 import path from 'node:path';
@@ -1034,7 +1036,17 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
     let outboundSystem = request.system;
     // Undefined outside Safe: the runtime reads the setting itself there.
     let outboundCustomInstructions: string | null | undefined;
-    const outboundArmed = existsSync(path.join(workspacePath, 'safe'));
+    const safeFolder = existsSync(path.join(workspacePath, 'safe'));
+    // Local-only Safe work (services/localModelBypass): the model runs on this
+    // machine and the user chose to work on the originals, so nothing is
+    // pseudonymized. The runtime client takes the same decision for the
+    // thread's confinement and refuses a remote model on such a thread.
+    const localOnlyTurn = safeFolder && await isLocalOnlyRoute(workspacePath, {
+      modelProvider: resolvedRequest.profile.modelProvider,
+      model: resolvedRequest.requestedModel ?? resolvedRequest.profile.model ?? null,
+      providerConfig: resolvedRequest.profile.providerConfig ?? null,
+    });
+    const outboundArmed = safeFolder && !localOnlyTurn;
     if (outboundArmed) {
       await assertNoAttachmentsInSafeWorkspace(attachments.length > 0);
       const outbound = await redactOutboundTurnInput(
@@ -1209,7 +1221,10 @@ router.post('/chat/steer', async (req: Request, res: Response) => {
     // workspace safe/ gate; no known workspace fails closed.
     const steerWorkspace = resolveThreadWorkspace(threadId);
     let steerMessage = body.message;
-    if (steerWorkspace == null || existsSync(path.join(steerWorkspace, 'safe'))) {
+    // A local-only conversation's running turn is on a local model (the
+    // runtime client refuses any other), so its steer is not pseudonymized.
+    const steerArmed = steerWorkspace == null || existsSync(path.join(steerWorkspace, 'safe'));
+    if (steerArmed && !isLocalOnlyThread(threadId)) {
       await assertNoAttachmentsInSafeWorkspace((body.attachments?.length ?? 0) > 0);
       if (steerMessage) {
         steerMessage = (await maybeRedactOutboundText(steerMessage, {

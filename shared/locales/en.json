@@ -2533,5 +2533,12 @@
   "settings.safeSurfaces.enableTitle": "Turn this on in Safe folders?",
   "settings.safeSurfaces.enableBody": "Content that goes through this channel is not redacted and reaches the AI provider or other services as is. Turning it on is recorded in the audit log, under your name.",
   "settings.safeSurfaces.enableConfirm": "Turn on — I take responsibility",
-  "settings.safeSurfaces.changeFailed": "The setting was not changed. Try again."
+  "settings.safeSurfaces.changeFailed": "The setting was not changed. Try again.",
+  "settings.safeLocalBypass.title": "Work on originals with a local model",
+  "settings.safeLocalBypass.description": "In Safe folders, a conversation whose model runs on this computer reads the original files, without pseudonymization. Turning this on also switches off the network, the browser and Computer Use in Safe folders. Every change is recorded in the audit log.",
+  "settings.safeLocalBypass.inactive": "Not in effect while these are on: {{surfaces}}.",
+  "settings.safeLocalBypass.enableTitle": "Work on originals without pseudonymization?",
+  "settings.safeLocalBypass.enableBody": "Only for a model running on this computer (for example Ollama or LM Studio on localhost); with any other model, Safe stays as it is. The network, the browser and Computer Use will be switched off in Safe folders. A conversation that ran this way can never continue on a remote model. A local server that forwards to a cloud service is your responsibility.",
+  "settings.safeLocalBypass.enableConfirm": "Work on originals",
+  "safe.localOnly.refused": "This conversation read files without pseudonymization, so it can only continue with a model on this computer. Switch back to a local model, or start a new conversation."
 }

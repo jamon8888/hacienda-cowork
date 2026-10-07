@@ -797,6 +797,18 @@ interface SafeSurfacesIpc {
   set(surface: SafeSurfaceName, enabled: boolean, confirmed: boolean): Promise<SafeSurfaceState>;
 }
 
+export interface SafeLocalBypassState {
+  enabled: boolean;
+  /** Surfaces still on that keep the bypass from applying. */
+  blockingSurfaces: SafeSurfaceName[];
+}
+
+interface SafeLocalBypassIpc {
+  get(): Promise<SafeLocalBypassState>;
+  /** Turning it on needs `confirmed` (the confirm dialog); it switches network, browser and Computer Use off. */
+  set(enabled: boolean, confirmed: boolean): Promise<SafeLocalBypassState>;
+}
+
 interface PacksIpc {
   list(): Promise<PackListView>;
   /** null goes back to the distribution default. */
@@ -907,6 +919,12 @@ export const safeSurfaces: SafeSurfacesIpc = isMarketingDemoMode()
     set: async () => { throw new Error('Not available in demo mode'); },
   }
   : (client.safeSurfaces as SafeSurfacesIpc);
+export const safeLocalBypass: SafeLocalBypassIpc = isMarketingDemoMode()
+  ? {
+    get: async () => ({ enabled: false, blockingSurfaces: [] }),
+    set: async () => { throw new Error('Not available in demo mode'); },
+  }
+  : (client.safeLocalBypass as SafeLocalBypassIpc);
 export const packs: PacksIpc = isMarketingDemoMode()
   ? {
     list: async () => ({ activeId: null, activePack: null, chosenId: null, packs: [] }),

@@ -2533,5 +2533,12 @@
   "settings.safeSurfaces.enableTitle": "Safe フォルダでこれをオンにしますか？",
   "settings.safeSurfaces.enableBody": "この経路を通る内容は匿名化されず、そのままAIプロバイダーなどのサービスに届きます。オンにしたことは、あなたの名前で監査ログに記録されます。",
   "settings.safeSurfaces.enableConfirm": "オンにする — 責任は私が負います",
-  "settings.safeSurfaces.changeFailed": "設定は変更されませんでした。もう一度お試しください。"
+  "settings.safeSurfaces.changeFailed": "設定は変更されませんでした。もう一度お試しください。",
+  "settings.safeLocalBypass.title": "ローカルモデルで原本を扱う",
+  "settings.safeLocalBypass.description": "Safe フォルダーで、このコンピューター上で動くモデルの会話は、仮名化せずに原本ファイルを読みます。オンにすると、Safe フォルダーではネットワーク、ブラウザー、コンピューター操作もオフになります。変更はすべて監査ログに記録されます。",
+  "settings.safeLocalBypass.inactive": "次がオンの間は無効です: {{surfaces}}。",
+  "settings.safeLocalBypass.enableTitle": "仮名化せずに原本を扱いますか?",
+  "settings.safeLocalBypass.enableBody": "このコンピューター上で動くモデル(localhost の Ollama や LM Studio など)の場合のみです。それ以外のモデルでは Safe は変わりません。Safe フォルダーではネットワーク、ブラウザー、コンピューター操作がオフになります。この方法で進めた会話は、リモートモデルで続けることはできません。クラウドサービスに転送するローカルサーバーはご自身の責任となります。",
+  "settings.safeLocalBypass.enableConfirm": "原本を扱う",
+  "safe.localOnly.refused": "この会話は仮名化せずにファイルを読んだため、このコンピューター上のモデルでのみ続けられます。ローカルモデルに戻すか、新しい会話を始めてください。"
 }

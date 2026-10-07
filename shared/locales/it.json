@@ -2533,5 +2533,12 @@
   "settings.safeSurfaces.enableTitle": "Attivare questo nelle cartelle Safe?",
   "settings.safeSurfaces.enableBody": "Il contenuto che passa da questo canale non viene pseudonimizzato e arriva così com'è al fornitore di IA o ad altri servizi. L'attivazione viene registrata nel registro di audit, a suo nome.",
   "settings.safeSurfaces.enableConfirm": "Attiva — me ne assumo la responsabilità",
-  "settings.safeSurfaces.changeFailed": "L'impostazione non è stata modificata. Riprovi."
+  "settings.safeSurfaces.changeFailed": "L'impostazione non è stata modificata. Riprovi.",
+  "settings.safeLocalBypass.title": "Lavorare sugli originali con un modello locale",
+  "settings.safeLocalBypass.description": "Nelle cartelle Safe, una conversazione il cui modello gira su questo computer legge i file originali, senza pseudonimizzazione. Attivarlo disattiva anche la rete, il browser e il controllo del computer nelle cartelle Safe. Ogni modifica viene registrata nel registro di audit.",
+  "settings.safeLocalBypass.inactive": "Senza effetto finché sono attivi: {{surfaces}}.",
+  "settings.safeLocalBypass.enableTitle": "Lavorare sugli originali senza pseudonimizzazione?",
+  "settings.safeLocalBypass.enableBody": "Solo con un modello che gira su questo computer (ad esempio Ollama o LM Studio su localhost); con qualsiasi altro modello, Safe resta invariato. La rete, il browser e il controllo del computer verranno disattivati nelle cartelle Safe. Una conversazione condotta così non potrà mai continuare con un modello remoto. Un server locale che inoltra a un servizio cloud è sotto la sua responsabilità.",
+  "settings.safeLocalBypass.enableConfirm": "Lavorare sugli originali",
+  "safe.localOnly.refused": "Questa conversazione ha letto file senza pseudonimizzazione, quindi può continuare solo con un modello su questo computer. Torni a un modello locale o avvii una nuova conversazione."
 }

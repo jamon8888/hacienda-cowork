@@ -2533,5 +2533,12 @@
   "settings.safeSurfaces.enableTitle": "Activer ceci dans les dossiers Safe ?",
   "settings.safeSurfaces.enableBody": "Le contenu qui passe par ce canal n'est pas pseudonymisé et parvient tel quel au fournisseur d'IA ou à d'autres services. L'activation est consignée dans le journal d'audit, à votre nom.",
   "settings.safeSurfaces.enableConfirm": "Activer — j'en assume la responsabilité",
-  "settings.safeSurfaces.changeFailed": "Le réglage n'a pas été modifié. Réessayez."
+  "settings.safeSurfaces.changeFailed": "Le réglage n'a pas été modifié. Réessayez.",
+  "settings.safeLocalBypass.title": "Travailler sur les originaux avec un modèle local",
+  "settings.safeLocalBypass.description": "Dans les dossiers Safe, une conversation dont le modèle tourne sur cet ordinateur lit les fichiers originaux, sans pseudonymisation. L'activer coupe aussi le réseau, le navigateur et le contrôle de l'ordinateur dans les dossiers Safe. Chaque changement est inscrit au journal d'audit.",
+  "settings.safeLocalBypass.inactive": "Sans effet tant que ceux-ci sont activés : {{surfaces}}.",
+  "settings.safeLocalBypass.enableTitle": "Travailler sur les originaux sans pseudonymisation ?",
+  "settings.safeLocalBypass.enableBody": "Seulement avec un modèle qui tourne sur cet ordinateur (par exemple Ollama ou LM Studio sur localhost) ; avec tout autre modèle, Safe reste inchangé. Le réseau, le navigateur et le contrôle de l'ordinateur seront coupés dans les dossiers Safe. Une conversation menée ainsi ne pourra jamais continuer avec un modèle distant. Un serveur local qui relaie vers un service en ligne reste sous votre responsabilité.",
+  "settings.safeLocalBypass.enableConfirm": "Travailler sur les originaux",
+  "safe.localOnly.refused": "Cette conversation a lu des fichiers sans pseudonymisation : elle ne peut continuer qu'avec un modèle sur cet ordinateur. Revenez à un modèle local, ou ouvrez une nouvelle conversation."
 }

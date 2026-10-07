@@ -18,6 +18,7 @@ import { getToolCallMetadata } from '../utils/codexMcpBridge';
 import { getCurrentTurnMessageId } from '../utils/turnMessageIdRegistry';
 import { runWithWorkspaceOverride } from '../utils/workspace';
 import { maybeRedactToolError, maybeRedactToolResult } from '../services/runtimeRedaction';
+import { isLocalOnlyThread } from '../services/localOnlyThreads';
 import type { McpServerEntry } from '../../src/lib/codex/protocol';
 import type { ToolServerInfo } from '../../electron/ipc/registry';
 import type { McpServerConfig } from './mcpTypes';
@@ -1096,14 +1097,16 @@ export class ToolManager {
         } catch (error) {
           // NOTE(linked-file-redaction): a thrown error is model-visible text
           // too; under safe/ it comes back as a redacted error result.
-          if (options?.appInternal) throw error;
+          if (options?.appInternal || isLocalOnlyThread(threadKey)) throw error;
           const gated = await maybeRedactToolError({
             serverId, toolName, error, workspacePath: workspace || null, threadKey,
           });
           if (gated === null) throw error;
           return gated;
         }
-        if (options?.appInternal) return rawResult;
+        // A local-only conversation (services/localOnlyThreads) runs on a
+        // local model: the runtime client refuses any other for it.
+        if (options?.appInternal || isLocalOnlyThread(threadKey)) return rawResult;
         // NOTE(linked-file-redaction): every tool result is redacted before it
         // reaches model context (#19, workspace safe/-gated, spec §7). threadKey
         // is a real thread id only; without one the output still redacts but
@@ -1206,14 +1209,14 @@ export class ToolManager {
         },
       );
     } catch (error) {
-      if (options?.appInternal) throw error;
+      if (options?.appInternal || isLocalOnlyThread(threadId)) throw error;
       const gated = await maybeRedactToolError({
         serverId, toolName, error, workspacePath: mcpWorkspace, threadKey: threadId,
       });
       if (gated === null) throw error;
       return gated;
     }
-    if (options?.appInternal) return mcpResult;
+    if (options?.appInternal || isLocalOnlyThread(threadId)) return mcpResult;
     // NOTE(linked-file-redaction): same post-execution redaction as the
     // builtin path above — all MCP tool results redact under safe/ too.
     return await maybeRedactToolResult({
