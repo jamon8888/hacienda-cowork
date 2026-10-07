@@ -17,6 +17,7 @@ import { buildRedactedText, findRedactedTokens, mergeDetections } from '../../sr
 import { detectCustomTerms, type CustomTerm } from '../../src/lib/pii/custom-terms';
 import { detectRegex } from '../../src/lib/pii/regex-detector';
 import { resolveHubBaseDirs } from '../utils/hubCache';
+import { NER_WINDOW_CHARS } from './nerWindows';
 
 export interface PiiDetectionResult {
   category: string;
@@ -35,6 +36,12 @@ export interface RedactTextResult {
    * means it degraded to pattern-only redaction.
    */
   ner_ran?: boolean;
+  /** Windows NER read (basemind with internal windowing). With ner_window_chars, proves coverage. */
+  ner_windows?: number;
+  /** Largest window basemind gave NER, in characters. */
+  ner_window_chars?: number;
+  /** basemind saw NER clip its input. Treated as a failed pass. */
+  ner_truncated?: boolean;
 }
 
 const MODEL_SEARCH_PATTERNS = [
@@ -170,7 +177,48 @@ export function parseRedactTextResult(result: unknown): RedactTextResult {
     rehydration_map: rehydrationMap,
     detections: asDetections(payload.detections),
     ...(typeof payload.ner_ran === 'boolean' ? { ner_ran: payload.ner_ran } : {}),
+    ...(typeof payload.ner_windows === 'number' ? { ner_windows: payload.ner_windows } : {}),
+    ...(typeof payload.ner_window_chars === 'number' ? { ner_window_chars: payload.ner_window_chars } : {}),
+    ...(typeof payload.ner_truncated === 'boolean' ? { ner_truncated: payload.ner_truncated } : {}),
   };
+}
+
+/** NER ran on part of the input only, or coverage cannot be proven for a long input. */
+export class NerCoverageError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NerCoverageError';
+  }
+}
+
+/** Length of the text basemind read, rebuilt from its output and rehydration map. */
+export function originalTextLength(result: RedactTextResult): number {
+  let length = result.redacted_text.length;
+  for (const [token, value] of Object.entries(result.rehydration_map)) {
+    const occurrences = result.redacted_text.split(token).length - 1;
+    length += occurrences * (value.length - token.length);
+  }
+  return length;
+}
+
+/** basemind vouches that NER read every character, in windows no larger than ours. */
+export function hasNerCoverageProof(result: RedactTextResult, windowChars = NER_WINDOW_CHARS): boolean {
+  return typeof result.ner_windows === 'number'
+    && typeof result.ner_window_chars === 'number'
+    && result.ner_window_chars <= windowChars;
+}
+
+/**
+ * A mirror reaches the agent, so it is only as good as its detection: a file
+ * longer than one window is refused unless basemind proves NER read all of it
+ * (spec 2026-10-07, decision 1).
+ */
+export function assertMirrorCoverage(result: RedactTextResult, windowChars = NER_WINDOW_CHARS): void {
+  if (result.ner_truncated === true) throw new NerCoverageError('redact_text: NER input was truncated');
+  const length = originalTextLength(result);
+  if (length > windowChars && !hasNerCoverageProof(result, windowChars)) {
+    throw new NerCoverageError(`redact_text: NER coverage not proven for ${length} characters (window ${windowChars})`);
+  }
 }
 
 function errorPayloadText(raw: unknown): string {
@@ -186,12 +234,18 @@ async function detectPii(
   text: string,
   options?: { categories?: string[]; requireNer?: boolean },
 ): Promise<PiiDetectionResult[]> {
+  // redact_text strips leading whitespace before detecting and reports offsets
+  // on the stripped text (basemind 0.32.3). A NER window cut at a space starts
+  // with one, so send the stripped text and shift the offsets back.
+  const body = text.trimStart();
+  const lead = text.length - body.length;
+  if (body === '') return [];
   const manager = new ToolManager();
   const raw = await manager.callTool(
     'basemind',
     'redact_text',
     {
-      text,
+      text: body,
       categories: options?.categories ?? [],
       // Text detection degrades rather than blocking chat (same policy as the
       // regex fallback); file redaction below fails closed instead.
@@ -220,7 +274,14 @@ async function detectPii(
   if (options?.requireNer && parsed.ner_ran !== true) {
     throw new Error('redact_text: NER did not run (pattern-only redaction)');
   }
-  return toStringOffsets(text, parsed.detections);
+  if (options?.requireNer && parsed.ner_truncated === true) {
+    throw new Error('redact_text: NER input was truncated');
+  }
+  return toStringOffsets(body, parsed.detections).map((detection) => ({
+    ...detection,
+    start: detection.start + lead,
+    end: detection.end + lead,
+  }));
 }
 
 /**
@@ -281,6 +342,7 @@ async function redactFile(filePath: string): Promise<RedactTextResult> {
   const parsed = parseRedactTextResult(raw);
   // A daemon that omits the field cannot vouch that NER ran either.
   if (parsed.ner_ran !== true) throw new Error('redact_text: NER did not run (pattern-only redaction)');
+  assertMirrorCoverage(parsed);
   return sweepResidualPii(parsed, customTerms);
 }
 

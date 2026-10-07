@@ -34,7 +34,9 @@ async function defaultDeps(): Promise<WorkspaceTokenRegistryDeps> {
   const { existsSync } = await import('node:fs');
   return {
     exists: (docId) => existsSync(resolveVaultBlobPath(docId)),
-    decrypt: (docId) => vaultManager.decrypt(docId),
+    // A Safe workspace whose files all held no PII (or were all refused) persists
+    // an empty registry; reading it back must not look like a failed decryption.
+    decrypt: (docId) => vaultManager.decrypt(docId, undefined, undefined, { allowEmpty: true }),
     encrypt: (map) => vaultManager.encrypt(map),
     write: (docId, blob) => {
       persistEncryptedBlob(docId, blob);

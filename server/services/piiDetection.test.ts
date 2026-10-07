@@ -3,7 +3,17 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, test } from 'bun:test';
 
-import { isFullDetectionReady, isPiiModelReady, parseRedactTextResult, resolveNerModelDir, sweepResidualPii } from './piiDetection';
+import {
+  assertMirrorCoverage,
+  hasNerCoverageProof,
+  isFullDetectionReady,
+  isPiiModelReady,
+  NerCoverageError,
+  originalTextLength,
+  parseRedactTextResult,
+  resolveNerModelDir,
+  sweepResidualPii,
+} from './piiDetection';
 
 describe('parseRedactTextResult', () => {
   test('maps basemind redact_text output onto the renderer contract', () => {
@@ -179,5 +189,64 @@ describe('sweepResidualPii', () => {
   test('returns the result unchanged when nothing is left', () => {
     const clean = { redacted_text: 'Rien à signaler [PERSON_1]', rehydration_map: { '[PERSON_1]': 'x' }, detections: [] };
     expect(sweepResidualPii(clean)).toBe(clean);
+  });
+});
+
+describe('NER coverage (spec 2026-10-07)', () => {
+  const result = (over: Partial<ReturnType<typeof parseRedactTextResult>> = {}) => ({
+    redacted_text: 'Signed by [PERSON_1].',
+    rehydration_map: { '[PERSON_1]': 'Hélène Marchand' },
+    detections: [],
+    ner_ran: true,
+    ...over,
+  });
+
+  test('parses the coverage fields basemind may return', () => {
+    const parsed = parseRedactTextResult({
+      structuredContent: { result: { redacted_text: 'x', rehydration_map: {}, detections: [], ner_ran: true, ner_windows: 3, ner_window_chars: 350, ner_truncated: false } },
+    });
+    expect(parsed.ner_windows).toBe(3);
+    expect(parsed.ner_window_chars).toBe(350);
+    expect(parsed.ner_truncated).toBe(false);
+  });
+
+  test('omits the coverage fields when basemind does not send them', () => {
+    const parsed = parseRedactTextResult({ structuredContent: { result: { redacted_text: 'x', rehydration_map: {}, detections: [] } } });
+    expect('ner_windows' in parsed).toBe(false);
+    expect('ner_window_chars' in parsed).toBe(false);
+    expect('ner_truncated' in parsed).toBe(false);
+  });
+
+  test('measures the original length through the rehydration map', () => {
+    expect(originalTextLength(result())).toBe('Signed by Hélène Marchand.'.length);
+  });
+
+  test('coverage proof needs both fields and a window no larger than ours', () => {
+    expect(hasNerCoverageProof(result())).toBe(false);
+    expect(hasNerCoverageProof(result({ ner_windows: 2, ner_window_chars: 300 }), 400)).toBe(true);
+    expect(hasNerCoverageProof(result({ ner_windows: 2, ner_window_chars: 512 }), 400)).toBe(false);
+    expect(hasNerCoverageProof(result({ ner_windows: 2 }), 400)).toBe(false);
+  });
+
+  test('a short file passes without proof', () => {
+    expect(() => assertMirrorCoverage(result(), 400)).not.toThrow();
+  });
+
+  test('a long file without proof is refused', () => {
+    const long = result({ redacted_text: 'x'.repeat(401) , rehydration_map: {} });
+    expect(() => assertMirrorCoverage(long, 400)).toThrow(NerCoverageError);
+  });
+
+  test('a long file with proof passes', () => {
+    const long = result({ redacted_text: 'x'.repeat(5_000), rehydration_map: {}, ner_windows: 15, ner_window_chars: 380 });
+    expect(() => assertMirrorCoverage(long, 400)).not.toThrow();
+  });
+
+  test('a truncated pass is refused even when short', () => {
+    expect(() => assertMirrorCoverage(result({ ner_truncated: true }), 400)).toThrow(NerCoverageError);
+  });
+
+  test('the error is recognisable by name across module boundaries', () => {
+    expect(new NerCoverageError('x').name).toBe('NerCoverageError');
   });
 });

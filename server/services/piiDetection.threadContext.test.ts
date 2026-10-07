@@ -1,5 +1,7 @@
 import { describe, expect, mock, test } from 'bun:test';
 
+import { NER_WINDOW_CHARS } from './nerWindows';
+
 /**
  * Regression guard for the silent-degradation bug: `ToolManager.callTool`
  * throws `MCP tool calls require a Codex thread context` when no threadId is
@@ -29,6 +31,12 @@ let nextDetections: Array<{ category: string; start: number; end: number; text: 
 // Value of `ner_ran` in the mocked payload; undefined omits it (older daemon).
 let nextNerRan: boolean | undefined;
 
+// When set, replaces the short default text (and its rehydration map).
+let nextRedactedText: string | undefined;
+
+// Coverage fields basemind may add to the payload (spec 2026-10-07).
+let nextCoverage: { ner_windows?: number; ner_window_chars?: number; ner_truncated?: boolean } = {};
+
 // When set, the mocked tool answers with an error payload instead of throwing.
 let nextIsError = false;
 
@@ -47,10 +55,11 @@ mock.module('../tools/toolManager', () => ({
       return {
         structuredContent: {
           result: {
-            redacted_text: 'Call [EMAIL_0]',
-            rehydration_map: { '[EMAIL_0]': 'john@example.com' },
+            redacted_text: nextRedactedText ?? 'Call [EMAIL_0]',
+            rehydration_map: nextRedactedText === undefined ? { '[EMAIL_0]': 'john@example.com' } : {},
             detections: nextDetections,
             ...(nextNerRan === undefined ? {} : { ner_ran: nextNerRan }),
+            ...nextCoverage,
           },
         },
       };
@@ -85,6 +94,30 @@ describe('detectPii thread context', () => {
     const { piiDetectionService } = await import('./piiDetection');
     await piiDetectionService.detectPii('text', { categories: ['email'] });
     expect(callToolCalls.at(-1)?.args.categories).toEqual(['email']);
+  });
+});
+
+describe('detectPii leading whitespace', () => {
+  // Observed on basemind 0.32.3: redact_text strips leading whitespace before
+  // detecting and reports offsets on the stripped text. A NER window cut at a
+  // space starts with one, so its detections used to land one character off and
+  // fail the offset check (cabinet mode then refused the whole send).
+  test('sends the text without its leading whitespace and shifts the offsets back', async () => {
+    nextDetections = [{ category: 'email', start: 5, end: 21, text: 'john@example.com', confidence: 0.9 }];
+    const { piiDetectionService } = await import('./piiDetection');
+    const text = ' \n  Call john@example.com';
+    const detections = await piiDetectionService.detectPii(text);
+
+    expect(callToolCalls.at(-1)?.args.text).toBe('Call john@example.com');
+    expect(detections).toHaveLength(1);
+    expect(text.slice(detections[0].start, detections[0].end)).toBe('john@example.com');
+  });
+
+  test('a whitespace-only text has nothing to detect and costs no call', async () => {
+    const before = callToolCalls.length;
+    const { piiDetectionService } = await import('./piiDetection');
+    await expect(piiDetectionService.detectPii(' \n\t ', { requireNer: true })).resolves.toEqual([]);
+    expect(callToolCalls).toHaveLength(before);
   });
 });
 
@@ -190,6 +223,67 @@ describe('redactFile require_ner', () => {
     nextNerRan = undefined;
     const { piiDetectionService } = await import('./piiDetection');
     await expect(piiDetectionService.redactFile('/tmp/some-file.txt')).rejects.toThrow('NER did not run');
+  });
+});
+
+describe('redactFile NER coverage (spec 2026-10-07)', () => {
+  const longText = 'x'.repeat(NER_WINDOW_CHARS + 1);
+
+  async function redactLong(coverage: typeof nextCoverage) {
+    nextDetections = [];
+    nextNerRan = true;
+    nextRedactedText = longText;
+    nextCoverage = coverage;
+    try {
+      const { piiDetectionService } = await import('./piiDetection');
+      return await piiDetectionService.redactFile('/tmp/long-file.txt');
+    } finally {
+      nextNerRan = undefined;
+      nextRedactedText = undefined;
+      nextCoverage = {};
+    }
+  }
+
+  test('refuses a long file when basemind does not prove NER read all of it', async () => {
+    await expect(redactLong({})).rejects.toThrow('NER coverage not proven');
+  });
+
+  test('refuses a long file whose proof uses a window larger than ours', async () => {
+    await expect(redactLong({ ner_windows: 2, ner_window_chars: NER_WINDOW_CHARS + 1 })).rejects.toThrow('NER coverage not proven');
+  });
+
+  test('returns a long file when basemind proves coverage', async () => {
+    const result = await redactLong({ ner_windows: 2, ner_window_chars: NER_WINDOW_CHARS });
+    expect(result.redacted_text).toBe(longText);
+  });
+
+  test('refuses a file basemind says NER truncated', async () => {
+    nextDetections = [];
+    nextNerRan = true;
+    nextCoverage = { ner_truncated: true };
+    try {
+      const { piiDetectionService } = await import('./piiDetection');
+      await expect(piiDetectionService.redactFile('/tmp/some-file.txt')).rejects.toThrow('truncated');
+    } finally {
+      nextNerRan = undefined;
+      nextCoverage = {};
+    }
+  });
+});
+
+describe('detectPii NER truncation', () => {
+  test('requireNer refuses a pass basemind says was truncated; without it the result is unchanged', async () => {
+    nextDetections = [];
+    nextNerRan = true;
+    nextCoverage = { ner_truncated: true };
+    try {
+      const { piiDetectionService } = await import('./piiDetection');
+      await expect(piiDetectionService.detectPii('Jane Doe')).resolves.toEqual([]);
+      await expect(piiDetectionService.detectPii('Jane Doe', { requireNer: true })).rejects.toThrow('truncated');
+    } finally {
+      nextNerRan = undefined;
+      nextCoverage = {};
+    }
   });
 });
 

@@ -147,6 +147,32 @@ describe('vault rehydration round-trip', () => {
     );
   });
 
+  // The real daemon round-trips an empty map (token_count 0) and answers a wrong
+  // passphrase with an error of its own, so a caller whose map may legitimately
+  // be empty (the workspace token registry of a Safe workspace with no PII
+  // mirrored) can opt out of the no-entries guard.
+  test('an empty map is readable when the caller allows it, and refused by default', async () => {
+    const blob = await vaultManager.encrypt({}, { passphrase: 'test-passphrase', toolManager: stubBasemindVault() });
+    vaultManager.persistEncryptedBlob('doc-empty', blob);
+    await expect(vaultManager.decrypt('doc-empty', 'test-passphrase', stubBasemindVault())).rejects.toThrow('no entries');
+    await expect(
+      vaultManager.decrypt('doc-empty', 'test-passphrase', stubBasemindVault(), { allowEmpty: true }),
+    ).resolves.toEqual({});
+  });
+
+  test('allowing an empty map does not hide a daemon error', async () => {
+    const blob = await vaultManager.encrypt({ '[EMAIL_0]': 'a@b.c' }, { passphrase: 'test-passphrase', toolManager: stubBasemindVault() });
+    vaultManager.persistEncryptedBlob('doc-wrongkey', blob);
+    const rejectingVault = {
+      async callTool(): Promise<unknown> {
+        throw new Error('decryption failed: wrong passphrase or corrupted data');
+      },
+    };
+    await expect(
+      vaultManager.decrypt('doc-wrongkey', 'wrong-passphrase', rejectingVault, { allowEmpty: true }),
+    ).rejects.toThrow('wrong passphrase');
+  });
+
   test('persist refuses an empty blob', () => {
     expect(() => vaultManager.persistEncryptedBlob('doc-3', '')).toThrow('empty encrypted blob');
   });
