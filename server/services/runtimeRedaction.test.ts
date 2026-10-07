@@ -679,6 +679,26 @@ describe('one detector call per tool result', () => {
     });
   }
 
+  test('masks the other mentions of a name NER only caught where the sentence gave a cue', async () => {
+    // Stand-in for the model: it flags the surname only in the sentence that
+    // introduces it, not in a file name, a URL path or a bare "Mme Dubreuil".
+    const cueOnly = async (text: string): Promise<PiiDetection[]> => {
+      const at = text.indexOf("Dubreuil, c'est");
+      return at === -1 ? [] : [{ category: 'last_name', start: at, end: at + 8, text: 'Dubreuil', confidence: 0.95 }];
+    };
+    const text = "Hélène a rappelé que Dubreuil, c'est le nom de son mari. "
+      + 'Voir Dubreuil_Hélène_contrat_2022.pdf, https://x.example/clients/dubreuil/helene et Mme Dubreuil.';
+    const { text: out } = await maybeRedactOutboundText(text, {
+      workspacePath: workspace(true),
+      threadKey: 't-propagate',
+    }, { ...stubDeps, isNerReady: () => true, detectNer: cueOnly });
+    expect(out.toLowerCase()).not.toContain('dubreuil');
+    // One value keeps one token wherever it was found; the lower-case spelling in
+    // the URL is another value, so it gets its own, as everywhere else.
+    expect(out.match(/\[LAST_NAME_0\]/g)).toHaveLength(3);
+    expect(out.match(/\[LAST_NAME_1\]/g)).toHaveLength(1);
+  });
+
   test('masks a name cut by a window boundary', async () => {
     const pad = 'x'.repeat(NER_WINDOW_CHARS - 4); // no whitespace: the cut lands inside the name
     const text = `${pad}Jane Doe and more text after it`;

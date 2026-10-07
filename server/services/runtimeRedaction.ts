@@ -24,6 +24,7 @@ import { join } from 'node:path';
 
 import { buildRedactedText, mergeDetections } from '../../src/lib/pii/labels';
 import { mapWindowDetections, mergeWindowDetections, planNerWindows } from './nerWindows';
+import { collectNameValues, propagateNames } from './nameMentions';
 import type { WorkspaceTokenRegistry } from './workspaceTokenRegistry';
 import { detectCustomTerms, type CustomTerm } from '../../src/lib/pii/custom-terms';
 import { detectRegex } from '../../src/lib/pii/regex-detector';
@@ -320,13 +321,21 @@ async function redactTextBatch(
   // every reserved (live) token. The registry wins where an older thread map
   // disagrees.
   const reusable: Record<string, string> = { ...threadMap, ...workspaceTokens };
+  // A name NER caught in one window is masked wherever else it appears in the
+  // send: a window sees little context, so the same mention is flagged in a
+  // sentence and missed in a file name or a bare "Mme X".
+  const names = collectNameValues(nerByEntry);
   const results = entries.map((entry, index): RedactedText => {
     if (!scannable[index]) return { text: RUNTIME_REDACTION_DEFERRED_MARKER, redacted: false, deferred: true };
     // NER runs unconditionally when ready: regex covers patterns (email,
     // phone, …) but NER-only categories (names, addresses) would pass raw.
-    const detections = mergeDetections(
-      nerByEntry[index],
-      mergeDetections(detectCustomTerms(entry.text, customTerms), detectRegex(entry.text)),
+    const detections = propagateNames(
+      entry.text,
+      mergeDetections(
+        nerByEntry[index],
+        mergeDetections(detectCustomTerms(entry.text, customTerms), detectRegex(entry.text)),
+      ),
+      names,
     );
     if (detections.length === 0) return { text: entry.text, redacted: false, deferred: false };
     const { redactedText, rehydrationMap } = buildRedactedText(entry.text, detections, reserved, reusable);
