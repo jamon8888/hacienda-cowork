@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 
 import {
   applyFileReadRedaction,
@@ -688,6 +688,30 @@ describe('one detector call per tool result', () => {
     }, { ...stubDeps, isNerReady: () => true, detectNer: namesDetector([]) });
     expect(out).not.toContain('Jane');
     expect(out).not.toContain('Doe');
+  });
+
+  test('keeps the cause of a detection failure in the log, since cabinet mode only says unavailable', async () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await expect(maybeRedactToolResult({
+        serverId: 'basemind',
+        toolName: 'search',
+        result: { content: [{ type: 'text', text: 'a' }], isError: false },
+        workspacePath: workspace(true),
+        threadKey: 't-batch-cause',
+      }, {
+        ...stubDeps,
+        isCabinetMode: () => true,
+        isFullDetectionReady: () => true,
+        isNerReady: () => true,
+        detectNer: async () => { throw new Error('redact_text returned offsets that do not match the detected text'); },
+      })).resolves.toBeDefined();
+      const logged = warn.mock.calls.map((call) => call.join(' ')).join('\n');
+      expect(logged).toContain('NER detection failed');
+      expect(logged).toContain('offsets that do not match');
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   test('stops at the first refusal and records one block per result', async () => {

@@ -286,7 +286,9 @@ async function redactTextBatch(
         }
         nerRan = true;
       }
-    } catch {
+    } catch (error) {
+      // Cabinet mode reports only "unavailable"; this line is the one trace of why.
+      console.warn('[runtime-redaction] NER detection failed:', (error instanceof Error ? error.message : String(error)).slice(0, 300));
       nerRan = false;
     }
     if (options.requireFullDetection && !nerRan) throw new DetectionUnavailableError();
