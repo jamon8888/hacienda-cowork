@@ -212,7 +212,7 @@
     "postcss": "8.5.25",
     "remotion": "4.0.509",
     "shadcn": "3.6.3",
-    "sharp": "0.35.4",
+    "sharp": "0.35.5",
     "supertest": "^7.2.2",
     "tailwindcss": "4.1.18",
     "tsx": "4.20.6",

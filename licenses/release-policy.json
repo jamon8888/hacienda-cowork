@@ -57,6 +57,15 @@
       "licenseText": "licenses/LGPL-3.0.txt",
       "incorporatedLicenseText": "licenses/GPL-3.0.txt",
       "correspondingSource": "https://github.com/lovell/sharp-libvips/tree/v1.3.3"
+    },
+    {
+      "packagePattern": "@img/sharp-libvips-*",
+      "version": "1.3.4",
+      "inventoryLicense": "LGPL-3.0-or-later",
+      "notice": "licenses/sharp-libvips-v1.3.4-THIRD-PARTY-NOTICES.md",
+      "licenseText": "licenses/LGPL-3.0.txt",
+      "incorporatedLicenseText": "licenses/GPL-3.0.txt",
+      "correspondingSource": "https://github.com/lovell/sharp-libvips/tree/v1.3.4"
     }
   ]
 }
