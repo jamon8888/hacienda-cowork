@@ -120,3 +120,27 @@ Raising the encoder's limit in xberg; changes to regex patterns, labels or the
    #46 guide §0 on the `safe/` mirror returns nothing **once Layer 2 is
    pinned**; before that, the dossier is skipped, not leaked.
 8. `pnpm typecheck`, `pnpm run test:unit`, `pnpm run test:vitest` green.
+
+## Measured cutoff (2026-10-07, basemind 0.32.3, model fastino/gliner2-privacy-filter-PII-multi @36126f61)
+
+Measured with `scripts/measure-ner-cutoff.mts` (`require_ner`, one person name,
+binary search to 4 characters, `XBERG_ORT_EP=cpu`, Intel macOS). basemind is the
+binary staged at the pin (`PINNED_VERSION` v0.32.3 in `scripts/download-basemind.mjs`).
+
+| Body | First leaking offset |
+|---|---|
+| fr-dense | 585 |
+| fr-neutral | 831 |
+| en-neutral | 898 |
+
+Window kept at 400 (≤ 70 % of 585 = 409), overlap 100: the plan changes the
+constants only when this ceiling falls below 400, and it does not.
+
+Limits of this measurement: it is a character offset, but the encoder limit is
+in tokens, so text denser in tokens than `fr-dense` (long numbers, e-mail
+addresses, identifiers, non-Latin scripts) would cut earlier than any of these
+bodies, and the 9-character margin between 400 and the ceiling is thin. #66
+measured 558 on a similar dense body; this run gives 585 on a different one.
+One probe (a two-word person name) was used; an NER-only class with longer
+spans (an address) was not measured. Re-run the script, adding a denser body,
+before trusting the window on such text.
