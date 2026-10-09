@@ -59,6 +59,14 @@ describe('engine label palette', () => {
   });
 });
 
+describe('long_number category', () => {
+  test('has a palette colour and its own token label', () => {
+    expect(Object.prototype.hasOwnProperty.call(PII_COLORS, 'long_number')).toBe(true);
+    const { redactedText } = buildRedactedText('CNI 880692310285 ok', detectRegex('CNI 880692310285 ok'));
+    expect(redactedText).toBe('CNI [NUMBER_0] ok');
+  });
+});
+
 describe('findRedactedTokens', () => {
   test('finds stored tokens with document positions', () => {
     const tokens = findRedactedTokens('Contact [EMAIL_0] or [IBAN_1] please');

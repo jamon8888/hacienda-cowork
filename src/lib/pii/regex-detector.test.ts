@@ -41,6 +41,51 @@ describe('detectRegex', () => {
     expect(detectRegex('host 192.168.1.10')[0].category).toBe('ipv4');
   });
 
+  test('detects a whole card, compact or American Express (4-6-5)', () => {
+    // `phone`'s 3-3-4 fallback used to run first and take the leading digits,
+    // leaving the rest of the number in clear.
+    const cards = [
+      '4111111111111111',
+      '5555-5555-5555-4444',
+      '3782 822463 10005',
+      '3782-822463-10005',
+      '378282246310005',
+    ];
+    for (const card of cards) {
+      expect(detectRegex(`carte ${card} expire`).map((d) => [d.category, d.text])).toEqual([
+        ['credit_card', card],
+      ]);
+    }
+  });
+
+  test('keeps a card and a French phone number apart', () => {
+    expect(detectRegex('Tel 06 12 34 56 78 puis 4111 1111 1111 1111').map((d) => d.category))
+      .toEqual(['phone', 'credit_card']);
+  });
+
+  test('detects an IBAN split by no-break spaces or a line break', () => {
+    // French typography and PDF extraction produce these; each used to leave
+    // part of the IBAN in clear (or label its middle as a card).
+    const narrow = 'FR76\u202f1234\u202f5678\u202f9012\u202f3456\u202f7890\u202f104';
+    const nbsp = 'FR76\u00a01234\u00a05678\u00a09012\u00a03456\u00a07890\u00a0104';
+    const wrapped = 'FR76 1234 5678 9012\n  3456 7890 104';
+    for (const iban of [narrow, nbsp, wrapped]) {
+      expect(detectRegex(`IBAN : ${iban}.`).map((d) => [d.category, d.text])).toEqual([
+        ['iban', iban],
+      ]);
+    }
+  });
+
+  test('detects a lowercase IBAN only when its checksum is valid', () => {
+    expect(detectRegex('gb82 west 1234 5698 7654 32').map((d) => [d.category, d.text])).toEqual([
+      ['iban', 'gb82 west 1234 5698 7654 32'],
+    ]);
+    // Ordinary words fit the shape but fail mod-97.
+    expect(detectRegex('en10 mots dans cette phrase')).toEqual([]);
+    // Uppercase keeps matching on shape alone: a mistyped IBAN is still hidden.
+    expect(detectRegex('FR76 1234 5678 9012 3456 7890 105').map((d) => d.category)).toEqual(['iban']);
+  });
+
   test('detects E.164 international numbers (FR +33, US +1)', () => {
     expect(detectRegex('call +33 6 12 34 56 78').map((d) => [d.category, d.text])).toEqual([
       ['phone', '+33 6 12 34 56 78'],
@@ -50,6 +95,101 @@ describe('detectRegex', () => {
     ]);
     // National form still matches via the fallback branch.
     expect(detectRegex('call 0612345678')[0].category).toBe('phone');
+  });
+
+  test('labels a long digit run as a number, not a phone, and masks all of it', () => {
+    // The 3-3-4 phone fallback took ten to thirteen digits and called them a
+    // phone; beyond thirteen it stopped short and left the tail in clear.
+    for (const number of [
+      '880692310285', // 12 digits: ID card, licence
+      '12345678901', // 11 digits: account number
+      '81234567600017', // 14 digits: SIRET
+      '490154203237518', // 15 digits: IMEI
+      '1234567890123456789012', // 22 digits
+    ]) {
+      expect(detectRegex(`n° ${number} fin`).map((d) => [d.category, d.text])).toEqual([
+        ['long_number', number],
+      ]);
+    }
+  });
+
+  test('keeps real phone numbers as phones next to the long-number rule', () => {
+    for (const phone of ['4155550132', '415-555-0132', '+14155550132', '0639981234', '+33 6 39 98 12 34']) {
+      expect(detectRegex(`tel ${phone} merci`).map((d) => [d.category, d.text])).toEqual([
+        ['phone', phone],
+      ]);
+    }
+  });
+
+  test('does not take a long decimal for a phone number or an identifier', () => {
+    // The 3-3-4 fallback matched the first ten digits of these (`3.1415926535`),
+    // and the long-number rule would have masked the fraction.
+    for (const decimal of [
+      '3.14159265358979', '0.1234567890', '12.3456789012', '-122.4194155',
+      '1,2345678901', '2.0.1234567890',
+    ]) {
+      expect(detectRegex(`valeur ${decimal} fin`)).toEqual([]);
+    }
+  });
+
+  test('still detects every US-style phone format after the decimal guard', () => {
+    for (const phone of [
+      '415-555-0132', '(415) 555-0132', '(415)555-0132', '415.555.0132', '415 555 0132',
+      '4155550132', '1-800-555-0199', '1 415 555 0132', '+1 (415) 555-0132', '555-010-0200',
+    ]) {
+      expect(detectRegex(`tel ${phone} merci`).map((d) => [d.category, d.text])).toEqual([
+        ['phone', phone],
+      ]);
+    }
+    // A sentence-final period or a preceding "Tel." is not part of a decimal.
+    expect(detectRegex('(415) 555-0132.').map((d) => d.text)).toEqual(['(415) 555-0132']);
+    expect(detectRegex('Tel.415-555-0132').map((d) => d.text)).toEqual(['415-555-0132']);
+  });
+
+  test('detects a phone number with the trunk zero in parentheses', () => {
+    // The plain E.164 form stops at the `(`, so these used to stay in clear.
+    for (const phone of ['+33 (0)4 65 71 20 45', '+33(0)6 39 98 12 34', '+44 (0)20 7946 0958']) {
+      expect(detectRegex(`tel ${phone} merci`).map((d) => [d.category, d.text])).toEqual([
+        ['phone', phone],
+      ]);
+    }
+  });
+
+  test('detects phone numbers separated by no-break or narrow no-break spaces', () => {
+    // French typography writes numbers this way; only ASCII separators matched.
+    for (const space of ['\u00a0', '\u202f']) {
+      const national = ['06', '39', '98', '12', '34'].join(space);
+      const international = ['+33', '6', '39', '98', '12', '34'].join(space);
+      for (const phone of [national, international]) {
+        expect(detectRegex(`tel ${phone} merci`).map((d) => [d.category, d.text])).toEqual([
+          ['phone', phone],
+        ]);
+      }
+    }
+  });
+
+  test('detects full and compressed IPv6 addresses', () => {
+    for (const address of [
+      '2001:db8:85a3::8a2e:370:7334',
+      '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+      'fe80::1',
+      '2001:db8::ff00:42:8329',
+    ]) {
+      expect(detectRegex(`host ${address}.`).map((d) => [d.category, d.text])).toEqual([
+        ['ipv6', address],
+      ]);
+    }
+    // Brackets and a port are not part of the address.
+    expect(detectRegex('[2001:db8::1]:443').map((d) => d.text)).toEqual(['2001:db8::1']);
+  });
+
+  test('does not take code paths, times or MAC addresses for IPv6', () => {
+    for (const text of [
+      'std::vector', 'Foo::Bar', 'Dead::beef', 'a::b', '::1',
+      'Heure 09:41:00', 'ratio 12:30', 'MAC 00:1a:2b:3c:4d:5e',
+    ]) {
+      expect(detectRegex(text)).toEqual([]);
+    }
   });
 
   test('detects French national numbers written in pairs', () => {

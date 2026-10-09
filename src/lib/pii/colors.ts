@@ -11,6 +11,7 @@ const PII_COLORS: Record<string, { light: string; dark: string; label: string }>
   ip_address:          { light: '#6366f1', dark: '#818cf8', label: 'IP' },
   ipv4:                { light: '#6366f1', dark: '#818cf8', label: 'IP' },
   ipv6:                { light: '#6366f1', dark: '#818cf8', label: 'IP' },
+  long_number:         { light: '#f59e0b', dark: '#fbbf24', label: 'Number' },
   credit_card:         { light: '#f59e0b', dark: '#fbbf24', label: 'Card' },
   iban:                { light: '#ef4444', dark: '#f87171', label: 'IBAN' },
   amount:              { light: '#14b8a6', dark: '#2dd4bf', label: 'Amount' },
