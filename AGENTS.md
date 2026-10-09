@@ -25,7 +25,11 @@ become a second application or owner of canonical client release logic.
   submodule support. Fresh Linux installs also need `libx11-dev libxi-dev
   libxtst-dev libxext-dev libwayland-dev libopenblas-dev` (see the
   `package-smoke` job in `.github/workflows/ci.yml`); the qwen-asr runtime
-  compiles C against OpenBLAS.
+  compiles C against OpenBLAS. `uiohook-napi` adds three more on Linux:
+  `libxrandr-dev libxt-dev libxinerama-dev`, which its `binding.gyp` needs for
+  `-lXrandr -lXt` and its `libuiohook/src/x11` sources need for
+  `X11/extensions/Xinerama.h`. `pnpm install` compiles it, and fails on the
+  missing headers once every dependency is already resolved.
 - First-time setup order matters:
   ```bash
   git submodule update --init --recursive
