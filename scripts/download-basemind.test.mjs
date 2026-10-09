@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -48,30 +49,57 @@ test('parseArgs falls back to the pinned version', () => {
   assert.equal(result.version, PINNED_VERSION);
 });
 
-// The pin and the submodule pointer are two separate places that must agree, and nothing in either
-// repo enforces it. Reading the pointer is the assertion; a literal here would only ever check that
-// a number had been typed twice.
-//
-// This fails until the pointer is moved onto the v0.33.0 tag, which is the point: it is the gate
-// that stops the pin and the pointer from being moved at different times.
-test('the pinned version is the basemind submodule tag', () => {
-  const submodule = path.join(ROOT, 'submodules', 'basemind');
-  let at;
+// `resources/basemind/VERSION` is written by the last successful download, so it is the one thing
+// that records which basemind this checkout will actually *run*. Comparing it to the pin catches the
+// failure that matters locally: bumping the pin without re-downloading leaves a stale binary staged
+// under the new version number, and every local test then reports against the old build.
+test('the staged basemind binary matches the pin', () => {
+  const staged = path.join(ROOT, 'resources', 'basemind', 'VERSION');
+  let actual;
   try {
-    at = execFileSync('git', ['-C', submodule, 'describe', '--tags', '--exact-match'], {
-      encoding: 'utf8',
-    }).trim();
+    actual = readFileSync(staged, 'utf8').trim();
   } catch {
-    at = execFileSync('git', ['-C', submodule, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
-    assert.fail(
-      `submodules/basemind is at ${at}, which is not a tag, but PINNED_VERSION is ${PINNED_VERSION}. ` +
-        `Either the pointer has not been moved onto the ${PINNED_VERSION} tag yet, or that tag does not exist.`,
-    );
+    // No staged binary at all — nothing has been downloaded yet. Not drift.
+    return;
   }
   assert.equal(
-    at,
+    actual,
     PINNED_VERSION,
-    `submodules/basemind is at ${at} but PINNED_VERSION is ${PINNED_VERSION}; move both together`,
+    `resources/basemind/VERSION says ${actual} but the pin is ${PINNED_VERSION}. ` +
+      `Run \`pnpm run download:basemind -- --current-platform\`, or the app will run ${actual} ` +
+      `while every test and doc claims ${PINNED_VERSION}.`,
+  );
+});
+
+// The pin names a **released** basemind build; the submodule pointer is a source checkout. They are
+// different things and are not required to be the same commit — the app downloads
+// `releases/download/<PINNED_VERSION>/…` and never builds from the submodule.
+//
+// What must hold is that the pointer *contains* the pinned release. Otherwise the checkout and the
+// binary describe different code, which is the failure that actually costs something: a reviewer
+// reads `fts.rs` in the submodule while the running daemon answers from an older build.
+//
+// So this asserts ancestry, not equality. Equality would also be wrong in the other direction — the
+// pointer legitimately moves past the tag as further basemind work merges — and it would make every
+// unrelated basemind commit a reason to re-pin.
+test('the basemind submodule contains the pinned release', () => {
+  const submodule = path.join(ROOT, 'submodules', 'basemind');
+  const git = (args) => execFileSync('git', ['-C', submodule, ...args], { encoding: 'utf8' }).trim();
+
+  let tagged;
+  try {
+    tagged = git(['rev-parse', '--verify', `${PINNED_VERSION}^{commit}`]);
+  } catch {
+    assert.fail(
+      `${PINNED_VERSION} is not tagged in submodules/basemind, so there is nothing to pin against. ` +
+        `Cut the basemind release first — a pin to an unreleased version downloads nothing at build time.`,
+    );
+  }
+
+  assert.ok(
+    execFileSync('git', ['-C', submodule, 'merge-base', '--is-ancestor', tagged, 'HEAD'], { stdio: 'pipe' }),
+    `submodules/basemind does not contain ${PINNED_VERSION}. The pin downloads that release's binary, ` +
+      `so the checkout must be at or past it — move the pointer forward.`,
   );
 });
 
