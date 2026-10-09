@@ -245,6 +245,10 @@ const handlers: Record<string, Record<string, HandlerFn>> = {
       const { basemindSearchCode } = await import('../handlers/search');
       return basemindSearchCode(params);
     },
+    searchDocuments: async ([params]: [import('../handlers/search').SearchDocumentsParams]) => {
+      const { basemindSearchDocuments } = await import('../handlers/search');
+      return basemindSearchDocuments(params);
+    },
     getRerankerEnabled: async () => {
       const { getRerankerState } = await import('../handlers/rerankerPreference');
       return getRerankerState();
