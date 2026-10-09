@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
   getPlatformKey,
@@ -9,7 +12,10 @@ import {
   isMissingAssetError,
   PLATFORM_KEYS,
   BASEMIND_PLATFORMS,
+  PINNED_VERSION,
 } from './download-basemind.mjs';
+
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 test('getPlatformKey maps current OS and arch', () => {
   const key = getPlatformKey('darwin', 'arm64');
@@ -37,9 +43,36 @@ test('parseArgs falls back to pinned version', () => {
   assert.ok(result.version.startsWith('v'), 'default version is a tag');
 });
 
-test('pinned version matches the basemind submodule tag (v0.32.3)', () => {
+test('parseArgs falls back to the pinned version', () => {
   const result = parseArgs([]);
-  assert.equal(result.version, 'v0.32.3');
+  assert.equal(result.version, PINNED_VERSION);
+});
+
+// The pin and the submodule pointer are two separate places that must agree, and nothing in either
+// repo enforces it. Reading the pointer is the assertion; a literal here would only ever check that
+// a number had been typed twice.
+//
+// This fails until the pointer is moved onto the v0.33.0 tag, which is the point: it is the gate
+// that stops the pin and the pointer from being moved at different times.
+test('the pinned version is the basemind submodule tag', () => {
+  const submodule = path.join(ROOT, 'submodules', 'basemind');
+  let at;
+  try {
+    at = execFileSync('git', ['-C', submodule, 'describe', '--tags', '--exact-match'], {
+      encoding: 'utf8',
+    }).trim();
+  } catch {
+    at = execFileSync('git', ['-C', submodule, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
+    assert.fail(
+      `submodules/basemind is at ${at}, which is not a tag, but PINNED_VERSION is ${PINNED_VERSION}. ` +
+        `Either the pointer has not been moved onto the ${PINNED_VERSION} tag yet, or that tag does not exist.`,
+    );
+  }
+  assert.equal(
+    at,
+    PINNED_VERSION,
+    `submodules/basemind is at ${at} but PINNED_VERSION is ${PINNED_VERSION}; move both together`,
+  );
 });
 
 test('getPlatformsToDownload returns all keys when no filter', () => {
