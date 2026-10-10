@@ -1,0 +1,61 @@
+{
+  "exclude": [
+    "dist/**",
+    "dist-electron/**",
+    "build/**",
+    "resources/**",
+    "apps/interpreter-extension/**",
+    "submodules/**",
+    "node_modules/**",
+    ".opencode/skills/**",
+    ".opencodereview/**",
+    "**/*.snap",
+    "**/*.md"
+  ],
+  "rules": [
+    {
+      "path": "electron/preload.ts",
+      "rule": "Preload is the only renderer/main boundary. Check that every bridge function passes a narrow, validated argument shape, that no Node primitive (fs, child_process, ipcRenderer) leaks onto `window`, and that the IPC channel names match the ones the main process registers. A widened bridge surface here is a renderer-side sandbox escape."
+    },
+    {
+      "path": "electron/**/*.{ts,tsx}",
+      "rule": "Electron main-process code. Flag: unvalidated IPC payload handling, `shell.openExternal` / `openPath` on non-allowlisted values, path traversal in any file dialog or handler, secrets written to logs or crash reports, and missing `contextIsolation` / `nodeIntegration` hardening on new BrowserWindow or WebContentsView construction."
+    },
+    {
+      "path": "src/ipc.ts",
+      "rule": "This module is the canonical frontend path helper surface. Verify new path handling is routed through the existing helpers rather than open-coding `path.join` with user input. Flag any new absolute-path construction that skips the helpers or bypasses the agent-scoped permission check."
+    },
+    {
+      "path": "server/**/*.ts",
+      "rule": "Main-process HTTP/IPC handlers. Flag unvalidated request bodies, path traversal, missing per-agent file permission enforcement on every tool path (not just the global workspace setting), SSRF in any outbound fetch, and secrets echoed into responses or logs."
+    },
+    {
+      "path": "**/handlers/**/*.{ts,tsx}",
+      "rule": "IPC handler module. Every exported handler must validate its input before use, enforce the effective agent file scope on any path argument, and return a serializable value. Flag handlers that trust client-supplied paths, scopes, or model identifiers."
+    },
+    {
+      "path": "**/*.{ts,tsx}",
+      "rule": "TypeScript / React. Focus on real defects over style: incorrect null handling and unhandled promise rejections, React hook dependency and cleanup bugs, stale closures, unsafe `dangerouslySetInnerHTML` or unsanitized HTML injection, and state updates on unmounted components. Prefer calling out a missing cleanup or a wrong dependency over restating formatting."
+    },
+    {
+      "path": "**/*.{ts,tsx,js,mjs,cjs}",
+      "rule": "JavaScript / TypeScript. Look for prototype-pollution sinks, unvalidated `JSON.parse` of untrusted input, regexes with catastrophic backtracking, TOCTOU races in file operations, and secrets or tokens hardcoded or written to logs."
+    },
+    {
+      "path": "scripts/**/*.{mjs,js,ts,sh}",
+      "rule": "Build or release script. Flag destructive operations without a confirmation or dry-run guard, unpinned or unverified remote downloads (no checksum/signature check), secrets passed on the command line where they land in process listings or CI logs, and anything that would publish or push without explicit authorization."
+    },
+    {
+      "path": "build-electron.mjs",
+      "rule": "Electron packaging entry point. Review for changes that widen what gets bundled or signed, alter signing or publishing behavior, or bypass the license/attribution checks. Any behavior that publishes an artifact must be flagged."
+    },
+    {
+      "path": "**/*.{test,spec}.{ts,tsx}",
+      "rule": "Test file. Only flag a real problem: a test that asserts nothing meaningful, mocks away the very behavior under test, depends on execution order or wall-clock time, or would pass even if the production code were broken."
+    },
+    {
+      "path": "**/*.{json,yaml,yml,toml}",
+      "rule": "Configuration file. Check for committed credentials or tokens, machine-specific absolute paths, and dependency version ranges that would silently resolve to a different minor than intended."
+    }
+  ]
+}
