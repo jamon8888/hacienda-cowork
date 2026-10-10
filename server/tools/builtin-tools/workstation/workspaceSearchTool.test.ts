@@ -12,16 +12,31 @@ import { join } from 'node:path';
 let daemonRunning = true;
 let searchHits: Array<Record<string, unknown>> = [];
 let searchQuery = '';
+let searchLane: string | undefined;
+let searchLimit: number | undefined;
 let accessAllowed = true;
 
 mock.module('../../../handlers/search', () => ({
-  basemindSearchCode: async (params: { query: string }) => {
+  basemindSearchCode: async (params: { query: string; lane?: string; limit?: number }) => {
     searchQuery = params.query;
+    searchLane = params.lane;
+    searchLimit = params.limit;
     return {
       query: params.query,
       budgeted: false,
       hits: searchHits,
       degradedLanes: [],
+      elapsedUs: 1500,
+    };
+  },
+  basemindSearchDocuments: async (params: { query: string; limit?: number }) => {
+    searchQuery = params.query;
+    searchLimit = params.limit;
+    // No `degradedLanes`: `SearchDocumentsResponse` has no such field.
+    return {
+      query: params.query,
+      budgeted: false,
+      hits: searchHits,
       elapsedUs: 1500,
     };
   },
@@ -43,7 +58,13 @@ afterEach(() => {
   daemonRunning = true;
   searchHits = [];
   searchQuery = '';
+  searchLane = undefined;
+  searchLimit = undefined;
   accessAllowed = true;
+  // Reset the permissions mock that may have been overridden by a previous test
+  mock.module('../../../utils/permissions', () => ({
+    checkFileAccessPermissionAsync: async () => accessAllowed,
+  }));
 });
 
 describe('workspaceSearchTool', () => {
@@ -129,5 +150,155 @@ describe('workspaceSearchTool', () => {
     } finally {
       rmSync(workspace, { recursive: true, force: true });
     }
+  });
+
+  test('documents tier searches the documents store and renders byte spans', async () => {
+    searchHits = [
+      {
+        path: 'safe/contract.pdf.md',
+        chunkIdx: 0,
+        text: 'Contract text',
+        mimeType: 'application/pdf',
+        byteStart: 0,
+        byteEnd: 100,
+        distance: 0.15,
+        rerankScore: 0.92,
+      },
+    ];
+    const { workspaceSearchTool } = await loadTool();
+    const result = await workspaceSearchTool.handler({ query: 'contract', tier: 'documents', limit: 5 });
+    expect(result.isError).toBe(false);
+    const text = String(result.content[0]?.text);
+    expect(text).toContain('safe/contract.pdf.md#0-100');
+    expect(text).toContain('mime: application/pdf');
+    expect(text).toContain('rerank: 0.920');
+    expect(searchQuery).toBe('contract');
+    expect(searchLimit).toBe(5);
+  });
+
+  test('documents tier never renders the code-tier line range', async () => {
+    // A document hit carries no line numbers; printing `:1-2` for one would send
+    // the agent to read at coordinates that do not exist in its mirror.
+    searchHits = [
+      {
+        path: 'safe/report.pdf.md',
+        chunkIdx: 3,
+        text: 'Report text',
+        mimeType: 'application/pdf',
+        byteStart: 120,
+        byteEnd: 400,
+      },
+    ];
+    const { workspaceSearchTool } = await loadTool();
+    const result = await workspaceSearchTool.handler({ query: 'report', tier: 'documents' });
+    const text = String(result.content[0]?.text);
+    expect(text).toContain('safe/report.pdf.md#120-400');
+    expect(text).not.toContain('symbol:');
+    expect(text).not.toContain('lang:');
+  });
+
+  test('lane reaches the code tier but is not offered as a documents concept', async () => {
+    const { workspaceSearchTool } = await loadTool();
+    searchHits = [{ path: 'src/a.ts', chunkId: 'c', symbol: 'f', kind: 'func', lang: 'ts', lineStart: 1, lineEnd: 2, byteStart: 0, byteEnd: 4 }];
+    await workspaceSearchTool.handler({ query: 'x', tier: 'code', lane: 'keyword' });
+    expect(searchLane).toBe('keyword');
+
+    // `exact` is not a lane basemind's documents tier has, so it is not in the enum.
+    expect((workspaceSearchTool.inputSchema.properties as Record<string, { enum?: string[] }>).lane.enum).toEqual([
+      'semantic',
+      'keyword',
+      'hybrid',
+    ]);
+  });
+
+  test('documents tier filters hits to Safe workspace mirrors', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'search-safe-doc-'));
+    try {
+      mkdirSync(join(workspace, 'safe'));
+      searchHits = [
+        {
+          path: 'safe/report.pdf.md',
+          chunkIdx: 0,
+          text: 'Report',
+          mimeType: 'application/pdf',
+          byteStart: 0,
+          byteEnd: 50,
+        },
+        {
+          path: 'external.docx',
+          chunkIdx: 0,
+          text: 'External',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          byteStart: 0,
+          byteEnd: 50,
+        },
+      ];
+      const { workspaceSearchTool } = await loadTool();
+      const result = await workspaceSearchTool.handler({ query: 'x', tier: 'documents' }, { workspace } as never);
+      const text = String(result.content[0]?.text);
+      expect(text).toContain('safe/report.pdf.md');
+      expect(text).not.toContain('external.docx');
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
+  test('documents tier filters by agent scope when context.agentId is set', async () => {
+    searchHits = [
+      {
+        path: 'safe/allowed.pdf.md',
+        chunkIdx: 0,
+        text: 'Allowed',
+        mimeType: 'application/pdf',
+        byteStart: 0,
+        byteEnd: 50,
+      },
+      {
+        path: 'safe/denied.pdf.md',
+        chunkIdx: 0,
+        text: 'Denied',
+        mimeType: 'application/pdf',
+        byteStart: 0,
+        byteEnd: 50,
+      },
+    ];
+    mock.module('../../../utils/permissions', () => ({
+      checkFileAccessPermissionAsync: async (_id: string, filePath: string) => filePath.endsWith('allowed.pdf.md'),
+    }));
+    const { workspaceSearchTool } = await loadTool();
+    const result = await workspaceSearchTool.handler(
+      { query: 'x', tier: 'documents' },
+      { agentId: 'agent-scoped', workspace: null } as never,
+    );
+    expect(result.isError).toBe(false);
+    const text = String(result.content[0]?.text);
+    expect(text).toContain('safe/allowed.pdf.md');
+    expect(text).not.toContain('safe/denied.pdf.md');
+  });
+
+  test('code tier still works with tier: code (default)', async () => {
+    searchHits = [
+      {
+        path: 'src/main.ts',
+        chunkId: 'c1',
+        symbol: 'main',
+        kind: 'func',
+        lang: 'ts',
+        lineStart: 10,
+        lineEnd: 20,
+        byteStart: 0,
+        byteEnd: 100,
+        matchedLanes: ['vector'],
+        score: 0.9,
+      },
+    ];
+    const { workspaceSearchTool } = await loadTool();
+    const result = await workspaceSearchTool.handler({ query: 'main', tier: 'code' });
+    expect(result.isError).toBe(false);
+    const text = String(result.content[0]?.text);
+    expect(text).toContain('src/main.ts:10–20');
+    expect(text).toContain('symbol: main');
+    expect(text).toContain('kind: func');
+    expect(text).toContain('lang: ts');
   });
 });

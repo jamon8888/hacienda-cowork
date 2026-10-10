@@ -22,7 +22,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 const BASEMIND_DIR = path.join(ROOT, 'resources', 'basemind');
 const BASEMIND_REPO = 'jamon8888/basemind';
-const PINNED_VERSION = 'v0.32.3';
+// Exported so `download-basemind.test.mjs` can assert against it instead of repeating the
+// literal. The test used to hardcode `v0.32.3` in two places, which made every version bump a
+// two-file edit where forgetting the test fails the build for a reason that has nothing to do with
+// downloads. A duplicated version constant is a version constant that will drift.
+export const PINNED_VERSION = 'v0.33.0';
 
 // The checksum file carries the bare version, not the tag: v0.29.0 ships
 // basemind_0.29.0_checksums.txt.

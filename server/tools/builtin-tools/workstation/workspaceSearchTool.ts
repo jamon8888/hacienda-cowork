@@ -6,7 +6,12 @@
  */
 
 import type { BuiltinToolDefinition } from '../../builtinTools';
-import { basemindSearchCode, type SearchHit } from '../../../handlers/search';
+import {
+  basemindSearchCode,
+  basemindSearchDocuments,
+  type SearchHit,
+  type DocumentSearchHit,
+} from '../../../handlers/search';
 import { isDaemonRunning } from '../../../utils/basemindManager';
 import { checkFileAccessPermissionAsync } from '../../../utils/permissions';
 import { getCurrentWorkspace } from '../../../utils/workspace';
@@ -36,11 +41,11 @@ export function keepMirrorHitsInSafeWorkspace<T extends { path: string }>(
   return hits.filter((hit) => isInsideSafeMirror(safeWorkspace, hit.path));
 }
 
-async function filterHitsByAgentScope(
-  hits: SearchHit[],
+async function filterHitsByAgentScope<T extends { path: string }>(
+  hits: T[],
   agentId: string | undefined,
   workspace: string | null,
-): Promise<SearchHit[]> {
+): Promise<T[]> {
   if (!agentId) return hits;
   const accessible = await Promise.all(
     hits.map((hit) => checkFileAccessPermissionAsync(agentId, hit.path, 'read', workspace)),
@@ -63,10 +68,18 @@ export const workspaceSearchTool: BuiltinToolDefinition = {
         type: 'number',
         description: 'Maximum number of hits to return (default: 10).',
       },
+      tier: {
+        type: 'string',
+        enum: ['code', 'documents'],
+        description:
+          'Search tier. "code" searches the code graph (default). "documents" searches the documents store (PDFs, Office files, HTML, safe/ mirrors).',
+        default: 'code',
+      },
       lane: {
         type: 'string',
         enum: ['semantic', 'keyword', 'hybrid'],
-        description: 'Search lane. "hybrid" combines BM25 + vector + reranker (default). "semantic" is vector-only. "keyword" is BM25-only.',
+        description:
+          'Retrieval lane, code tier only. "hybrid" combines BM25 + vector + reranker (default). "semantic" is vector-only. "keyword" is BM25-only. The documents tier picks its own lane from the workspace index configuration and ignores this argument.',
       },
     },
     required: ['query'],
@@ -100,52 +113,89 @@ export const workspaceSearchTool: BuiltinToolDefinition = {
     }
 
     try {
-      const result = await basemindSearchCode({
-        query,
-        limit: typeof args.limit === 'number' ? args.limit : 10,
-        lane: typeof args.lane === 'string' ? args.lane : 'hybrid',
-      });
-
+      const tier = args.tier === 'documents' ? 'documents' : 'code';
       const workspace = context?.workspace ?? getCurrentWorkspace();
-      const hits = await filterHitsByAgentScope(
-        keepMirrorHitsInSafeWorkspace(result.hits, workspace),
-        context?.agentId,
-        workspace,
-      );
+
+      // The two tiers return different hit shapes and different lane vocabularies,
+      // so they are queried and rendered separately rather than merged into one
+      // union. `lane` reaches basemind's code tier only; the documents tier has no
+      // `lane` field (see `basemindSearchDocuments`).
+      let hits: Array<SearchHit | DocumentSearchHit>;
+      let elapsedUs: number;
+      let resultQuery: string;
+      let degraded = '';
+
+      if (tier === 'documents') {
+        const result = await basemindSearchDocuments({
+          query,
+          limit: typeof args.limit === 'number' ? args.limit : 10,
+        });
+        hits = result.hits;
+        elapsedUs = result.elapsedUs;
+        resultQuery = result.query;
+      } else {
+        const result = await basemindSearchCode({
+          query,
+          limit: typeof args.limit === 'number' ? args.limit : 10,
+          lane: args.lane || 'hybrid',
+        });
+        hits = result.hits;
+        elapsedUs = result.elapsedUs;
+        resultQuery = result.query;
+        if (result.degradedLanes.length > 0) {
+          degraded = `\nDegraded lanes: ${result.degradedLanes.join(', ')}${
+            result.degradedReason ? ` (${result.degradedReason})` : ''
+          }`;
+        }
+      }
+
+      // Both post-filters key on `hit.path`, so a tier change does not widen what
+      // the agent can read: in a Safe workspace only `safe/` mirror hits survive.
+      hits = keepMirrorHitsInSafeWorkspace(hits, workspace);
+      hits = await filterHitsByAgentScope(hits, context?.agentId, workspace);
 
       if (hits.length === 0) {
         return {
           content: [
             {
               type: 'text',
-              text: `No results for "${result.query}". Try a different query or lane.`,
+              text: `No results for "${resultQuery}". Try a different query or lane.`,
             },
           ],
           isError: false,
         };
       }
 
+      // A document hit has no symbol, kind, language or line range — those are
+      // code-tier columns. It is addressed by its byte span instead, which is
+      // what `safe/` mirror prose needs.
       const lines = hits.map((hit, i) => {
+        if (tier === 'documents') {
+          const docHit = hit as DocumentSearchHit;
+          const parts = [
+            `[${i + 1}] ${docHit.path}#${docHit.byteStart}-${docHit.byteEnd}`,
+            docHit.mimeType && `mime: ${docHit.mimeType}`,
+            docHit.rerankScore !== undefined && `rerank: ${docHit.rerankScore.toFixed(3)}`,
+          ].filter(Boolean);
+          return parts.join(' | ');
+        }
+        const codeHit = hit as SearchHit;
         const parts = [
-          `[${i + 1}] ${hit.path}:${hit.lineStart}–${hit.lineEnd}`,
-          hit.symbol && `symbol: ${hit.symbol}`,
-          hit.kind && `kind: ${hit.kind}`,
-          hit.lang && `lang: ${hit.lang}`,
-          hit.score !== undefined && `score: ${hit.score.toFixed(3)}`,
-          hit.rerankScore !== undefined && `rerank: ${hit.rerankScore.toFixed(3)}`,
+          `[${i + 1}] ${codeHit.path}:${codeHit.lineStart}–${codeHit.lineEnd}`,
+          codeHit.symbol && `symbol: ${codeHit.symbol}`,
+          codeHit.kind && `kind: ${codeHit.kind}`,
+          codeHit.lang && `lang: ${codeHit.lang}`,
+          codeHit.score !== undefined && `score: ${codeHit.score.toFixed(3)}`,
+          codeHit.rerankScore !== undefined && `rerank: ${codeHit.rerankScore.toFixed(3)}`,
         ].filter(Boolean);
         return parts.join(' | ');
       });
-
-      const degraded = result.degradedLanes.length > 0
-        ? `\nDegraded lanes: ${result.degradedLanes.join(', ')}${result.degradedReason ? ` (${result.degradedReason})` : ''}`
-        : '';
 
       return {
         content: [
           {
             type: 'text',
-            text: `${hits.length} hit${hits.length === 1 ? '' : 's'} for "${result.query}" (${(result.elapsedUs / 1000).toFixed(0)}ms):\n${lines.join('\n')}${degraded}`,
+            text: `${hits.length} hit${hits.length === 1 ? '' : 's'} for "${resultQuery}" (${(elapsedUs / 1000).toFixed(0)}ms):\n${lines.join('\n')}${degraded}`,
           },
         ],
         isError: false,

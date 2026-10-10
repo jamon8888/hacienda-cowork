@@ -28,6 +28,11 @@ jobs:
         with:
           submodules: recursive
           token: ${{ github.token }}
+      # scripts/download-basemind.test.mjs asserts the submodule *contains* the
+      # pinned release via `rev-parse --verify <pin>^{commit}`. A shallow
+      # submodule checkout has no tag refs, so fetch them before the tests.
+      - name: Fetch basemind release tags for the pin-ancestry contract
+        run: git -C submodules/basemind fetch --tags --depth 1 origin
       - uses: pnpm/action-setup@v6
         with:
           version: 9.15.9
