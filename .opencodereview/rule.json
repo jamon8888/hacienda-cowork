@@ -1,61 +1,78 @@
 {
   "exclude": [
-    "dist/**",
-    "dist-electron/**",
-    "build/**",
-    "resources/**",
-    "apps/interpreter-extension/**",
-    "submodules/**",
+    "target/**",
     "node_modules/**",
-    ".opencode/skills/**",
+    "dist/**",
+    "website/**",
+    "Cargo.lock",
+    "CHANGELOG.md",
     ".opencodereview/**",
-    "**/*.snap",
-    "**/*.md"
+    "docs/**"
   ],
   "rules": [
     {
-      "path": "electron/preload.ts",
-      "rule": "Preload is the only renderer/main boundary. Check that every bridge function passes a narrow, validated argument shape, that no Node primitive (fs, child_process, ipcRenderer) leaks onto `window`, and that the IPC channel names match the ones the main process registers. A widened bridge surface here is a renderer-side sandbox escape."
+      "path": "src/pii.rs",
+      "rule": "PII detection and redaction module. Flag any redaction path that can fail open — a match that is detected but not actually redacted downstream is worse than no detection. Check that all PII categories are covered consistently and that the redacted output cannot leak the original span through an error, log, or partial-write path."
     },
     {
-      "path": "electron/**/*.{ts,tsx}",
-      "rule": "Electron main-process code. Flag: unvalidated IPC payload handling, `shell.openExternal` / `openPath` on non-allowlisted values, path traversal in any file dialog or handler, secrets written to logs or crash reports, and missing `contextIsolation` / `nodeIntegration` hardening on new BrowserWindow or WebContentsView construction."
+      "path": "src/pii/**/*.rs",
+      "rule": "PII sub-module. Same fail-open concern as src/pii.rs. Flag incomplete pattern coverage, unbounded regex backtracking on attacker-controlled text, and any early return that skips redaction."
     },
     {
-      "path": "src/ipc.ts",
-      "rule": "This module is the canonical frontend path helper surface. Verify new path handling is routed through the existing helpers rather than open-coding `path.join` with user input. Flag any new absolute-path construction that skips the helpers or bypasses the agent-scoped permission check."
+      "path": "src/comms/**/*.rs",
+      "rule": "Inter-process / daemon communication. Treat as a trust boundary. Flag unauthenticated message handling, missing length or size limits on received payloads, deserialization of untrusted input, and any command reachable over the socket without authorization checks."
     },
     {
-      "path": "server/**/*.ts",
-      "rule": "Main-process HTTP/IPC handlers. Flag unvalidated request bodies, path traversal, missing per-agent file permission enforcement on every tool path (not just the global workspace setting), SSRF in any outbound fetch, and secrets echoed into responses or logs."
+      "path": "src/stdio_relay.rs",
+      "rule": "Stdio relay forwards data between processes. Check for unbounded buffering, missing flush/error propagation that could hang a caller, and any path where malformed input is forwarded downstream instead of being rejected."
     },
     {
-      "path": "**/handlers/**/*.{ts,tsx}",
-      "rule": "IPC handler module. Every exported handler must validate its input before use, enforce the effective agent file scope on any path argument, and return a serializable value. Flag handlers that trust client-supplied paths, scopes, or model identifiers."
+      "path": "src/mcp/**/*.rs",
+      "rule": "MCP bridging. This runs third-party tool servers. Flag: command execution derived from untrusted server responses, missing timeouts on outbound tool calls, environment or credential leakage into the child process, and error messages that echo raw secrets or file contents back to the model."
     },
     {
-      "path": "**/*.{ts,tsx}",
-      "rule": "TypeScript / React. Focus on real defects over style: incorrect null handling and unhandled promise rejections, React hook dependency and cleanup bugs, stale closures, unsafe `dangerouslySetInnerHTML` or unsanitized HTML injection, and state updates on unmounted components. Prefer calling out a missing cleanup or a wrong dependency over restating formatting."
+      "path": "src/shells/**/*.rs",
+      "rule": "Shell integration. Flag command construction via string interpolation of untrusted input, missing argument quoting, and operations that could escape an intended working directory. Any `sh -c` equivalent must be scrutinized."
     },
     {
-      "path": "**/*.{ts,tsx,js,mjs,cjs}",
-      "rule": "JavaScript / TypeScript. Look for prototype-pollution sinks, unvalidated `JSON.parse` of untrusted input, regexes with catastrophic backtracking, TOCTOU races in file operations, and secrets or tokens hardcoded or written to logs."
+      "path": "src/store*.rs",
+      "rule": "Storage layer. Look for data-loss or corruption bugs: incorrect assumptions about lock ordering, missing fsync or atomic-rename before a file is treated as durable, unbounded caches, and error paths that leave an index inconsistent with the underlying store."
     },
     {
-      "path": "scripts/**/*.{mjs,js,ts,sh}",
-      "rule": "Build or release script. Flag destructive operations without a confirmation or dry-run guard, unpinned or unverified remote downloads (no checksum/signature check), secrets passed on the command line where they land in process listings or CI logs, and anything that would publish or push without explicit authorization."
+      "path": "src/git/**/*.rs",
+      "rule": "Git operations. Flag use of shell interpolation with user-supplied refs or paths (argument-injection into git), missing `--` separators before user paths, and assumptions about repository state that race with concurrent git operations."
     },
     {
-      "path": "build-electron.mjs",
-      "rule": "Electron packaging entry point. Review for changes that widen what gets bundled or signed, alter signing or publishing behavior, or bypass the license/attribution checks. Any behavior that publishes an artifact must be flagged."
+      "path": "src/config/**/*.rs",
+      "rule": "Configuration parsing. Flag panics or unwraps on malformed user config, silent fallback to an insecure default when a security-relevant field is invalid, and deserialization that would accept unexpected types."
     },
     {
-      "path": "**/*.{test,spec}.{ts,tsx}",
-      "rule": "Test file. Only flag a real problem: a test that asserts nothing meaningful, mocks away the very behavior under test, depends on execution order or wall-clock time, or would pass even if the production code were broken."
+      "path": "src/**/*.rs",
+      "rule": "Rust. Focus on correctness and safety over style: unwrap/expect/panic on paths reachable from untrusted input or missing files, indexing that can go out of bounds, integer overflow in size or offset arithmetic, holding a lock across an `.await` or blocking call (deadlock), and incorrect use of interior mutability without a lock. Do not report formatting or missing docs."
     },
     {
-      "path": "**/*.{json,yaml,yml,toml}",
-      "rule": "Configuration file. Check for committed credentials or tokens, machine-specific absolute paths, and dependency version ranges that would silently resolve to a different minor than intended."
+      "path": "crates/**/*.rs",
+      "rule": "Rust crate. Same correctness focus as src/**/*.rs. For agent/IPC crates, additionally flag trust-boundary issues: missing validation on messages crossing a process boundary, and credentials or user content written to logs or telemetry."
+    },
+    {
+      "path": "opencode-plugin/**/*.js",
+      "rule": "OpenCode plugin. Flag credential or API key handling, unvalidated IPC messages between the plugin and the host, and any path where user content is interpolated into a shell command or an HTML/terminal-rendered string without escaping."
+    },
+    {
+      "path": "**/*.{js,mjs,cjs,ts}",
+      "rule": "JavaScript / TypeScript. Look for prototype-pollution sinks, unvalidated `JSON.parse` of untrusted input, command execution built by string concatenation, secrets hardcoded or logged, and child processes spawned without `shell: false` or with inherited stdio where it leaks input."
+    },
+    {
+      "path": "pip-package/**/*.py",
+      "rule": "Python packaging module. Flag unpinned or unverified remote downloads, setup-time command execution from package metadata, and missing integrity verification on fetched artifacts."
+    },
+    {
+      "path": "**/*.rs",
+      "rule": "Rust. Prioritize defects that affect correctness, data integrity, or security. Explicitly skip formatting, naming, and documentation-only suggestions."
+    },
+    {
+      "path": "**/Cargo.toml",
+      "rule": "Manifest change. Flag newly added dependencies that duplicate an existing capability, version requirements that could resolve to an unexpected breaking release, and build scripts or features that would execute code at compile time."
     }
   ]
 }
