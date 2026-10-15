@@ -1253,6 +1253,46 @@ describe('ToolManager MCP integration', () => {
     });
   });
 
+  test('callTool runs appInternal MCP calls without prompting under prompt approval mode', async () => {
+    setConfigOverride({
+      agents: {},
+      cabinetModeEnabled: false,
+      mcpServers: {
+        'test-mcp': {
+          id: 'test-mcp',
+          name: 'test-mcp',
+          transport: 'http',
+          url: 'https://mcp.example.com',
+          enabled: true,
+          createdAt: 1,
+          defaultToolsApprovalMode: 'prompt',
+        },
+      },
+    } as any);
+    const manager = new ToolManager();
+
+    // Mirrors basemindManager.mcpRequest: no caller tab, thread-bound,
+    // appInternal — the searchDocuments shape that blocked forever in
+    // createSessionAwareApproval because nothing could answer the prompt.
+    const result = await manager.callTool(
+      'test-mcp',
+      'do_thing',
+      { answer: 42 },
+      undefined,
+      undefined,
+      { threadId: 'thr-app-internal-1' },
+      undefined,
+      { appInternal: true },
+    );
+
+    expect(approvalManager.getApprovals()).toEqual([]);
+    expect(mockCallTool).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      content: [{ type: 'text', text: 'runtime tool result' }],
+      isError: false,
+    });
+  });
+
   test('callTool creates MCP approvals owned by the current window/workspace scope', async () => {
     const manager = new ToolManager();
 

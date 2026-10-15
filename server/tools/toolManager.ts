@@ -1134,7 +1134,14 @@ export class ToolManager {
 
     const approvalToolName = prefixToolName(serverId, toolName);
     const approvalMode = await this.resolveMcpToolApprovalMode(serverId, toolName);
-    const needsApproval = approvalMode !== 'auto';
+    // An `appInternal` caller is server plumbing (basemind search/scan
+    // handlers), never a model turn: no tab, no sidebar, nothing that can
+    // answer a prompt. A prompt-mode tool would sit in
+    // createSessionAwareApproval forever — this is what made
+    // `search.searchDocuments` hang on the `memory` tool while `code`
+    // (auto-approved) answered. Run it like the auto mode; model callers
+    // keep the configured gate.
+    const needsApproval = approvalMode !== 'auto' && !options?.appInternal;
 
     /**
      * NOTE(interpreter-cli-mcp): This is the approval gate for app-managed MCP tools.
